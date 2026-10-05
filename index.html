@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#121f30">
+<title>WOS Toolbox — 集結を、読み解く。</title>
+<link rel="stylesheet" href="./assets/app.css">
+<script src="./assets/data.js" defer></script>
+<script src="./assets/core.js" defer></script>
+<script src="./assets/app.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">本文へ移動</a>
+<button id="scrim" class="scrim" aria-label="メニューを閉じる" hidden></button>
+<aside class="sidebar" id="sidebar" aria-label="機能メニュー">
+  <a class="brand" href="#joiners"><span class="brand-mark">W</span><span>WOS <b>TOOLBOX</b><small>ALLIANCE FIELD NOTES</small></span></a>
+  <div class="nav-label">WORKSPACE</div>
+  <nav id="navigation"></nav>
+  <div class="sidebar-note"><span class="status-dot"></span> ALLIANCE HUB<p>スマホでも、PCでも。<br>同盟のツールをひとつに。</p></div>
+  <div class="sidebar-foot"><span>非公式・試作版</span><b>GEN 01 — 08</b><small>DATA CHECK / 2026.10.04</small></div>
+</aside>
+<div class="workspace">
+ <header class="topbar"><div class="breadcrumb"><button id="menu-toggle" class="icon-button mobile-only" aria-label="機能メニューを開く" aria-controls="sidebar" aria-expanded="false">☰</button><span>ALLIANCE HUB</span><span class="slash">/</span><strong id="breadcrumb-current">乗り手選定</strong></div><span class="version"><i></i> PREVIEW 03</span></header>
+ <main id="main" tabindex="-1">
+  <div class="page-heading"><div><p class="eyebrow" id="page-eyebrow">RALLY WORKSPACE</p><h1 id="page-title">集結を、読み解く。</h1><p class="subheading" id="page-subtitle">集結主の効果を見ながら、乗り手の役割を選ぶ。</p></div><button class="quiet-button" id="reset-settings">選択をリセット</button></div>
+  <section id="view-joiners" class="view">
+   <details class="formula panel"><summary><span class="summary-icon">ƒ</span><span><strong>スキルバフの計算式と、枠の見方</strong><small>公式の一般則と、未確定の計算処理を分けて確認</small></span><span class="summary-end">開く / 閉じる</span></summary><div class="details-body" id="formula-content"></div></details>
+   <div class="setup-grid">
+    <section class="panel lineup-panel"><div class="section-label"><span class="step">01</span><h2>集結主を選ぶ</h2><label class="generation-label">サーバー世代 <select id="generation" aria-label="サーバー世代"></select></label></div><div id="leader-pickers" class="leader-grid"></div><div class="leader-foot"><span>主は全遠征スキルで判定</span><button id="load-example" class="text-button">Gen 7の編成例を入れる ↗</button></div></section>
+    <section class="panel intent-panel"><div class="section-label"><span class="step">02</span><h2>目的を選ぶ</h2></div><div class="segmented" id="purpose-buttons" role="group" aria-label="用途"><button data-purpose="attack" class="active" aria-pressed="true">攻撃集結</button><button data-purpose="defense" aria-pressed="false">駐屯防衛</button></div><p id="purpose-hint">PvPの公開本文から役割を比較。最適順位・個別重複式は未確定です。</p></section>
+   </div>
+   <section class="panel frame-panel"><div class="section-label"><h2>集結主の効果分類</h2><span class="legend"><i></i> 主が使用中</span><span id="leader-count" class="muted"></span></div><div id="frame-board" class="frame-board"></div><p class="caption">色付き＝同じ分類。効果の無効・非スタックを意味しません。枠を押すと候補を絞り込めます。</p></section>
+   <section class="panel shortlist-panel"><div class="section-label"><h2>乗り手候補を比較</h2><span class="muted">最大4枠 · 別参加者の同英雄も比較可</span><button id="clear-joiners" class="text-button">クリア</button></div><div id="joiner-pickers" class="joiner-grid"></div><div id="comparison-notes" class="comparison-notes" aria-live="polite"></div></section>
+   <div class="catalog-heading"><div><p class="eyebrow">EXPEDITION SKILLS</p><h2>乗り手候補 <span id="result-count" class="count"></span></h2></div><div class="segmented" id="mode-buttons" role="group" aria-label="スキル表示"><button data-mode="primary" class="active" aria-pressed="true">⭐ 第1のみ</button><button data-mode="all" aria-pressed="false">全スキル</button></div></div>
+   <div class="filter-bar"><label class="search"><span>⌕</span><input id="search" type="search" placeholder="英雄名・効果で検索" aria-label="英雄名・効果で検索"></label><select id="troop-filter" aria-label="兵種"><option value="all">すべての兵種</option><option value="infantry">盾兵</option><option value="lancer">槍兵</option><option value="marksman">弓兵</option></select><select id="trigger-filter" aria-label="発動タイプ"><option value="all">すべての発動タイプ</option><option value="constant">常時</option><option value="probability">確率発動</option><option value="periodic">周期発動</option><option value="conditional">条件発動</option><option value="accumulating">累積</option><option value="decaying">回数・減衰</option><option value="on_attack">攻撃時</option><option value="utility">内政・行軍</option></select><button id="clear-filters" class="quiet-button">絞り込み解除</button></div>
+   <div id="active-filter" class="active-filter" hidden></div><div id="hero-grid" class="hero-grid" aria-live="polite"></div>
+  </section>
+  <section id="view-library" class="view" hidden><div class="panel info-banner">全33英雄・91スキル。名前を開くと、全スキル・発動条件・分類根拠を確認できます。乗り手として有効なのは⭐第1のみ。</div><div class="filter-bar"><label class="search"><span>⌕</span><input id="library-search" type="search" placeholder="図鑑の英雄を検索" aria-label="図鑑の英雄を検索"></label><label class="inline-label">第 <select id="library-generation" aria-label="図鑑の世代"></select> 世代まで</label></div><div id="library-grid" class="library-grid"></div></section>
+  <section id="view-battle" class="view" hidden>
+   <div class="panel info-banner"><strong>公式確認：両軍の攻撃は同じターンに処理。</strong> このアニメーションは「対象選択 → 双方の攻撃 → 損害反映」を分けて見せる教材です。兵種の攻撃速度順や実ゲームのダメージ量を再現するシミュレーターではありません。</div>
+   <section class="panel battle-panel"><div class="section-label"><h2>1ターンを分解して見る</h2><span id="turn-number" class="tag">TURN 01</span><span class="tag amber">説明用の仮定数値</span></div><div class="battle-phases" id="battle-phases"></div><div id="battle-field" class="battle-field"></div><p id="battle-status" class="battle-status" aria-live="polite"></p><div class="battle-controls"><button id="battle-next" class="primary-button">次のステップ →</button><button id="battle-play" class="quiet-button" aria-pressed="false">自動再生</button><button id="battle-reset" class="text-button">最初から</button><label>速さ <select id="battle-speed"><option value="1800">ゆっくり</option><option value="1000">ふつう</option><option value="500">はやい</option></select></label></div><details class="battle-settings"><summary>兵数と説明用ダメージを変更</summary><div id="battle-inputs"></div><p class="caption">兵数0〜1,500。各兵種は自身の残存兵数×指定率（端数切上げ）を、ターン開始時に決めた敵先頭へ与える仮定です。相性・英雄・兵士スキルは含めません。</p><label>説明用ダメージ率 <input id="battle-rate" type="number" min="1" max="100" value="12"> %</label><button id="battle-apply" class="quiet-button">反映してリセット</button></details></section>
+   <div class="reading-grid"><article class="panel reading-card"><span class="eyebrow">01 / TARGETING</span><h2>基本は前列から</h2><p>盾 → 槍 → 弓の順に配置され、通常は前列が攻撃対象になります。槍兵の特性や英雄スキルによる後列攻撃・全体攻撃は例外です。</p></article><article class="panel reading-card"><span class="eyebrow">02 / SIMULTANEOUS</span><h2>先に消えても、攻撃は残る</h2><p>両軍は同じターンで攻撃し、その損害を集計します。この教材では同じ開始状態から双方の損害を計算し、同時に差し引きます。</p></article><article class="panel reading-card"><span class="eyebrow">03 / SKILL TIMING</span><h2>「回」と「ターン」を区別</h2><p>ウェイン①は4ターンごと、ゴードン①は槍兵2回攻撃ごと。攻撃休止や固有効果があるので、すべてを同じ周期に置き換えません。</p></article></div><p class="caption" id="battle-source"></p>
+  </section>
+  <section id="view-svs" class="view embedded-view" hidden><div class="embed-loading">SvS補助ツールを読み込み中…</div></section>
+  <section id="view-forms" class="view embedded-view" hidden><div class="embed-loading">申請フォーム一覧を読み込み中…</div></section>
+  <section id="view-sources" class="view" hidden><div class="panel research-intro"><p class="eyebrow">EVIDENCE &amp; LIMITATIONS</p><h2>公式一般則・本文・経験談・推論を分ける。</h2><p>再監査：2026年10月4日。33英雄91スキル。公開資料を照合しましたが、実機のPvP実験は行っていません。サイト数を独立検証の件数と数えず、個別のスタック可否・最適順位は断定しません。</p><div class="evidence-levels"><span class="tag good">公式：一般則</span><span class="tag">スキル本文</span><span class="tag amber">経験談・推論</span></div></div><div id="evidence-policy" class="panel reading-card"></div><div id="source-list" class="source-list"></div><section class="panel reading-card"><h2>重要な訂正・留保</h2><ul><li>乗り手選定はPvP専用。熊モデルの係数・除外フラグ・推薦を撤回。</li><li>ジェシー／ジャセル／ジェロニモ①は文面の与ダメAへ。ウェイン③は会心率CRITへ。</li><li>レネ①は追加ダメージSの表示分類。調整後の重複報告が対立しており、同枠加算や重複不可とは断定しません。</li><li>グウェンとリンセツは内容を照合できるWiki URLへ補正。グウェン③の兵種・タイミングには資料差が残ります。</li><li>ゴードン③の敵弓Lv3は公式Wikiの15%を暫定採用。他資料の18%も併記。各スキルの「採用元と根拠」から確認できます。</li><li>ジーナ除外。リンセツ／ルム・ボーガンに名称統一。</li><li>A〜J等は表示記号。ゲームの公式な内部計算枠ではありません。</li></ul><button id="download-data" class="quiet-button">JSONマスターを保存 ↓</button></section></section>
+  <section id="view-gallery" class="view embedded-view" hidden><div class="embed-loading" role="status">ギャラリーを読み込んでいます…</div></section>
+  <section id="view-games" class="view embedded-view" hidden><div class="embed-loading" role="status">ミニゲームを読み込んでいます…</div></section>
+  <section id="view-bear" class="view embedded-view" hidden><div class="embed-loading" role="status">配置ツールを読み込んでいます…</div></section>
+  <section id="view-canyon" class="view embedded-view" hidden><div class="embed-loading" role="status">峡谷ガイドを読み込んでいます…</div></section>
+  <section id="view-redeem" class="view embedded-view" hidden><div class="embed-loading" role="status">ギフトコード画面を読み込んでいます…</div></section>
+  <footer>WOS TOOLBOX <span>非公式の同盟ツール集 · 公開情報の調査日を各画面に記載</span><span id="save-status" role="status"></span></footer>
+ </main>
+</div>
+<nav id="mobile-dock" class="mobile-dock" aria-label="よく使う機能"></nav>
+<dialog id="hero-dialog" aria-labelledby="dialog-title"><div class="dialog-header"><div id="dialog-label"></div><button id="dialog-close" class="icon-button" aria-label="詳細を閉じる">✕</button></div><div id="dialog-content"></div></dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

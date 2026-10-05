@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "research-findings-1.0",
+  "checkedAt": "2026-10-04",
+  "scope": "PvP rally attack and garrison; published expedition descriptions and evidence reliability",
+  "applicationModified": false,
+  "subjectFile": "D:/IHIHOST/Claude/WOS/wos_rally_joiner/wos_rally_joiner_gen1-8.json",
+  "subjectSha256": "67da339aa47aad262c33525f3b2c76628025bf7ead8fab033671ca140ba5ff86",
+  "inventory": {
+    "heroes": 33,
+    "skills": 91,
+    "primarySkills": 33,
+    "existingWikiNameMatches": 83,
+    "existingWikiNameMatchesAreSemanticVerification": false,
+    "individualStackingVerifiedInCurrentData": 0,
+    "currentStackingStatusCounts": {"official-general-only": 28, "disputed": 5},
+    "allSourcePagesFreshlyFetchedThisPass": false
+  },
+  "findings": [
+    {
+      "id": "audit-count-semantics",
+      "status": "confirmed-audit-method-limitation",
+      "claim": "matchedCount counts skill-name matches, not semantic equality or mechanics verification.",
+      "evidenceFile": "work/pvp-audit/collect_wiki.py",
+      "proposedAction": "Label name extraction counts separately from manual semantic comparisons."
+    },
+    {
+      "id": "ling-xue-source-url",
+      "heroId": "ling-xue",
+      "skillNumbers": [1, 2],
+      "status": "published-description-corroborated",
+      "claim": "Alternate official Wiki URL supports both 4/8/12/16/20 percent series and the current effect subjects.",
+      "sourceUrls": ["https://www.whiteoutsurvival.wiki/heroes/ling-shuang/"],
+      "mechanicsVerified": false
+    },
+    {
+      "id": "gwen-source-url",
+      "heroId": "gwen",
+      "skillNumbers": [1, 2, 3],
+      "status": "correct-source-located",
+      "claim": "The gwen URL returns Norah; gwen-2 contains Gwen. First-skill values 5/10/15/20/25 percent are corroborated.",
+      "sourceUrls": ["https://www.whiteoutsurvival.wiki/heroes/gwen/", "https://www.whiteoutsurvival.wiki/heroes/gwen-2/"],
+      "mechanicsVerified": false
+    },
+    {
+      "id": "gwen-3-target-timing",
+      "heroId": "gwen",
+      "skillNumbers": [3],
+      "status": "unresolved-description-specificity",
+      "claim": "Official Wiki/Forge say troops and every four attacks; WOS Heroes specifies Marksmen and next attack. All describe all enemies as recipients.",
+      "sourceUrls": ["https://www.whiteoutsurvival.wiki/heroes/gwen-2/", "https://wiki.wosforge.org/wiki/Gwen", "https://wosheroes.com/heroes/gwen/"],
+      "proposedAction": "Add a source discrepancy note and explicitly represent enemy recipients; do not infer that unspecified troops proves all troop types.",
+      "mechanicsVerified": false
+    },
+    {
+      "id": "norah-page-identity",
+      "heroId": "norah",
+      "skillNumbers": [1, 2, 3],
+      "status": "published-description-corroborated-with-url-anomaly",
+      "claim": "The returned Norah content supports current descriptions but must not count as evidence for Gwen.",
+      "sourceUrls": ["https://www.whiteoutsurvival.wiki/heroes/gwen/"],
+      "mechanicsVerified": false
+    },
+    {
+      "id": "hendrik-name-extraction-gap",
+      "heroId": "hendrik",
+      "skillNumbers": [3],
+      "status": "published-description-corroborated",
+      "claim": "Every three turns, Marksmen-linked damage of 8/16/24/32/40 percent to all enemies is present despite the name-matching gap.",
+      "sourceUrls": ["https://www.whiteoutsurvival.wiki/heroes/hendrik/"],
+      "mechanicsVerified": false
+    },
+    {
+      "id": "wayne-critical-classification",
+      "heroId": "wayne",
+      "skillNumbers": [3],
+      "status": "published-crit-rate-internal-formula-unverified",
+      "claim": "Published text gives all troop attacks a 5/10/15/20/25 percent crit rate. A lethality interpretation exists as support hearsay, not a verified reply or controlled experiment.",
+      "sourceUrls": ["https://www.whiteoutsurvival.wiki/heroes/wayne/", "https://www.reddit.com/r/whiteoutsurvival/comments/1krqvia/whats_the_difference/"],
+      "displayCategoryRecommendation": "CRIT",
+      "engineCategory": null,
+      "criticalDamageMultiplier": null,
+      "mechanicsVerified": false
+    },
+    {
+      "id": "renee-stacking",
+      "heroId": "renee",
+      "skillNumbers": [1],
+      "status": "community-conflict-unresolved",
+      "claim": "September 2025 adjustment reports conflict about later stacking. The alleged announcement image and a complete controlled PvP trial were not verified.",
+      "sourceUrls": ["https://www.reddit.com/r/whiteoutsurvival/comments/1n7y0qa/renee_rally_stacking_adjustment/", "https://www.reddit.com/r/whiteoutsurvival/comments/1n8162b/renee_nerfed/"],
+      "exactFormula": null,
+      "mechanicsVerified": false
+    },
+    {
+      "id": "gordon-3-level-3",
+      "heroId": "gordon",
+      "skillNumbers": [3],
+      "status": "existing-discrepancy-retained",
+      "claim": "Enemy Marksman damage reduction level 3 is 15 percent on official Wiki versus the 18 percent adopted from other saved descriptions. Existing JSON already discloses this.",
+      "sourceUrls": ["https://www.whiteoutsurvival.wiki/heroes/gordon/", "https://wiki.wosforge.org/wiki/Gordon", "https://wosheroes.com/heroes/gordon/"],
+      "mechanicsVerified": false
+    },
+    {
+      "id": "stacking-general-vs-specific",
+      "status": "official-general-rule-only",
+      "claim": "Official FAQ permits same-skill stacking but does not establish per-hero additive groups, independent random rolls or overwrite behavior.",
+      "sourceUrls": ["https://centurygames.helpshift.com/hc/en/64-whiteout-survival/faq/8050-if-the-4-skills-of-the-rally-members-are-the-same-as-the-captain-s-will-the-effects-be-stackable/", "https://centurygames.helpshift.com/hc/en/64-whiteout-survival/faq/8052-about-skill-descriptions/"],
+      "individualMechanicsVerified": false
+    },
+    {
+      "id": "hidden-damage-guide-reliability",
+      "status": "not-adopted-as-engine-proof",
+      "claim": "The secondary guide contains conflicting normal/skill-damage test interpretation and infantry statements. Linked original video and public sheet contents were not available for verification.",
+      "sourceUrls": ["https://astris.kr/en/posts/a775cee1-9e3b-407a-a7a5-0225102702ff", "https://www.youtube.com/watch?v=0zVgmNrA0AY"],
+      "mechanicsVerified": false
+    }
+  ],
+  "remainingRequirements": [
+    "Current in-game descriptions for disputed skill values, troop scope and timing",
+    "Original support replies or patch notices rather than hearsay",
+    "Controlled PvP battle reports with selected joiner skills and comparable conditions",
+    "Separate recommendation inference from measured rankings"
+  ]
+}

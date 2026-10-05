@@ -1,0 +1,182 @@
+WOS 英雄情報・PvP乗り手の信頼性再監査
+確認日：2026-10-04（2026年10月全期間の情報を保証するものではありません）
+
+結論
+現在の情報を「全英雄のスキル・重複・推奨がすべて実証済み」とは言えません。
+公開スキル説明、公式の一般ルール、コミュニティの経験談、実際の内部計算は別の根拠です。
+本文の転記精度を上げることはできますが、サイト数を増やすだけでは個別スタックの証明になりません。
+今回は調査結果の保存のみ。アプリ、既存JSON、ZIP、公開サイトは変更していません。
+
+1. 対象と検証範囲
+
+対象ファイル：D:/IHIHOST/Claude/WOS/wos_rally_joiner/wos_rally_joiner_gen1-8.json
+対象SHA256：67DA339AA47AAD262C33525F3B2C76628025BF7EAD8FAB033671CA140BA5FF86
+33英雄＝SR8＋第1〜第8世代SSR25。遠征91スキル、第1スキル33件。ジーナ・R英雄は対象外。
+目的はPvP集結攻撃・駐屯。熊の最適化結果やアリーナの探索スキルを転用しません。
+
+既存JSONの全91件の効果・対象・条件・注意書きと、保存済み調査記録を再読しました。
+全33英雄のページを今回すべて再取得したという意味ではありません。
+2026-10-03取得のForge/WOS Heroes、2026-10-04取得のWiki本文を基礎に、差異・不足箇所を重点的に再取得しました。
+
+重要：既存 collect_wiki.py の matchedCount はスキル名の一致件数です。
+合計83/91ですが、倍率・対象・条件・内部挙動の完全一致率ではありません。
+未抽出8件はリンセツ2、グウェン3、ノラ2、ヘンドリック1。URLや言語、名称差の影響があります。
+今回これらの本文を別URLまたはページ内の内容から確認しましたが、「91件の全項目一致」へ置き換えることもできません。
+
+現行JSONでは33英雄とも stacking.pvpVerified=false。
+28英雄が公式一般則のみ、5英雄が異説あり。これは現行データの状態であり、実験結果ではありません。
+今回、条件を揃えた英雄別のPvP重複試験を再現できる一式の戦報は確認できませんでした。
+そのような資料が世の中に存在しない、と断定しているわけではありません。
+
+2. 根拠の強さを分ける
+
+・公式サポートFAQ：質問された範囲の一般ルールの根拠。個別英雄の隠れた式まで外挿しない。
+・公式Wiki：公開スキル本文の有力な照合先。ただしContributors欄のある寄稿型で、URL誤対応や数値差も存在。
+・Forge/WOS Heroes：本文比較に有用。ただし独立した実測結果ではなく、転載関係も否定できない。
+・投稿者自身のコミュニティ報告：条件、日時、戦報、比較対象を確認して採否を判断。
+・攻略記事や動画要約：原資料へ遡る。更新日や断定的な文章だけでは確度を上げない。
+
+3. スタックに関する結論
+
+公式FAQは、集結主と参加者の同じスキルについて効果が重複すると回答しています。[S1]
+レベルが違うスキルの効果も重複するというFAQがあります。[S2]
+一方、味方被ダメ軽減と敵与ダメ低下は計算対象が異なり、単純加算ではないという説明です。[S3]
+
+したがって、次の断定はいずれも根拠不足です。
+・主と同じ英雄・同じ表示枠なら必ず無効。
+・同じ枠は全英雄で必ず加算、違う枠は必ず乗算。
+・確率型は一律に非スタック。
+・複数採用の発動率は必ず 1−(1−p)^n。
+・軽減20%を5つ集めれば無敵。
+
+「重複するか」は、同じスキルの複数採用、異なるスキルの同種効果、戦闘内の自己累積、
+持続時間の更新、抽選回数の追加を区別する必要があります。
+表示用のA〜J、S、CRIT等だけからこれらを決めない現行方針は維持すべきです。
+
+4. 今回の具体的な発見・残る差異
+
+【今回補完】リンセツ
+従来の /heroes/ling-xue/ は今回取得できませんでした。
+正しく内容を読めた /heroes/ling-shuang/ で、敵全部隊の攻撃力4/8/12/16/20%低下と訓練速度同率増加を確認。
+現行JSONの本文と整合します。URLは英雄名から機械的に生成せず、個別対応表にすべきです。[S4]
+
+【今回補完】グウェン
+/heroes/gwen/ はノラの内容を返します。正しいグウェン本文は /heroes/gwen-2/ にありました。
+第1の対象被ダメ増加5/10/15/20/25%を確認でき、熊の15%換算を採用する理由にはなりません。[S5][S6]
+
+【新たな要注記】グウェン第3
+公式WikiとForgeは「部隊が敵全体に4回攻撃ごとに10〜50%追加ダメージ」という記述です。
+WOS Heroesは味方の兵種を弓兵と明記し、次の攻撃という表現もあります。
+現行JSONは後者の兵種・表現を採用していますが、この差異の注意書きがありません。
+数値の一致と、味方兵種・周期のカウント位置の一致は別。敵全体という対象の情報も明示した方が正確です。
+弓限定が誤りと確定したのではなく、公開資料間で明示の程度が違うため、ゲーム内説明で要確認です。[S5][S6][S7]
+第3なので、乗り手の第1だけの評価には直接使いません。
+
+【今回再確認】ノラ
+今回 /heroes/norah/ は取得できず、/heroes/gwen/ に表示されたノラ本文を内容ベースで確認。
+第1は盾・弓の与ダメ増加と被ダメ軽減、第2は槍の20%抽選、第3は槍5回攻撃ごとに全部隊へ2ターン。
+現行の本文と整合しますが、URL異常を記録し、グウェンの証拠には数えません。[S8]
+
+【今回再確認】ヘンドリック
+第3は3ターンごと、弓兵と共に敵全体へ8/16/24/32/40%ダメージ。名前の揺れで自動抽出漏れが起きています。
+現在の本文と整合します。第1の敵防御25%低下を4人で0防御とする根拠はありません。[S9]
+
+【未解決を維持】ウェイン第3
+Wiki本文は全部隊の攻撃に会心率5/10/15/20/25%。会心倍率や通常/スキルへの内部適用は記載されていません。[S10]
+「サポートが殺傷力だと答えた」という投稿も見つかりましたが、回答原文・画面や対照試験を確認できません。[S11]
+別攻略はウェインの3スキルをスキルダメージと分類していますが、原動画本文を取得できず、個別戦報も確認できませんでした。[S12][S13]
+従ってE（殺傷力）やS（追加攻撃）へ確定変換せず、CRITを表示用分類として残す判断です。
+乗り手は第1なので、第3会心を乗り手推薦理由に含めません。
+
+【未解決を維持】レネの重複
+2025-09-04の調整報告がありますが、コメントには非重複説と効果減少説が混在。
+別投稿には調整後も重複するという伝聞もありました。元の告知とされる画像は今回も本文を読み取れませんでした。[S14][S15]
+変更がないとは言えず、現在の厳密な式や「2体目から完全無効」も確定できません。
+旧来の複数レネ推奨を無条件に戻さず、槍編成・要検証候補という扱いを維持します。
+
+【既存の差異注記を維持】ゴードン第3
+敵弓与ダメ低下のLv3は公式Wiki15%、Forge/WOS Heroes18%。現行JSONは18%を採用し差異も注記済み。
+今回新しく未注記の誤りを発見したのではありません。多数決では確定できず、Lv3ゲーム内画面が必要です。[S16]
+
+【既存の差異注記を維持】ミア第2、フレンダー第2、リオン第3
+ミア：与ダメ増加とAttack表記の差。Aは暫定表示分類。
+フレンダー：120〜200%が追加分か最終倍率かの表現差。追加200%と断定しない。
+リオン：1/2/3/4/5%と100/2/3/4/5%の差。現行は前者を採用し、後者を誤記候補として記録済み。
+この3件は保存済み比較記録・現行注意書きの再点検であり、全資料を今回再取得したという扱いにはしていません。
+
+5. 推奨・非推奨の信頼性
+
+【推論】第1の対象・条件から役割を説明することと、最強ランキングの実証は別です。
+現行の「候補」「条件付き」とする説明は維持できますが、固定順位・人数・編成比の保証はできません。
+攻撃側にも前線維持、防衛側にも敵を減らす火力が必要で、攻撃＝火力だけ／防衛＝耐久だけとは整理しません。
+主3英雄、実際の兵種、採用された4つの参加スキル、スキルLv、相手を揃えず強弱を断定しません。[S17]
+主の第2・第3や専用装備の効果を乗り手の推薦に混ぜないことが重要です。
+
+補助記事の採否にも問題がありました。
+Normal Attack vs Skill Damageの記事は、レイナで増えるならスキルダメージとする箇所が冒頭の通常攻撃説明と矛盾。
+盾はスキルダメージを出さないと述べつつ、一覧には盾のヘクトーが入っています。
+HP25%と被ダメ25%軽減の同一視も、一般的な比例モデルですら自明ではありません。
+これをウェインの確定分類や無名とパトリックの確定優劣の根拠に採用しません。[S12]
+原動画・公開シートへのリンクは辿りましたが、動画字幕・シートのセル内容を読み取れず、実証済みとは扱っていません。[S13][S18]
+
+6. 次回の反映候補（今回は未反映）
+
+・リンセツ／グウェンの出典URLを個別に補正。ノラのURL誤対応も追跡する。
+・matchedCountを「名称による抽出数」と明示し、意味内容の照合結果を別フィールドにする。
+・グウェン第3に兵種・発動タイミングの表記差と敵全体対象の注記を追加する。
+・本文一致、個別スタック、推奨理由それぞれに独立した確度・出典・確認日を持たせる。
+・verifiedAsOfという一括フィールドだけで全挙動が検証済みと見せない。
+・更新された根拠がない項目のcheckedAtを、単に作業日で一斉更新しない。
+
+7. 未解決点を確定するために必要な資料
+
+現在のゲーム内スキル画面（英雄・遠征番号・スキルLv・撮影日がわかるもの）は、本文差の解消に有効です。
+スタック試験には同じ主・相手・人数・兵種・兵数・Tier・装備・バフを固定した比較が必要です。
+英雄なし／1体／2体／主と同じスキルを含む条件を分け、採用4スキルと戦闘詳細も保存します。
+確率型は複数回の試行とばらつきが必要で、単発の勝敗や総損害だけで内部式は確定できません。
+実戦試験は損失や協力者への影響があるため、今回は実施していません。
+
+出典（確認日2026-10-04。取得できなかった内容は本文に明記）
+
+[S1] Century Games / 同じスキルの重複
+https://centurygames.helpshift.com/hc/en/64-whiteout-survival/faq/8050-if-the-4-skills-of-the-rally-members-are-the-same-as-the-captain-s-will-the-effects-be-stackable/
+[S2] Century Games / 異なるレベルの重複
+https://centurygames.helpshift.com/hc/en/64-whiteout-survival/faq/6627-are-skills-of-different-level-stackable/
+[S3] Century Games / スキル説明の計算対象
+https://centurygames.helpshift.com/hc/en/64-whiteout-survival/faq/8052-about-skill-descriptions/
+[S4] Whiteout Survival Wiki / Ling Xue
+https://www.whiteoutsurvival.wiki/heroes/ling-shuang/
+[S5] Whiteout Survival Wiki / Gwen（内容を確認できた正しいURL）
+https://www.whiteoutsurvival.wiki/heroes/gwen-2/
+[S6] WOS Forge / Gwen
+https://wiki.wosforge.org/wiki/Gwen
+[S7] WOS Heroes / Gwen
+https://wosheroes.com/heroes/gwen/
+[S8] Whiteout Survival Wiki / URLはgwenだが内容はNorah
+https://www.whiteoutsurvival.wiki/heroes/gwen/
+[S9] Whiteout Survival Wiki / Hendrik
+https://www.whiteoutsurvival.wiki/heroes/hendrik/
+[S10] Whiteout Survival Wiki / Wayne
+https://www.whiteoutsurvival.wiki/heroes/wayne/
+[S11] Reddit / What's the difference?（サポート回答の伝聞）
+https://www.reddit.com/r/whiteoutsurvival/comments/1krqvia/whats_the_difference/
+[S12] Whiteout Guide Notes / Normal Attack vs Skill Damage（原資料の代わりにはしない）
+https://astris.kr/en/posts/a775cee1-9e3b-407a-a7a5-0225102702ff
+[S13] TontonYouTube / Skill Damage vs Normal Attacks（リンク到達のみ、字幕・映像未検証）
+https://www.youtube.com/watch?v=0zVgmNrA0AY
+[S14] Reddit / Renee Rally Stacking Adjustment
+https://www.reddit.com/r/whiteoutsurvival/comments/1n7y0qa/renee_rally_stacking_adjustment/
+[S15] Reddit / Renee Nerfed
+https://www.reddit.com/r/whiteoutsurvival/comments/1n8162b/renee_nerfed/
+[S16] Whiteout Survival Wiki / Gordon
+https://www.whiteoutsurvival.wiki/heroes/gordon/
+[S17] Century Games / Combat FAQ
+https://centurygames.helpshift.com/hc/en/64-whiteout-survival/faq/8048-combat-faq/
+[S18] TontonYouTube / 公開シート（表題のみ取得、セル内容未検証）
+https://docs.google.com/spreadsheets/d/e/2PACX-1vT5fLcscVMZHDhczUx33oHDx-dBtk6FWJ4fzZmLHwctJ7K2OLlRtT7PBL6DbYmDbT9_CixdqMYUM1v4/pubhtml
+
+関連する既存記録
+work/pvp-audit/PVP-AUDIT.md
+work/pvp-audit/wiki-description-check.json
+work/research_20261003/skills.json
+これらの名称一致件数を、実戦の完全検証件数に読み替えないでください。
