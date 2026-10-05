@@ -33,7 +33,7 @@ const DEFAULT_RULES = {
   cardExchange: 'off', poorCardChoice: false, noJokerExchange: false, tenpenchi: false,
 };
 
-// ------- bool キー (bit 順) 合計36個 → 9 hex chars -------
+// ------- bool キー (bit 順) 合計37個 → 最大10 hex chars -------
 const RULE_BOOL_KEYS = [
   // bits 0-7: 革命
   'revolution','revolutionReturn','revolutionOptional','stairRevolution',
@@ -62,8 +62,8 @@ const CARD_EX_RMAP = ['off','simultaneous','receive-first'];
 const THREE_MAP    = { 'off':0, 'yasashii':1, 'on':2 };
 const THREE_RMAP   = ['off','yasashii','on'];
 
-// ------- エンコード: ルール → 11文字ID -------
-// 9 hex (36 bool bits) + 2 decimal (3ステート, max 26)
+// ------- エンコード: ルール → 11〜12文字ID -------
+// 9〜10 hex (37 bool bits) + 2 decimal (3ステート, max 26)
 function encodeRuleId(r) {
   let n = 0n;
   RULE_BOOL_KEYS.forEach((k, i) => { if (r[k]) n |= (1n << BigInt(i)); });
@@ -81,9 +81,14 @@ function decodeRuleId(id) {
   try {
     const result = { ...DEFAULT_RULES };
     if (id.length >= 11) {
-      const n = BigInt('0x' + id.slice(0, 9));
+      // tenpenchi is bit 36; its IDs have always been 12 characters.
+      // Keep old 11-character IDs compatible and split off the final two digits.
+      if (!/^[0-9a-fA-F]{9,10}\d{2}$/.test(id)) return null;
+      const width = id.length - 2;
+      const n = BigInt('0x' + id.slice(0, width));
       RULE_BOOL_KEYS.forEach((k, i) => { result[k] = !!(n & (1n << BigInt(i))); });
-      const t   = parseInt(id.slice(9)) || 0;
+      const t   = Number(id.slice(width));
+      if (t > 26 || n >= (1n << BigInt(RULE_BOOL_KEYS.length))) return null;
       result.cardExchange      = CARD_EX_RMAP[Math.floor(t / 9)] ?? 'off';
       const rem = t % 9;
       result.forbiddenWin2     = THREE_RMAP[Math.floor(rem / 3)] ?? 'off';

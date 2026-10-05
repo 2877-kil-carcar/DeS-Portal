@@ -495,10 +495,11 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="game-sync.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 
-import { getDatabase, ref, set, get, update, onValue, push, off } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, get, update, runTransaction, onValue, push, off } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 import { getFirestore, collection, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -510,7 +511,7 @@ if (new URLSearchParams(location.search).get("preview") === "1") { document.quer
 const params = new URLSearchParams(location.search);
 const ROOM = params.get('room');
 const MY_PID = params.get('pid');
-const MY_NAME = decodeURIComponent(params.get('name') || 'Player');
+const MY_NAME = params.get('name') || 'Player'; // URLSearchParams already decodes once.
 
 if (!ROOM || !MY_PID) { location.href = 'babanuki.html'; }
 
@@ -636,6 +637,18 @@ function serializeHands(hands) {
 
 // ===== STATE =====
 let gameState = null;
+async function commitTurn(expected, updates) {
+  try {
+    const result = await GameSync.commit(runTransaction, ref(db, 'rooms/' + ROOM + '/gameState'), expected, updates);
+    if (!result.committed) { if (result.snapshot?.exists()) gameState = result.snapshot.val(); showToast('手番が更新されました。最新の画面で操作してください。'); return false; }
+    if (!gameState || GameSync.signature(gameState) === GameSync.signature(expected)) gameState = result.snapshot.val();
+    return true;
+  } catch (error) {
+    console.error('turn save failed', error);
+    showToast('操作を保存できませんでした。接続を確認して再試行してください。');
+    return false;
+  }
+}
 let myIndex = -1;
 let playerOrder = []; // pids in order
 
@@ -661,14 +674,15 @@ onValue(roomRef, async (snap) => {
   pids.forEach((pid) => {
     const slot = document.createElement('div');
     slot.className = 'player-slot filled' + (pid === MY_PID ? ' me' : '');
-    slot.innerHTML = `<div class="slot-icon">${pid === MY_PID ? '🙋' : '👤'}</div><div class="slot-name">${players[pid].name}</div>`;
+    slot.innerHTML = `<div class="slot-icon">${pid === MY_PID ? '🙋' : '👤'}</div><div class="slot-name">${GameSync.escapeHtml(players[pid].name)}</div>`;
     slotsEl.appendChild(slot);
   });
 
   const ws = document.getElementById('waitingStatus');
   ws.textContent = `${pids.length} 人が参加中`;
 
-  const isHost = pids[0] === MY_PID;
+  const hostPid = room.host || pids.find(pid => players[pid]?.index === 0);
+  const isHost = hostPid === MY_PID;
   const canStart = pids.length >= 2;
   const startBtn = document.getElementById('startBtn');
   const waitingForHost = document.getElementById('waitingForHost');
@@ -688,7 +702,8 @@ window.leaveRoom = async function() {
   try {
     const snap = await get(roomRef);
     if (!snap.exists()) { location.href = 'babanuki.html'; return; }
-    const pids = Object.keys(snap.val().players || {});
+    const room = snap.val();
+    const pids = Object.keys(room.players || {});
     if (pids.length <= 1) {
       // 最後の1人 → ルームごと削除
       await set(roomRef, null);
@@ -696,6 +711,8 @@ window.leaveRoom = async function() {
       // 自分だけ削除
       const updates = {};
       updates['players/' + MY_PID] = null;
+      const hostPid = room.host || pids.find(pid => room.players[pid]?.index === 0);
+      if (hostPid === MY_PID) updates.host = pids.find(pid => pid !== MY_PID);
       await update(roomRef, updates);
     }
   } catch(e) { console.error(e); }
@@ -709,7 +726,8 @@ window.hostStartGame = async function() {
   if (!snap.exists()) return;
   const room = snap.val();
   const pids = Object.keys(room.players || {});
-  if (pids.length < 2) return;
+  const hostPid = room.host || pids.find(pid => room.players[pid]?.index === 0);
+  if (hostPid !== MY_PID || room.status !== 'waiting' || pids.length < 2) return;
   await startGame(room);
 };
 
@@ -735,11 +753,15 @@ async function startGame(room) {
   pids.forEach((pid, i) => {
     gs.hands[pid] = serialized[i];
   });
+  // Pair removal can leave a player empty before the first draw.
+  gs.finished = pids.filter(pid => gs.hands[pid].length === 0);
+  gs.currentTurn = Math.max(0, pids.findIndex(pid => gs.hands[pid].length > 0));
 
-  await update(ref(db, 'rooms/' + ROOM), {
+  const result = await GameSync.commit(runTransaction, roomRef, room, {
     status: 'playing',
     gameState: gs
   });
+  if (!result.committed) showToast('参加者が更新されました。もう一度開始してください。');
 }
 
 function startGameUI(gs, players) {
@@ -789,7 +811,7 @@ function renderGame(gs, players) {
   pids.forEach((pid, i) => {
     if (pid === MY_PID) return;
     const hand = gs.hands[pid] || [];
-    const name = players[pid]?.name || pid;
+    const name = GameSync.escapeHtml(players[pid]?.name || pid);
     const isActive = pids[gs.currentTurn % pids.length] === pid;
     const isElim = gs.eliminated?.includes(pid);
     const isTarget = (pid === targetPid) && isMyTurn;
@@ -839,7 +861,7 @@ function getDrawTarget(gs) {
   // Actually: it's MY turn to draw. Who do I draw from?
   // In ババ抜き, on your turn you draw from the player to your left (next index)
   if (pids[currentTurn] !== MY_PID) return null;
-  let target = (myIndex + 1) % pids.length;
+  let target = (currentTurn + 1) % pids.length;
   for (let i = 0; i < pids.length; i++) {
     const tpid = pids[target];
     if (!gs.eliminated?.includes(tpid) && tpid !== MY_PID && (gs.hands[tpid]?.length || 0) > 0) {
@@ -868,7 +890,7 @@ function renderMyCards(hand) {
     } else if (imgUrl) {
       div.innerHTML = `
         <div class="card-corner">${card.rank}<br><span style="font-size:0.7em;">${card.suit}</span></div>
-        <img src="${imgUrl}" style="width:54px;height:60px;object-fit:cover;border-radius:3px;display:block;margin:0 auto;">
+        <img src="${GameSync.escapeHtml(imgUrl)}" style="width:54px;height:60px;object-fit:cover;border-radius:3px;display:block;margin:0 auto;">
       `;
     } else {
       div.innerHTML = `
@@ -884,16 +906,18 @@ function renderMyCards(hand) {
 function renderLog(logs) {
   const el = document.getElementById('gameLog');
   const last5 = logs.slice(-5);
-  el.innerHTML = last5.map((l, i) => `<div class="log-entry${i === last5.length-1 ? ' highlight' : ''}">${l}</div>`).join('');
+  el.innerHTML = last5.map((l, i) => `<div class="log-entry${i === last5.length-1 ? ' highlight' : ''}">${GameSync.escapeHtml(l)}</div>`).join('');
   el.scrollTop = el.scrollHeight;
 }
 
 // ===== DRAW CARD =====
 async function drawCard(fromPid, cardIndex, gs, players) {
   const pids = gs.pids;
+  if (pids[gs.currentTurn % pids.length] !== MY_PID || getDrawTarget(gs) !== fromPid) return;
+  if ((gs.finished || []).length >= pids.length - 1 || (gs.finished || []).includes(MY_PID)) return;
   // Take card from opponent
   const fromHand = [...(gs.hands[fromPid] || [])];
-  if (fromHand.length === 0) return;
+  if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= fromHand.length) return;
   const drawnCard = fromHand.splice(cardIndex, 1)[0];
 
   let myHand = [...(gs.hands[MY_PID] || [])];
@@ -935,7 +959,7 @@ async function drawCard(fromPid, cardIndex, gs, players) {
 
   const newLogs = [...(gs.logs || []), logEntry];
 
-  await update(ref(db, 'rooms/' + ROOM + '/gameState'), {
+  await commitTurn(gs, {
     hands: newHands,
     currentTurn: nextTurn,
     eliminated: newElim,
@@ -962,7 +986,7 @@ function showResult(gs, players) {
 
   const medals = ['🥇','🥈','🥉',...Array.from({length:27},(_,i)=>`${i+4}`)];
   const html = ranks.map(r => {
-    const name = players[r.pid]?.name || r.pid;
+    const name = GameSync.escapeHtml(players[r.pid]?.name || r.pid);
     const isLast = r.rank === pids.length;
     const badgeClass = r.rank === 1 ? 'badge-winner' : (isLast ? 'badge-loser' : 'badge-normal');
     const badge = r.rank === 1 ? '優勝' : (isLast ? 'ババ' : `${r.rank}位`);

@@ -352,9 +352,10 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="game-sync.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, get, update, runTransaction, onValue, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getFirestore, collection, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 if (new URLSearchParams(location.search).get("preview") === "1") { document.querySelectorAll("button,input,select").forEach(el=>el.disabled=true); const status=document.createElement("p");status.textContent="表示確認モード：接続・入室・対戦は無効です";status.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;background:#fff0cd;color:#47371b;text-align:center;padding:8px;font-size:12px";document.body.prepend(status); } else {
@@ -367,7 +368,7 @@ if (new URLSearchParams(location.search).get("preview") === "1") { document.quer
 const params = new URLSearchParams(location.search);
 const ROOM = params.get('room');
 const MY_PID = params.get('pid');
-const MY_NAME = decodeURIComponent(params.get('name') || 'Player');
+const MY_NAME = params.get('name') || 'Player'; // URLSearchParams already decodes once.
 if (!ROOM || !MY_PID) { location.href = 'sevens.html'; }
 
 const firebaseConfig = {
@@ -618,6 +619,18 @@ function getJokerTargets(board, rules = {}) {
 
 // ===== STATE =====
 let gameState = null;
+async function commitTurn(expected, updates) {
+  try {
+    const result = await GameSync.commit(runTransaction, ref(db, 'rooms_sevens/' + ROOM + '/gameState'), expected, updates);
+    if (!result.committed) { if (result.snapshot?.exists()) gameState = result.snapshot.val(); showToast('手番が更新されました。最新の画面で操作してください。'); return false; }
+    if (!gameState || GameSync.signature(gameState) === GameSync.signature(expected)) gameState = result.snapshot.val();
+    return true;
+  } catch (error) {
+    console.error('turn save failed', error);
+    showToast('操作を保存できませんでした。接続を確認して再試行してください。');
+    return false;
+  }
+}
 let myIndex = -1;
 
 // ===== WAITING SCREEN =====
@@ -646,7 +659,7 @@ onValue(roomRef, async (snap) => {
   pids.forEach(pid => {
     const slot = document.createElement('div');
     slot.className = 'player-slot filled' + (pid === MY_PID ? ' me' : '');
-    slot.innerHTML = `<div class="slot-icon">${pid === MY_PID ? '🙋' : '👤'}</div><div class="slot-name">${players[pid].name}</div>`;
+    slot.innerHTML = `<div class="slot-icon">${pid === MY_PID ? '🙋' : '👤'}</div><div class="slot-name">${GameSync.escapeHtml(players[pid].name)}</div>`;
     slotsEl.appendChild(slot);
   });
 
@@ -722,7 +735,7 @@ window.hostStartGame = async function() {
   const roomPlayers = room.players || {};
   // ホストのみ開始できる
   const hostPid = room.host || Object.keys(roomPlayers).find(p => roomPlayers[p]?.index === 0);
-  if (hostPid !== MY_PID) return;
+  if (hostPid !== MY_PID || room.status !== 'waiting') return;
   const pids = Object.keys(roomPlayers);
   if (pids.length < 2) return;
   await startGame(room);
@@ -760,7 +773,8 @@ async function startGame(room) {
     logs: ['ゲーム開始！7はすべて場に出ました。' + (rules.joker ? ' 🃏ジョーカーあり' : '') + (rules.akAdjacent ? ' 🔄AK隣接あり' : '')]
   };
 
-  await update(ref(db, 'rooms_sevens/' + ROOM), { status: 'playing', gameState: gs });
+  const result = await GameSync.commit(runTransaction, roomRef, room, { status: 'playing', gameState: gs });
+  if (!result.committed) showToast('参加者が更新されました。もう一度開始してください。');
 }
 
 function startGameUI(gs, players) {
@@ -948,7 +962,7 @@ function renderOpponents(gs, players) {
   pids.forEach(pid => {
     if (pid === MY_PID) return;
     const hand = gs.hands[pid] || [];
-    const name = players[pid]?.name || pid;
+    const name = GameSync.escapeHtml(players[pid]?.name || pid);
     const isActive = pid === currentPid && !gs.gameOver;
     const isFinished = (gs.finished || []).includes(pid);
     const isElim = (gs.eliminated || []).includes(pid);
@@ -1080,7 +1094,7 @@ function renderMyHand(gs, isMyTurn, players) {
       if (imgUrl) {
         div.innerHTML = `
           <div class="card-corner">${card.rank}<br><span style="font-size:0.7em;">${card.suit}</span></div>
-          <img src="${imgUrl}" style="width:46px;height:50px;object-fit:cover;border-radius:3px;display:block;margin:0 auto;">
+          <img src="${GameSync.escapeHtml(imgUrl)}" style="width:46px;height:50px;object-fit:cover;border-radius:3px;display:block;margin:0 auto;">
         `;
       } else {
         div.innerHTML = `
@@ -1102,6 +1116,7 @@ function renderMyHand(gs, isMyTurn, players) {
 async function playCard(card, gs, players) {
   const pids = gs.pids;
   if (pids[gs.currentTurn % pids.length] !== MY_PID) return;
+  if (gs.gameOver || !(gs.hands[MY_PID] || []).some(c => c.id === card.id)) return;
   if (card.rank === 'JOKER') return; // ジョーカーは別途処理
 
   const rules = gs.rules || {};
@@ -1111,6 +1126,7 @@ async function playCard(card, gs, players) {
   const myForcedPlays = jokerForcedList.filter(f => f.pid === MY_PID);
   const hasForcedPlay = myForcedPlays.length > 0;
   const isForced = hasForcedPlay && myForcedPlays.some(f => f.suit === card.suit && f.num === card.num);
+  if (hasForcedPlay && !isForced) return;
 
   // 出せないカードは弾く（強制カード以外は通常チェック）
   if (!isForced && !isCardPlayable(card, gs.board, rules)) return;
@@ -1163,7 +1179,7 @@ async function playCard(card, gs, players) {
   const log = `${MY_NAME} が ${card.rank}${card.suit} を出した${forcedTag}`;
   const newLogs = [...(gs.logs || []), log].slice(-30);
 
-  await update(ref(db, 'rooms_sevens/' + ROOM + '/gameState'), {
+  await commitTurn(gs, {
     [`hands/${MY_PID}`]: myHand,
     board: newBoard,
     jokerForced: newJokerForced,
@@ -1182,6 +1198,8 @@ let activeJokerCard = null;
 window._startJokerMode = function(card) {
   const gs = gameState;
   if (!gs) return;
+  if (gs.gameOver || gs.pids[gs.currentTurn % gs.pids.length] !== MY_PID) return;
+  if ((gs.jokerForced || []).some(f => f.pid === MY_PID)) return;
   // ジョーカーカードを特定（引数があればそれ、なければ手札から最初のジョーカー）
   const joker = card || (gs.hands[MY_PID] || []).find(c => c.rank === 'JOKER');
   if (!joker) return;
@@ -1211,6 +1229,10 @@ window._placeJoker = async function(target) {
   const pids = gs.pids;
   if (pids[gs.currentTurn % pids.length] !== MY_PID) return;
 
+  if (gs.gameOver || (gs.jokerForced || []).some(f => f.pid === MY_PID)) return;
+  if (!(gs.hands[MY_PID] || []).some(c => c.id === activeJokerCard.id && c.rank === 'JOKER')) return;
+  if (!getJokerTargets(gs.board, gs.rules || {}).some(t => t.suit === target.suit && t.num === target.num && (t.isWrap || null) === (target.isWrap || null) && !!t.isGap === !!target.isGap)) return;
+
   jokerMode = false;
   const jokerCard = activeJokerCard;
   activeJokerCard = null;
@@ -1233,10 +1255,9 @@ window._placeJoker = async function(target) {
     const gIdx = gapArr.indexOf(num);
     if (gIdx !== -1) gapArr.splice(gIdx, 1);
     newBoard[suit].gaps = gapArr;
-  } else if (num < newBoard[suit].min) {
-    newBoard[suit].min = num;
   } else {
-    newBoard[suit].max = num;
+    // Ordinary end and AK-arm extension must use the same board operation.
+    updateBoardForCard(newBoard, { suit, num, rank: RANKS[num - 1] }, rules);
   }
   newJokerPositions.push({ suit, num, isWrap: isWrap || null, isGap: isGap || false });
 
@@ -1266,7 +1287,8 @@ window._placeJoker = async function(target) {
 
   // 次ターン（ジョーカー使用者のターン終了）
   const eliminated = gs.eliminated || [];
-  const finished = gs.finished || [];
+  const finished = [...(gs.finished || [])];
+  if (newHands[MY_PID].length === 0 && !finished.includes(MY_PID)) finished.push(MY_PID);
   const skipped = [...finished, ...eliminated];
   let nextTurn = gs.currentTurn + 1;
   for (let i = 0; i < pids.length; i++) {
@@ -1276,12 +1298,13 @@ window._placeJoker = async function(target) {
   const activePids = pids.filter(p => !skipped.includes(p));
   const gameOver = activePids.length <= 1;
 
-  await update(ref(db, 'rooms_sevens/' + ROOM + '/gameState'), {
+  await commitTurn(gs, {
     [`hands/${MY_PID}`]: newHands[MY_PID],
     board: newBoard,
     jokerPositions: newJokerPositions,
     jokerForced: newJokerForced,
     currentTurn: nextTurn % pids.length,
+    finished,
     gameOver,
     logs: newLogs.slice(-30)
   });
@@ -1293,6 +1316,7 @@ async function passClick() {
   if (!gs) return;
   const pids = gs.pids;
   if (pids[gs.currentTurn % pids.length] !== MY_PID) return;
+  if (gs.gameOver || (gs.jokerForced || []).some(f => f.pid === MY_PID)) return;
 
   const passesUsed = gs.passes?.[MY_PID] || 0;
   const passesLeft = 5 - passesUsed;
@@ -1312,7 +1336,7 @@ async function passClick() {
   const log = `${MY_NAME} がパス（残り${newPassesLeft}回）`;
   const newLogs = [...(gs.logs || []), log].slice(-30);
 
-  await update(ref(db, 'rooms_sevens/' + ROOM + '/gameState'), {
+  await commitTurn(gs, {
     [`passes/${MY_PID}`]: newPassesUsed,
     currentTurn: nextTurn % pids.length,
     logs: newLogs
@@ -1351,7 +1375,7 @@ async function eliminatePlayer() {
   const log = `💀 ${MY_NAME} が脱落！手札${hand.length}枚を全て場に出した`;
   const newLogs = [...(gs.logs || []), log].slice(-30);
 
-  await update(ref(db, 'rooms_sevens/' + ROOM + '/gameState'), {
+  await commitTurn(gs, {
     [`hands/${MY_PID}`]: [],
     board: newBoard,
     eliminated: newEliminated,
@@ -1383,7 +1407,7 @@ function showResult(gs, players) {
 
   const medals = ['🥇','🥈','🥉',...Array.from({length:10},(_,i)=>`${i+4}位`)];
   document.getElementById('resultRankings').innerHTML = allRanked.map((pid, i) => {
-    const name = players[pid]?.name || pid;
+    const name = GameSync.escapeHtml(players[pid]?.name || pid);
     const isEliminatedPid = eliminated.includes(pid);
     const isLastActive = i === allRanked.length - eliminated.length - 1 && !isEliminatedPid && allRanked.length > 1;
     let badgeClass, badge;
@@ -1413,7 +1437,7 @@ window._playAgain = async function() {
 function renderLog(logs) {
   const el = document.getElementById('gameLog');
   const last5 = logs.slice(-5);
-  el.innerHTML = last5.map((l, i) => `<div class="log-entry${i===last5.length-1?' highlight':''}">${l}</div>`).join('');
+  el.innerHTML = last5.map((l, i) => `<div class="log-entry${i===last5.length-1?' highlight':''}">${GameSync.escapeHtml(l)}</div>`).join('');
   el.scrollTop = el.scrollHeight;
 }
 

@@ -420,7 +420,7 @@ const db  = getDatabase(app);
 const params  = new URLSearchParams(location.search);
 const ROOM    = params.get('room');
 const MY_PID  = params.get('pid');
-const MY_NAME = decodeURIComponent(params.get('name') || '');
+const MY_NAME = params.get('name') || ''; // URLSearchParams already decodes once.
 if (!ROOM || !MY_PID) { location.href = 'daifugo.html'; }
 
 // ===== Constants =====
@@ -1133,7 +1133,7 @@ async function applyPlay(cards, pid) {
   // Check if round should end (also ends on 下剋上)
   if (shouldEndRound(newGs) || newGs.phase === 'gekokujo') {
     delete newGs.subPhase; // don't carry subPhase into round-end state
-    await endRound(newGs);
+    await endRound(newGs, isMe && newHand !== null ? { [`rooms_daifugo/${ROOM}/hands/${MY_PID}`]: newHand } : {});
     return;
   }
 
@@ -1282,6 +1282,7 @@ window.confirmSelect = async function() {
       const myNew = removeCards(myHand, cards);
       updates[`rooms_daifugo/${ROOM}/hands/${MY_PID}`] = myNew;
       updates[`rooms_daifugo/${ROOM}/hands/${target}`] = [...targetHand, ...cards];
+      if (myNew.length === 0 && !newGs.finished.includes(MY_PID)) newGs.finished.push(MY_PID);
       showToast(`${cards.length}枚渡した`);
     }
   } else {
@@ -1298,7 +1299,7 @@ window.confirmSelect = async function() {
   }
 
   // Next subPhase or next turn
-  const queue = newGs.subPhaseQueue || [];
+  const queue = isActive(MY_PID, newGs) ? (newGs.subPhaseQueue || []) : [];
   if (queue.length > 0) {
     // 次のサブアクションへ（例: 7渡し完了後に10捨て）
     newGs.subPhase = queue[0];
@@ -1309,7 +1310,7 @@ window.confirmSelect = async function() {
     newGs.subPhaseQueue = null;
     newGs.turn = nextActivePid(MY_PID, newGs);
   }
-  if (shouldEndRound(newGs)) { await endRound(newGs); return; }
+  if (shouldEndRound(newGs)) { await endRound(newGs, updates); return; }
   updates[`rooms_daifugo/${ROOM}/game`] = newGs;
   await update(ref(db), updates);
   } catch(e) {
@@ -1397,7 +1398,7 @@ window.confirmQueen = async function() {
 
   showToast('💥 クイーンボンバー！');
   newGs.turn = nextActivePid(MY_PID, newGs);
-  if (shouldEndRound(newGs)) { await endRound(newGs); return; }
+  if (shouldEndRound(newGs)) { await endRound(newGs, updates); return; }
   updates[`rooms_daifugo/${ROOM}/game`] = newGs;
   await update(ref(db), updates);
   } catch(e) {
@@ -1446,7 +1447,10 @@ window.confirmRevChoice = async function(doRevolution) {
 };
 
 // ===== Round end =====
-async function endRound(newGs) {
+async function endRound(newGs, handUpdates = {}) {
+  newGs.finished ||= [];
+  newGs.disqualified ||= [];
+  newGs.scores ||= {};
   // Remaining active players finish last (not disqualified)
   const active = (newGs.turnOrder || []).filter(p => isActive(p, newGs));
   active.forEach(p => {
@@ -1490,7 +1494,7 @@ async function endRound(newGs) {
   newGs.pendingClear = false;
   newGs.lastField = null;
 
-  await set(ref(db, `rooms_daifugo/${ROOM}/game`), newGs);
+  await update(ref(db), { ...handUpdates, [`rooms_daifugo/${ROOM}/game`]: newGs });
 }
 
 // ===== Show round end overlay =====
@@ -1780,7 +1784,9 @@ async function executeExchange(pair, lowerOffer, upperReturn, gsData) {
 
   // Upper: remove returnCards, receive lowerOffer
   const upperHandRaw = await getHand(pair.upper);
-  const upperNew = [...removeCards(upperHandRaw, upperReturn), ...lowerOffer];
+  const upperNew = rules.cardExchange === 'receive-first'
+    ? removeCards([...upperHandRaw, ...lowerOffer], upperReturn)
+    : [...removeCards(upperHandRaw, upperReturn), ...lowerOffer];
   updates[`rooms_daifugo/${ROOM}/hands/${pair.upper}`] = upperNew;
   updates[`rooms_daifugo/${ROOM}/exchange_done/${pair.upper}`] = true;
   // 交換内容ログ（各自に「渡した／受け取った」を通知するため）
@@ -2408,7 +2414,7 @@ function startListeners() {
       if (newGs.turn === pid) newGs.turn = nextActivePid(pid, newGs);
     }
     if (shouldEndRound(newGs)) {
-      await endRound(newGs);
+      await endRound(newGs, updates);
     } else {
       if (newGs.turn === pid) newGs.turn = nextActivePid(pid, newGs);
       updates[`rooms_daifugo/${ROOM}/game`] = newGs;

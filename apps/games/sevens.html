@@ -153,9 +153,10 @@
   <div class="back-link"><a href="index.html">← ミニゲーム一覧へ</a></div>
 </div>
 
+<script src="game-sync.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, update, query, orderByChild, endAt } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, runTransaction, ref, set, get, update, query, orderByChild, endAt } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 if (new URLSearchParams(location.search).get("preview") === "1") { document.querySelectorAll("button,input,select").forEach(el=>el.disabled=true); const status=document.createElement("p");status.textContent="表示確認モード：接続・入室・対戦は無効です";status.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;background:#fff0cd;color:#47371b;text-align:center;padding:8px;font-size:12px";document.body.prepend(status); } else {
 
 
@@ -203,7 +204,7 @@ async function cleanupOldRooms() {
     const snap = await get(query(ref(db, 'rooms_sevens'), orderByChild('createdAt'), endAt(cutoff)));
     if (!snap.exists()) return;
     const del = {};
-    snap.forEach(c => { del['rooms_sevens/' + c.key] = null; });
+    snap.forEach(c => { if (c.val()?.status !== 'playing') del['rooms_sevens/' + c.key] = null; });
     await update(ref(db), del);
   } catch(e) {}
 }
@@ -215,11 +216,11 @@ window.createRoom = async function() {
     setStatus('ルームを作成中...', '');
     await cleanupOldRooms();
 
-    const roomCode = genRoomCode();
+    let roomCode;
     const pid = getPlayerId();
 
-    await set(ref(db, 'rooms_sevens/' + roomCode), {
-      code: roomCode, status: 'waiting',
+    roomCode = await GameSync.createRoom(runTransaction, code => ref(db, 'rooms_sevens/' + code), genRoomCode, {
+      status: 'waiting',
       host: pid,
       players: { [pid]: { name, index: 0, ready: true } },
       createdAt: Date.now()
@@ -246,18 +247,7 @@ window.joinRoom = async function() {
     setStatus('参加中...', '');
     await cleanupOldRooms();
     const pid = getPlayerId();
-    const snap = await get(ref(db, 'rooms_sevens/' + code));
-
-    if (!snap.exists()) { setStatus('ルームが見つかりません', 'error'); return; }
-    const room = snap.val();
-    if (room.status === 'playing') { setStatus('そのルームはゲーム中です', 'error'); return; }
-
-    const playerCount = Object.keys(room.players || {}).length;
-    if (playerCount >= 4) { setStatus('ルームが満員です (4/4)', 'error'); return; }
-
-    await update(ref(db, 'rooms_sevens/' + code + '/players/' + pid), {
-      name, index: playerCount, ready: true
-    });
+    await GameSync.joinRoom(runTransaction, ref(db, 'rooms_sevens/' + code), pid, name, 4);
 
     location.href = 'sevens-game.html?room=' + code + '&pid=' + pid + '&name=' + encodeURIComponent(name);
   } catch(e) {

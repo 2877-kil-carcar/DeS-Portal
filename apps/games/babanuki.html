@@ -310,10 +310,11 @@
 </div>
 
 <!-- Firebase SDK -->
+<script src="game-sync.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 
-  import { getDatabase, ref, set, get, update, onValue, push, query, orderByChild, endAt, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getDatabase, runTransaction, ref, set, get, update, onValue, push, query, orderByChild, endAt, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 if (new URLSearchParams(location.search).get("preview") === "1") { document.querySelectorAll("button,input,select").forEach(el=>el.disabled=true); const status=document.createElement("p");status.textContent="表示確認モード：接続・入室・対戦は無効です";status.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;background:#fff0cd;color:#47371b;text-align:center;padding:8px;font-size:12px";document.body.prepend(status); } else {
 
 
@@ -375,7 +376,7 @@ if (new URLSearchParams(location.search).get("preview") === "1") { document.quer
       const oldSnap = await get(query(ref(db, 'rooms'), orderByChild('createdAt'), endAt(cutoff)));
       if (!oldSnap.exists()) return;
       const deletions = {};
-      oldSnap.forEach(child => { deletions['rooms/' + child.key] = null; });
+      oldSnap.forEach(child => { if (child.val()?.status !== 'playing') deletions['rooms/' + child.key] = null; });
       await update(ref(db), deletions);
     } catch(e) {
       console.warn('古いルーム削除失敗:', e);
@@ -388,17 +389,16 @@ if (new URLSearchParams(location.search).get("preview") === "1") { document.quer
     if (!name) { setStatus('名前を入力してください', 'error'); return; }
     await cleanupOldRooms();
 
-    const roomCode = genRoomCode();
+    let roomCode;
     const pid = getPlayerId();
     localStorage.setItem('babanuki_player', JSON.stringify({ name, pid }));
 
-    const roomRef = ref(db, 'rooms/' + roomCode);
-    await set(roomRef, {
-      code: roomCode,
+    try { roomCode = await GameSync.createRoom(runTransaction, code => ref(db, 'rooms/' + code), genRoomCode, {
+      host: pid,
       status: 'waiting',
       players: { [pid]: { name, index: 0, ready: true } },
       createdAt: Date.now()
-    });
+    }); } catch (error) { setStatus('エラー: ' + error.message, 'error'); return; }
 
     setStatus('ルームコード: ' + roomCode + ' — 友達に教えよう！', 'success');
     setTimeout(() => {
@@ -416,21 +416,9 @@ if (new URLSearchParams(location.search).get("preview") === "1") { document.quer
     if (code.length !== 4) { setStatus('4文字のルームコードを入力してください', 'error'); return; }
 
     const pid = getPlayerId();
-    const roomRef = ref(db, 'rooms/' + code);
-    const snap = await get(roomRef);
-
-    if (!snap.exists()) { setStatus('ルームが見つかりません', 'error'); return; }
-    const room = snap.val();
-    if (room.status === 'playing') { setStatus('そのルームはゲーム中です', 'error'); return; }
-
-    const playerCount = Object.keys(room.players || {}).length;
-    if (playerCount >= 30) { setStatus('ルームが満員です (30/30)', 'error'); return; }
-
     localStorage.setItem('babanuki_player', JSON.stringify({ name, pid }));
-
-    await update(ref(db, 'rooms/' + code + '/players/' + pid), {
-      name, index: playerCount, ready: true
-    });
+    try { await GameSync.joinRoom(runTransaction, ref(db, 'rooms/' + code), pid, name, 30); }
+    catch (error) { setStatus(error.message, 'error'); return; }
 
     location.href = 'babanuki-game.html?room=' + code + '&pid=' + pid + '&name=' + encodeURIComponent(name);
   };

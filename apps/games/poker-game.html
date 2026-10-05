@@ -325,9 +325,10 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="game-sync.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, get, update, runTransaction, onValue, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getFirestore, collection, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 if (new URLSearchParams(location.search).get("preview") === "1") { document.querySelectorAll("button,input,select").forEach(el=>el.disabled=true); const status=document.createElement("p");status.textContent="表示確認モード：接続・入室・対戦は無効です";status.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;background:#fff0cd;color:#47371b;text-align:center;padding:8px;font-size:12px";document.body.prepend(status); } else {
@@ -340,7 +341,7 @@ if (new URLSearchParams(location.search).get("preview") === "1") { document.quer
 const params = new URLSearchParams(location.search);
 const ROOM = params.get('room');
 const MY_PID = params.get('pid');
-const MY_NAME = decodeURIComponent(params.get('name') || 'Player');
+const MY_NAME = params.get('name') || 'Player'; // URLSearchParams already decodes once.
 if (!ROOM || !MY_PID) { location.href = 'poker.html'; }
 
 const firebaseConfig = {
@@ -361,6 +362,7 @@ document.getElementById('roomCodeDisplay').textContent = ROOM;
 // ===== LOCAL PHASE =====
 // 'init' | 'waiting' | 'ready-next' | 'game' | 'result'
 let localPhase = 'init';
+let rematchFromGameId = null;
 
 // ===== GALLERY IMAGES =====
 let rankImages = {};
@@ -534,6 +536,18 @@ function shufflePids(arr) {
 
 // ===== STATE =====
 let gameState = null;
+async function commitTurn(expected, updates) {
+  try {
+    const result = await GameSync.commit(runTransaction, ref(db, 'rooms_poker/' + ROOM + '/gameState'), expected, updates);
+    if (!result.committed) { if (result.snapshot?.exists()) gameState = result.snapshot.val(); showToast('手番が更新されました。最新の画面で操作してください。'); return false; }
+    if (!gameState || GameSync.signature(gameState) === GameSync.signature(expected)) gameState = result.snapshot.val();
+    return true;
+  } catch (error) {
+    console.error('turn save failed', error);
+    showToast('操作を保存できませんでした。接続を確認して再試行してください。');
+    return false;
+  }
+}
 let selectedCards = new Set();
 let exchangeInProgress = false;
 
@@ -548,7 +562,7 @@ function updateWaitingScreen(room) {
   pids.forEach(pid => {
     const slot = document.createElement('div');
     slot.className = 'player-slot filled' + (pid === MY_PID ? ' me' : '');
-    slot.innerHTML = `<div class="slot-icon">${pid === MY_PID ? '🙋' : '👤'}</div><div class="slot-name">${players[pid].name}</div>`;
+    slot.innerHTML = `<div class="slot-icon">${pid === MY_PID ? '🙋' : '👤'}</div><div class="slot-name">${GameSync.escapeHtml(players[pid].name)}</div>`;
     slotsEl.appendChild(slot);
   });
 
@@ -589,6 +603,7 @@ onValue(roomRef, async (snap) => {
 
   if (localPhase === 'waiting' || localPhase === 'ready-next') {
     updateWaitingScreen(room);
+    if (localPhase === 'ready-next' && (room.gameState?.gameId || null) === rematchFromGameId) return;
     // If game started while we were on waiting screen
     if (room.status === 'playing' && room.gameState) {
       await startGameUI(room.gameState, room.players);
@@ -662,7 +677,7 @@ window.hostStartGame = async function() {
   const room = snap.val();
   const roomPlayers = room.players || {};
   const hostPid = room.host || Object.keys(roomPlayers).find(p => roomPlayers[p]?.index === 0);
-  if (hostPid !== MY_PID) return;
+  if (hostPid !== MY_PID || room.status !== 'waiting') return;
   const pids = Object.keys(roomPlayers);
   if (pids.length < 2) return;
   await startGame(room);
@@ -681,6 +696,7 @@ async function startGame(room) {
   pids.forEach(pid => { scores[pid] = 0; });
 
   const gs = {
+    gameId: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2),
     hands,
     deck: remainingDeck,
     openCards: [],
@@ -696,7 +712,8 @@ async function startGame(room) {
     roundResults: null,
   };
 
-  await update(roomRef, { status: 'playing', gameState: gs, nextGame: null });
+  const result = await GameSync.commit(runTransaction, roomRef, room, { status: 'playing', gameState: gs, nextGame: null });
+  if (!result.committed) showToast('参加者が更新されました。もう一度開始してください。');
 }
 
 async function startGameUI(gs, players) {
@@ -758,7 +775,7 @@ function renderScoreBar(gs, players) {
   (gs.pids || []).forEach(pid => {
     const item = document.createElement('div');
     item.className = 'score-item' + (pid === MY_PID ? ' me' : '');
-    item.innerHTML = `<div class="score-name">${players[pid]?.name || pid}</div><div class="score-pt">${gs.scores?.[pid] || 0}pt</div>`;
+    item.innerHTML = `<div class="score-name">${GameSync.escapeHtml(players[pid]?.name || pid)}</div><div class="score-pt">${gs.scores?.[pid] || 0}pt</div>`;
     el.appendChild(item);
   });
 }
@@ -778,7 +795,7 @@ function renderOpponents(gs, players) {
     const row = document.createElement('div');
     row.className = 'opp-row' + (done ? ' done-action' : isActive ? ' active-turn' : '');
     row.innerHTML = `
-      <span class="opp-name">${players[pid]?.name || pid}</span>
+      <span class="opp-name">${GameSync.escapeHtml(players[pid]?.name || pid)}</span>
       <span class="opp-status">${done ? '✅ 交換完了' : isActive ? '🔄 交換中...' : '⏳ 待機中'}</span>
     `;
     el.appendChild(row);
@@ -823,7 +840,7 @@ function renderMyHand(gs) {
       if (imgUrl) {
         div.innerHTML = `
           <div class="card-corner">${card.rank}<br><span style="font-size:0.7em;">${card.suit}</span></div>
-          <img src="${imgUrl}" style="width:46px;height:50px;object-fit:cover;border-radius:3px;display:block;margin:0 auto;">
+          <img src="${GameSync.escapeHtml(imgUrl)}" style="width:46px;height:50px;object-fit:cover;border-radius:3px;display:block;margin:0 auto;">
         `;
       } else {
         div.innerHTML = `
@@ -945,11 +962,15 @@ window._doExchange = async function() {
   }
 
   try {
-    await update(ref(db, 'rooms_poker/' + ROOM + '/gameState'), updates);
+    if (await commitTurn(gs, updates)) selectedCards = new Set();
+  } catch (error) {
+    console.error('exchange failed', error);
+    showToast('交換を保存できませんでした。接続を確認して再試行してください。');
   } finally {
     exchangeInProgress = false;
+    // A rejected write does not emit a new snapshot: explicitly restore controls.
+    if (gameState) renderMyHand(gameState);
   }
-  selectedCards = new Set();
 };
 
 window._doStay = async function() {
@@ -984,7 +1005,7 @@ function showRoundResult(gs, players) {
       return `<div class="mini-card${isJoker?' joker':isRed?' red':' black'}">${isJoker?'🃏':c.rank+'<br>'+c.suit}</div>`;
     }).join('');
     row.innerHTML = `
-      <span class="rpr-name">${players[pid]?.name || pid}${pid===MY_PID?' (あなた)':''}</span>
+      <span class="rpr-name">${GameSync.escapeHtml(players[pid]?.name || pid)}${pid===MY_PID?' (あなた)':''}</span>
       <span class="rpr-hand">${miniCards}</span>
       <span class="rpr-role">${r.role||'—'}</span>
       <span class="rpr-pt">+${r.pt||0}pt</span>
@@ -1023,7 +1044,7 @@ window._nextRound = async function() {
   if (!snap.exists()) return;
   const room = snap.val();
   const gs = gameState;
-  if (!gs) return;
+  if (!gs || gs.phase !== 'roundResult' || gs.round >= gs.totalRounds) return;
   const hostPid = room.host || gs.pids[0];
   if (hostPid !== MY_PID) return;
 
@@ -1034,7 +1055,7 @@ window._nextRound = async function() {
   deck.slice(0, pids.length * 5).forEach((card, i) => hands[pids[i % pids.length]].push(card));
   const remainingDeck = deck.slice(pids.length * 5);
 
-  await update(ref(db, 'rooms_poker/' + ROOM + '/gameState'), {
+  await commitTurn(gs, {
     hands,
     deck: remainingDeck,
     openCards: [],
@@ -1072,7 +1093,7 @@ function showFinalResult(gs) {
     document.getElementById('resultRankings').innerHTML = sorted.map((pid, i) => `
       <div class="rank-item">
         <span class="rank-num">${medals[i]||i+1}</span>
-        <span class="rank-name">${players[pid]?.name||pid}${pid===MY_PID?' (あなた)':''}</span>
+        <span class="rank-name">${GameSync.escapeHtml(players[pid]?.name||pid)}${pid===MY_PID?' (あなた)':''}</span>
         <span class="rank-pt">${gs.scores[pid]||0}pt</span>
       </div>
     `).join('');
@@ -1083,6 +1104,7 @@ function showFinalResult(gs) {
 
 // ===== PLAY AGAIN =====
 window._playAgain = async function() {
+  rematchFromGameId = gameState?.gameId || null;
   // Mark as ready for next game in Firebase
   await update(ref(db, 'rooms_poker/' + ROOM + '/nextGame/' + MY_PID), { ready: true });
   // Transition locally to waiting screen (don't force others)

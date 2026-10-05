@@ -150,7 +150,7 @@
   <div class="title-area">
     <div class="title-deco">🂱 🃁 🂾</div>
     <h1>大富豪</h1>
-    <p class="subtitle">Online Multiplayer · 2〜6 Players</p>
+    <p class="subtitle">Online Multiplayer · 3〜6 Players</p>
   </div>
   <div class="panel" id="lobbyPanel" style="display:none;">
     <div class="panel-title">プレイヤー名</div>
@@ -213,9 +213,10 @@
 <!-- ルール定義を先に読み込む（file://でも動作） -->
 <script src="daifugo-rules.js"></script>
 
+<script src="game-sync.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue, query, orderByChild, endAt }
+import { getDatabase, runTransaction, ref, set, get, update, onValue, query, orderByChild, endAt }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 if (new URLSearchParams(location.search).get("preview") === "1") { document.querySelectorAll("button,input,select").forEach(el=>el.disabled=true); const status=document.createElement("p");status.textContent="表示確認モード：接続・入室・対戦は無効です";status.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;background:#fff0cd;color:#47371b;text-align:center;padding:8px;font-size:12px";document.body.prepend(status); } else {
 
@@ -241,7 +242,7 @@ const db  = getDatabase(app);
 const params = new URLSearchParams(location.search);
 let ROOM    = params.get('room');
 let MY_PID  = params.get('pid');
-let MY_NAME = decodeURIComponent(params.get('name') || '');
+let MY_NAME = params.get('name') || ''; // URLSearchParams already decodes once.
 let roomRef = null;
 let isHost  = false;
 let rules   = { ...DEFAULT_RULES };
@@ -475,7 +476,7 @@ async function cleanupOldRooms() {
     const snap = await get(query(ref(db, 'rooms_daifugo'), orderByChild('createdAt'), endAt(cutoff)));
     if (!snap.exists()) return;
     const del = {};
-    snap.forEach(c => { del['rooms_daifugo/' + c.key] = null; });
+    snap.forEach(c => { if (c.val()?.status !== 'playing') del['rooms_daifugo/' + c.key] = null; });
     await update(ref(db), del);
   } catch (e) {}
 }
@@ -499,10 +500,10 @@ window.createRoom = async function() {
   try {
     setStatus('ルームを作成中...', '');
     await cleanupOldRooms();
-    const code = genRoomCode();
+    let code;
     const pid  = getPlayerId();
-    await set(ref(db, 'rooms_daifugo/' + code), {
-      code, status: 'waiting', host: pid,
+    code = await GameSync.createRoom(runTransaction, roomCode => ref(db, 'rooms_daifugo/' + roomCode), genRoomCode, {
+      status: 'waiting', host: pid,
       players: { [pid]: { name, index: 0, ready: true } },
       rules: { ...DEFAULT_RULES },
       createdAt: Date.now(),
@@ -521,13 +522,7 @@ window.joinRoom = async function() {
     setStatus('参加中...', '');
     await cleanupOldRooms();
     const pid  = getPlayerId();
-    const snap = await get(ref(db, 'rooms_daifugo/' + code));
-    if (!snap.exists()) { setStatus('ルームが見つかりません', 'error'); return; }
-    const room = snap.val();
-    if (room.status === 'playing') { setStatus('そのルームはゲーム中です', 'error'); return; }
-    const playerCount = Object.keys(room.players || {}).length;
-    if (playerCount >= 6) { setStatus('ルームが満員です (6/6)', 'error'); return; }
-    await update(ref(db, 'rooms_daifugo/' + code + '/players/' + pid), { name, index: playerCount, ready: true });
+    await GameSync.joinRoom(runTransaction, ref(db, 'rooms_daifugo/' + code), pid, name, 6);
     enterWaiting(code, pid, name);
   } catch (e) { setStatus('エラー: ' + (e.message || 'Firebase接続に失敗'), 'error'); }
 };
@@ -560,7 +555,7 @@ function startRoomListener() {
     pids.forEach(pid => {
       const slot = document.createElement('div');
       slot.className = 'player-slot filled' + (pid === MY_PID ? ' me' : '');
-      slot.innerHTML = `<div class="slot-icon">${pid === MY_PID ? '🙋' : '👤'}</div><div class="slot-name">${players[pid].name}</div>`;
+      slot.innerHTML = `<div class="slot-icon">${pid === MY_PID ? '🙋' : '👤'}</div><div class="slot-name">${GameSync.escapeHtml(players[pid].name)}</div>`;
       slots.appendChild(slot);
     });
     for (let i = pids.length; i < 6; i++) {
@@ -604,6 +599,8 @@ window.hostStartGame = async function() {
   if (!snap.exists()) return;
   const room = snap.val();
   const pids = Object.keys(room.players || {});
+  const hostPid = room.host || pids.find(pid => room.players[pid]?.index === 0);
+  if (hostPid !== MY_PID || room.status !== 'waiting') return;
   if (pids.length < 3) { showToast('3人以上必要です'); return; }
 
   // カードを配る
@@ -618,10 +615,7 @@ window.hostStartGame = async function() {
     if ((hands[pid] || []).some(c => c.s === 'D' && c.n === 3)) { starterPid = pid; break; }
   }
 
-  const updates = {};
-  pids.forEach(pid => { updates[`rooms_daifugo/${ROOM}/hands/${pid}`] = hands[pid]; });
-  updates[`rooms_daifugo/${ROOM}/status`] = 'playing';
-  updates[`rooms_daifugo/${ROOM}/game`] = {
+  const game = {
     round: 1,
     turn: starterPid,
     direction: 1,
@@ -641,7 +635,8 @@ window.hostStartGame = async function() {
     pendingClear: false,
     phase: 'playing',
   };
-  await update(ref(db), updates);
+  const result = await GameSync.commit(runTransaction, roomRef, room, { status:'playing', hands, game });
+  if (!result.committed) { showToast('参加者が更新されました。もう一度開始してください。'); return; }
   location.href = `daifugo-game.html?room=${ROOM}&pid=${MY_PID}&name=${encodeURIComponent(MY_NAME)}`;
 };
 
