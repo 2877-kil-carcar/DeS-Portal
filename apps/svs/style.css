@@ -1,0 +1,210 @@
+body{
+background:#1e1f26;
+color:#e4e6eb;
+font-family:system-ui;
+padding:20px;
+}
+
+button{
+background:#5865f2;
+border:none;
+color:white;
+padding:8px 14px;
+border-radius:6px;
+cursor:pointer;
+}
+
+button:disabled{
+opacity:0.5;
+cursor:not-allowed;
+}
+
+input,select{
+background:#2b2d36;
+border:1px solid #444;
+color:white;
+padding:6px;
+border-radius:4px;
+}
+
+table{
+border-collapse:collapse;
+background:#2b2d36;
+margin-top:10px;
+}
+
+td,th{
+border:1px solid #3a3c46;
+padding:8px 12px;
+}
+
+.switch{
+position:relative;
+display:inline-block;
+width:40px;
+height:20px;
+}
+
+.switch input{
+opacity:0;
+width:0;
+height:0;
+}
+
+.slider{
+position:absolute;
+top:0;
+left:0;
+right:0;
+bottom:0;
+background:#555;
+border-radius:20px;
+}
+
+.slider:before{
+position:absolute;
+content:"";
+height:16px;
+width:16px;
+left:2px;
+bottom:2px;
+background:white;
+border-radius:50%;
+transition:0.2s;
+}
+
+.switch input:checked + .slider{
+background:#5865f2;
+}
+
+.switch input:checked + .slider:before{
+transform:translateX(20px);
+}
+
+.result-group{
+background:#2b2d36;
+padding:12px;
+margin:10px 0;
+border-radius:6px;
+display:block;
+width:100%;
+box-sizing:border-box;
+}
+
+.rate-input{
+width:50px;
+text-align:center;
+}
+
+.rally-row input{
+width:60px;
+text-align:center;
+}
+
+.rally-row{
+display:flex;
+gap:10px;
+margin:6px 0;
+align-items:center;
+}
+
+.tabs{
+display:flex;
+gap:8px;
+flex-wrap:wrap;
+margin-bottom:16px;
+}
+
+.tab{
+display:none;
+}
+
+.tab-btn.active{
+background:#22c55e;
+}
+
+.result-row{
+margin:4px 0;
+}
+
+.changed-input{
+  border:2px solid #f59e0b; /* オレンジ */
+  background:#3a2f1a;
+}
+
+.table-wrap{
+  overflow-x:auto;
+  margin-bottom:16px;
+}
+
+.hero-table{
+  border-collapse:collapse;
+  min-width:max-content;
+}
+
+.hero-table th,
+.hero-table td{
+  padding:6px 10px;
+  white-space:nowrap;
+}
+
+/* =========================
+★ 集結テーブル（横スクロール対応）
+========================= */
+.rally-table{
+  border-collapse: collapse;
+  min-width: max-content;
+  width: max-content;
+}
+
+.rally-table th,
+.rally-table td{
+  white-space: nowrap;
+}
+
+/* 左列固定 */
+.sticky-col{
+  position:sticky;
+  left:0;
+  background:#2b2d36;
+  z-index:2;
+}
+
+/* 左上セルだけ最前面 */
+.header-corner{
+  z-index:3;
+}
+
+/* ヘッダー固定（任意） */
+.hero-table th{
+  position:sticky;
+  top:0;
+  background:#2b2d36;
+  z-index:1;
+}
+
+.active-rally{
+  background:#1f3b2b; /* 濃い緑 */
+}
+
+.active-rally td{
+  border-color:#22c55e;
+}
+
+/* =========================
+★ ディスティニー（黄色背景のみ）
+========================= */
+.destiny-highlight{
+  background: #4a3b00;
+}
+
+.destiny-highlight td{
+  border: 2px solid gold;
+}
+
+/* active-rally と重なる場合も同色を維持 */
+.active-rally.destiny-highlight,
+.active-rally.destiny-highlight td{
+  background: #4a3b00 !important;
+  border-color: gold;
+}

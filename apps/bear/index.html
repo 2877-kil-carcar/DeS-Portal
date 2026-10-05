@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>熊罠配置 | WOS Toolbox</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/mobile.css">
+</head>
+<body>
+
+  <div id="topBar">
+    <div id="topTitle">
+      <h3>熊罠・同盟配置</h3>
+      <span id="globalUpdatedAt"></span>
+    </div>
+
+    <div id="topActions">
+      <input id="adminPwInput" type="password" placeholder="管理者PW" aria-label="管理者パスワード" autocomplete="off">
+      <button id="adminApproveBtn" type="button">編集を許可</button>
+      <a id="memberLink" href="./members.html">同盟員登録</a>
+      <div id="currentPosTop"></div>
+    </div>
+  </div>
+  <div id="syncStatus" role="status">共有配置を読み込み中…</div>
+
+  <div id="gridWrapper">
+    <div id="gridStage"><div id="grid"></div></div>
+  </div>
+
+  <div id="sheet">
+    <div class="sheet-content">
+      <div id="list"></div>
+      <div id="currentPos" style="margin-bottom:8px; font-weight:bold;"></div>
+      <button type="button" onclick="closeSheet()" id="sheetClose">閉じる</button>
+    </div>
+  </div>
+  <div id="coordHint"></div>
+  <div class="map-controls"><button id="zoomOut" aria-label="地図を縮小">−</button><button id="zoomReset" aria-label="地図の倍率をリセット">100%</button><button id="zoomIn" aria-label="地図を拡大">＋</button><button id="mapAll">全体</button><button id="findMember">同盟員を探す</button></div>
+  <div id="mapHelp">スワイプで移動 · 2本指で拡大 · マスをタップして選択（配置の基準は左下）</div>
+  <script src="./js/placement-core.js"></script>
+  <script type="module" src="./js/app.js"></script>
+  <script src="../bridge.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>2856 申請フォーム一覧</title>
+<link rel="stylesheet" href="style.css">
+<script src="../bridge.js" defer></script>
+<script src="core.js" defer></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<main>
+<header><p class="eyebrow">2856 / APPLICATION DESK</p><h1>申請フォーム一覧</h1><p class="intro">申請先と一覧表を、ひとつの場所に。</p></header>
+<div class="connection"><p id="status" role="status">共有リンクを読み込み中…</p><button id="retry" hidden>再接続</button></div>
+<p class="notice">リンク編集は全員の共有設定に反映されます。メモはこのブラウザだけに保存されます。</p>
+<div class="sections" id="sections"></div>
+</main>
+<dialog id="link-dialog" aria-labelledby="modal-title">
+<form id="link-form">
+<h2 id="modal-title">リンクを編集</h2><p>https:// または http:// のURLを入力。空欄で解除できます。</p>
+<label for="modal-input">リンク先URL</label><input type="url" id="modal-input" placeholder="https://…" autocomplete="off" spellcheck="false">
+<p id="modal-error" role="alert"></p>
+<div class="modal-buttons"><button type="button" id="modal-cancel">キャンセル</button><button type="submit" id="modal-save" class="primary">保存</button></div>
+</form>
+</dialog>
+<div id="toast" role="status" hidden></div>
+</body>
+</html>

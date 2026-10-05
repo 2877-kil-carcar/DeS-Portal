@@ -1,0 +1,334 @@
+body {
+  margin: 0;
+  background: #0f172a;
+  color: white;
+  font-family: sans-serif;
+  overflow: hidden;
+}
+
+/* ===== 上部固定バー ===== */
+#topBar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2000;
+  background: #0f172a;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+
+#topTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+#topBar h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+/* 全配置の中で最も新しい更新日時（見出しの横に表示） */
+#globalUpdatedAt {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+}
+
+#topActions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#topActions button,
+#topActions a {
+  position: relative;
+  z-index: 2001;
+  touch-action: manipulation;
+}
+
+#topActions a {
+  color: white;
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.08);
+  display: inline-block;
+}
+
+/* 管理者パスワード入力 */
+#adminPwInput {
+  width: 90px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.08);
+  color: white;
+  font-size: 13px;
+  box-sizing: border-box;
+  touch-action: manipulation;
+}
+
+#adminPwInput::placeholder {
+  color: rgba(255,255,255,0.4);
+}
+
+/* ===== シート ===== */
+#sheet {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  height: 60%;
+  background: rgba(30, 41, 59, 0.98);
+  transform: translateY(100%);
+  transition: 0.3s;
+  border-radius: 20px 20px 0 0;
+  pointer-events: none;
+  z-index: 999;
+}
+
+#sheet.show {
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.sheet-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+#list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+#list input {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.sheet-content button {
+  flex-shrink: 0;
+  margin-top: 10px;
+}
+
+/* ===== グリッド領域 ===== */
+#gridWrapper {
+  position: fixed;
+  top: 88px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: auto;
+  touch-action: none;
+}
+
+#grid {
+  display: grid;
+  grid-template-columns: repeat(48, 34px);
+  gap: 3px;
+  padding: 8px;
+  transform-origin: top left;
+  will-change: transform;
+}
+
+/* ===== マス ===== */
+.cell {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.15);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 9px;
+  font-weight: 600;
+  position: relative;
+  color: #000;
+}
+
+.cell:active {
+  transform: scale(0.95);
+}
+
+/* タップ位置ハイライト */
+.cell.active {
+  outline: 2px solid rgba(255, 255, 0, 0.95);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 0, 0.75);
+}
+
+/* ジャンプフラッシュ */
+.cell.flash {
+  animation: flashAnim 0.8s ease;
+}
+
+@keyframes flashAnim {
+  0% { box-shadow: 0 0 0 0 rgba(255,255,0,0.9); }
+  50% { box-shadow: 0 0 20px 10px rgba(255,255,0,0.9); }
+  100% { box-shadow: 0 0 0 0 rgba(255,255,0,0); }
+}
+
+/* FC */
+.fc1  { background: #ffe5e5; }
+.fc2  { background: #ffd6d6; }
+.fc3  { background: #ffbfbf; }
+.fc4  { background: #ffa8a8; }
+.fc5  { background: #ff9191; }
+.fc6  { background: #ff7a7a; }
+.fc7  { background: #ff6363; }
+.fc8  { background: #ff4c4c; }
+.fc9  { background: #ff2a2a; }
+.fc10 { background: #ff0000; }
+
+.fc5, .fc6, .fc7, .fc8, .fc9, .fc10 {
+  color: #fff;
+  font-weight: bold;
+}
+
+/* 通常炉は白 */
+.cell.player-normal {
+  background: #ffffff;
+}
+
+/* テキスト配置 */
+.cell-name {
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  right: 2px;
+  transform: translateY(-50%);
+  font-size: 9px;
+  line-height: 10px;
+  text-align: center;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.cell-furnace {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  right: 2px;
+  font-size: 8px;
+  opacity: 0.8;
+}
+
+.cell-furnace-center {
+  font-size: 9px;
+  font-weight: 600;
+  opacity: 0.85;
+  text-align: center;
+}
+
+/* 複数マス枠 */
+.border-top {
+  border-top: 3px solid #67e8f9;
+}
+.border-bottom {
+  border-bottom: 3px solid #67e8f9;
+}
+.border-left {
+  border-left: 3px solid #67e8f9;
+}
+.border-right {
+  border-right: 3px solid #67e8f9;
+}
+
+.coord-cell {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+#currentPos {
+  color: #facc15;
+  font-size: 14px;
+  font-weight: bold;
+  text-shadow: 0 0 6px rgba(250, 204, 21, 0.7);
+}
+
+#currentPosTop {
+  margin-left: auto;
+  font-weight: bold;
+  color: #facc15;
+  font-size: 14px;
+  text-shadow: 0 0 6px rgba(250, 204, 21, 0.7);
+  text-align: right;
+  line-height: 1.2;
+}
+
+/* 配置の最終更新日時（座標の下に小さく表示） */
+.updated-at {
+  font-size: 11px;
+  font-weight: normal;
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: none;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+/* ===== 名前カスタムドロップダウン ===== */
+#nameDropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 160px;
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 8px;
+  max-height: 220px;
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  z-index: 3000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+
+#nameDropdown.show {
+  display: block;
+}
+
+.name-dropdown-header {
+  font-weight: bold;
+  color: #facc15;
+  padding: 6px 10px 2px;
+  font-size: 13px;
+}
+
+.name-dropdown-item {
+  padding: 7px 14px;
+  cursor: pointer;
+  color: white;
+  font-size: 14px;
+}
+
+.name-dropdown-item:active {
+  background: rgba(255,255,255,0.12);
+}
+
+/* ===== 同盟員登録ページ ===== */
+#membersContainer {
+  position: fixed;
+  top: 88px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+  padding: 12px;
+  box-sizing: border-box;
+}

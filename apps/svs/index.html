@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2856SvS補助ツール</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="hub.css">
+<script src="../bridge.js" defer></script>
+<script src="safe-ui.js"></script>
+</head>
+
+<body>
+<div class="tool-kicker">2856 / OPERATIONS</div>
+
+<!-- ログインポップアップ -->
+<div id="loginOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9998;" onclick="hideLoginPopup()"></div>
+<div id="loginPopup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#2b2d36;padding:24px 28px;border-radius:8px;z-index:9999;text-align:center;min-width:240px;">
+  <h3 id="loginPopupTitle" style="margin-bottom:14px;"></h3>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+    <input id="loginUsername" placeholder="ユーザー名" style="width:100%;box-sizing:border-box;">
+    <input type="password" id="loginPassword" placeholder="パスワード" style="width:100%;box-sizing:border-box;">
+  </div>
+  <div style="display:flex;gap:8px;justify-content:center;">
+    <button id="loginConfirmBtn">確定</button>
+    <button onclick="hideLoginPopup()">キャンセル</button>
+  </div>
+</div>
+
+<h1 style="display:flex;align-items:center;gap:10px;">
+
+  2856SvS補助ツール
+
+  <span style="
+    display:flex;
+    align-items:center;
+    font-size:12px;
+    color:#aaa;
+    gap:4px;
+  ">
+    Product By かるろ
+    <img src="icon.png" style="width:36px;height:36px;border-radius:50%;">
+  </span>
+
+</h1>
+
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+  <button onclick="showLoginPopup('register')">管理者申請</button>
+  <button onclick="showLoginPopup('admin')">管理者ログイン</button>
+  <span id="currentUserLabel" style="font-size:13px;color:#aaa;"></span>
+</div>
+<div id="syncStatus" class="sync-status" role="status">接続準備中…</div><button id="retrySync" hidden>再接続</button>
+<p class="tool-help">参加者の管理から集結の振り分けまで。表は左右にスワイプできます。</p>
+<div class="tabs" role="navigation" aria-label="SvS機能">
+<button class="tab-btn" onclick="showTab('heroes')">英雄</button>
+<button class="tab-btn" onclick="showTab('groups')">グループ</button>
+<button class="tab-btn" onclick="showTab('alliances')">同盟</button>
+<button class="tab-btn" onclick="showTab('players')">プレイヤー</button>
+<button class="tab-btn" onclick="showTab('playerHeroes')">所持英雄</button>
+<button class="tab-btn" onclick="showTab('rally')">集結</button>
+<button class="tab-btn" onclick="showTab('result')">結果</button>
+<button class="tab-btn" onclick="showTab('countupTab')">カウントアップ</button>
+<button class="tab-btn" id="userMgmtTabBtn" onclick="showTab('userMgmt')" style="display:none;">ユーザー管理</button>
+<button class="tab-btn" id="logTabBtn" onclick="showTab('logTab')" style="display:none;">ログ</button>
+</div>
+
+<div id="heroes" class="tab"></div>
+<div id="groups" class="tab"></div>
+<div id="players" class="tab"></div>
+<div id="alliances" class="tab"></div>
+<div id="userMgmt" class="tab"></div>
+<div id="logTab" class="tab"></div>
+<div id="playerHeroes" class="tab"></div>
+<div id="rally" class="tab"></div>
+
+<div id="result" class="tab">
+<button onclick="assign()">自動振り分け</button>
+<label>
+  <input type="checkbox" id="randomAssign" checked>
+  乗り手ランダム
+</label>
+<div id="resultTable"></div>
+</div>
+
+<!-- ★追加：カウントアップ専用タブ -->
+<div id="countupTab" class="tab"></div>
+
+<script>
+function showTab(tabId){
+
+  document.querySelectorAll(".tab").forEach(el=>{
+    el.style.display = "none"
+  })
+
+  document.querySelectorAll(".tab-btn").forEach(btn=>{
+    btn.classList.remove("active")
+  })
+
+  const activeTab = document.getElementById(tabId)
+  if(activeTab){
+    activeTab.style.display = "block"
+  }
+
+  document.querySelectorAll(".tab-btn").forEach(btn=>{
+    const onclickText = btn.getAttribute("onclick") || ""
+    if(onclickText.includes(`'${tabId}'`)){
+      btn.classList.add("active")
+    }
+  })
+
+  // ★ここが重要（描画トリガ）
+  if(tabId === "countupTab"){
+    renderCountup()
+  }
+}
+</script>
+
+
+
+
+
+<script src="storage.js"></script>
+<script src="auth.js"></script>
+<script src="users.js"></script>
+<script src="log.js"></script>
+<script src="heroes.js"></script>
+<script src="groups.js"></script>
+<script src="players.js"></script>
+<script src="alliances.js"></script>
+<script src="playerHeroes.js"></script>
+<script src="rally.js"></script>
+<script src="assign.js"></script>
+<script src="countup.js"></script>
+
+<script>
+// Firebase boot is separated so preview never connects or writes.
+</script>
+
+<!-- ★ディスティニー用グローバルネオン -->
+<div id="destiny-global-overlay"></div>
+
+<script src="hub-runtime.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

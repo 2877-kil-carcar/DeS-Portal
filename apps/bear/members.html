@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>同盟員登録</title>
+  <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/mobile.css"></head>
+<body>
+
+  <div id="topBar">
+    <h3>同盟員登録</h3>
+    <div id="topActions">
+      <button type="button" onclick="goBack()">戻る</button>
+    </div>
+  </div>
+
+  <div id="membersContainer">
+    <div id="membersForm">
+      <div style="margin-bottom: 8px;">
+        名前：<span style="position: relative; display: inline-block;">
+          <input id="name" autocomplete="off" placeholder="選択 or 新規入力" style="width: 150px;">
+          <div id="nameDropdown"></div>
+        </span>
+      </div>
+      <div style="margin-bottom: 8px;">
+        溶鉱炉：<select id="furnace"></select>
+        &nbsp;階級：<select id="rank">
+          <option value="R5">R5</option>
+          <option value="R4">R4</option>
+          <option value="R3">R3</option>
+          <option value="R2">R2</option>
+          <option value="R1">R1</option>
+          <option value="R0">R0</option>
+        </select>
+      </div>
+      <button type="button" onclick="addMember()">追加</button>
+    </div>
+
+    <hr style="border-color: rgba(255,255,255,0.15); margin: 12px 0;">
+
+    <div id="memberList"></div>
+  </div>
+
+  <script type="module" src="js/members.js"></script>
+<script src="../bridge.js"></script></body>
+</html>
