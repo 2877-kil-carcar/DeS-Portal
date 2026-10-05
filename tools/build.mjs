@@ -13,7 +13,7 @@ const scripts = ['<script>window.WOS_STANDALONE=true;</script>'];
 for (const filename of ['data.js', 'core.js', 'app.js']) {
   const content = filename === 'data.js' ? dataScript : await read('assets/' + filename);
   scripts.push('<script>' + content.replaceAll('</script', '<\\/script') + '</script>');
-  html = html.replace(`<script src="./assets/${filename}" defer></script>`, '');
+  html = html.replace(new RegExp(`<script src="\\./assets/${filename}(?:\\?[^\"]*)?" defer></script>`), '');
 }
 html = html.replace('</body>', scripts.join('\n') + '\n</body>');
 await writeFile(path.join(root, 'standalone.html'), html, 'utf8');

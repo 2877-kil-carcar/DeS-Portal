@@ -1,4 +1,4 @@
-# DeS ポータル v3.6
+# DeS ポータル v3.7
 
 更新日：2026-10-06。スマートフォン向け下部ナビ＋機能一覧、PC向け左メニューを備えた統合版です。現在の作業先は `D:\IHIHOST\Claude\WOS\_wos_rally_joiner` です。
 
@@ -26,13 +26,17 @@ Node.jsは閲覧には不要です。Pythonがある場合のローカル確認�
 | ミニゲーム | ババ抜き／七並べ／ポーカー／大富豪を独立メニューへ |
 | 2856SvS補助ツール | 英雄・グループ・同盟・参加者・所持英雄・集結・振り分け・カウントアップ・管理者・ログ |
 | 申請フォーム一覧 | 砦／SvS／霜竜／移民の10リンクと4つの端末メモ |
-| ギフトコード | Firebaseで登録・履歴を全端末共有。実交換だけローカルサーバーで実行 |
+| ギフトコード | Firebaseで登録・履歴を全端末共有し、公式APIへ直接一括交換 |
 
 追加アプリは同一オリジンのiframeで遅延読み込みします。メニュー切替で破棄せず、ギャラリーのアニメーションを停止します。ゲームの接続は保持するため、終了するときはゲーム内の退室操作を行ってください。元アプリのソースフォルダは変更していません。
 
+## 公式API直接交換（v3.7）
+
+ギフトコード交換をローカルPython経由から、Century Games公式交換APIへのブラウザ直接送信へ修正しました。GitHub Pagesとスマートフォンから、共有登録・ID確認・一括交換・履歴共有まで利用できます。APIキーやローカルサーバーは不要です。API所定のMD5署名はブラウザ内で生成します。
+
 ## 共有ギフトコード登録（v3.6）
 
-専用Firebaseプロジェクト `des-portal-gift-code` を作成し、登録プレイヤーと交換履歴を共有化しました。GitHub Pagesでも閲覧・追加・変更・削除ができます。既存ローカル登録は初回接続時だけ移行し、移行済みマーカーにより削除済みデータを再接続時に復活させません。実際のコード交換は従来どおりPC上の `start_hub.bat` が必要です。
+専用Firebaseプロジェクト `des-portal-gift-code` を作成し、登録プレイヤーと交換履歴を共有化しました。GitHub Pagesでも閲覧・追加・変更・削除ができます。既存ローカル登録は初回接続時だけ移行し、移行済みマーカーにより削除済みデータを再接続時に復活させません。
 
 認証は匿名認証、Firestoreは `nam5`、ルールは既存アプリと同じ `request.auth != null` の一律読み書き許可です。これはユーザー指定の運用であり、リンクを知る人は匿名認証後に登録・履歴を閲覧、追加、変更、削除できます。管理者だけに制限する仕組みではありません。
 
@@ -42,7 +46,7 @@ Node.jsは閲覧には不要です。Pythonがある場合のローカル確認�
 
 画面名を「DeS ポータル」に統一。スマホ下部の主要メニューを「ギャラリー／熊罠配置／申請フォーム／ギフトコード」に変更しました。「一覧」からその他の機能も開けます。
 
-ギフトコードは `start_hub.bat` を実行すると、交換可能な `http://127.0.0.1:8766/#redeem` が自動で開きます。隣に既存の `wos_redeem`／`_wos_redeem` があれば従来の登録・履歴を優先し、なければ同梱バックエンドと非公開の `.redeem-data` を使用します。
+ギフトコードはGitHub Pages上から直接利用できます。`start_hub.bat` はポータル全体をローカル確認するときの任意の起動方法で、交換の必須条件ではありません。
 
 ## ミニゲームの同期修正（v3.4）
 
@@ -81,7 +85,7 @@ Node.jsは閲覧には不要です。Pythonがある場合のローカル確認�
 
 ## GitHub Pages
 
-HTML/CSS/JSを配信する構成なので、静的配信部分はGitHub Pagesへ配置可能です。[GitHub公式説明](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)（2026-10-04確認）。本フォルダの内容はGitHubリポジトリへ反映しています。ただしGitHub PagesではPythonを実行できないため、ギフトコード交換だけはPC上の `start_hub.bat` が必要です。
+HTML/CSS/JSを配信する構成なのでGitHub Pagesへ配置可能です。[GitHub公式説明](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)（2026-10-04確認）。ギフトコードもブラウザから公式APIへ直接送信するため、Pythonは不要です。
 
 公開前に必ず確認：
 
@@ -95,13 +99,9 @@ HTML/CSS/JSを配信する構成なので、静的配信部分はGitHub Pagesへ
 
 ### ギフトコードメニュー（追加）
 
-「ギフトコード」はスマホ下部メニューから直接開けます。Python 3.9以降で `start_hub.bat` を実行すると、`http://127.0.0.1:8766/#redeem` が自動で開きます。既存の `wos_redeem/server.py` または `_wos_redeem/server.py` が統合版の隣にあれば、その登録・履歴を引き継ぎます。ない場合も同梱の `redeem_backend.py` で起動し、データはGit対象外の `.redeem-data` に保存します。移動済みの既存データを使う場合は `py -3 hub_server.py --redeem-dir "元のwos_redeemのフルパス"` で指定できます。
+「ギフトコード」はスマホ下部メニューから直接開けます。プレイヤー・履歴の正本は専用Firebaseです。追加・王国変更時は公式交換APIでIDと王国を確認し、実交換は確認ダイアログの後に同APIへ直接送信します。`?preview=1` ではサンプルのみ表示し、Firebase認証・DB・交換APIへの通信を行いません。1ファイル版の対象には含めません。
 
-プレイヤー・履歴の正本は専用Firebaseです。ローカルサーバー起動時は、既存ツールの登録を初回だけFirebaseへ移行します。ローカルサーバーが利用できる場合、追加・王国変更時に元ツールのID確認APIを呼びます。GitHub Pagesだけで登録する場合はID確認を行わず共有保存します。実交換は確認ダイアログの後に行います。外部APIの仕様・稼働・規約適合性は今回再検証していません。
-
-GitHub Pagesや通常の静的配信では共有登録・履歴の閲覧編集まで利用できます。ローカル専用サーバーは127.0.0.1限定、Host/Originを検査し、登録JSONやPythonソースを静的配信しません。スマホからの実交換を可能にするネットワーク公開や認証サーバーの構築は対象外です。`?preview=1` ではサンプルのみ表示し、Firebase認証・DB・交換APIへの通信を行いません。1ファイル版の対象には含めません。
-
-追加検査：`python -B tools/test_redeem.py`、`node tools/test-redeem-ui.cjs`、`node tools/test-redeem-cloud.cjs`。外部APIを使わないモック検査です。
+追加検査：`node tools/test-redeem-api.cjs`、`node tools/test-redeem-ui.cjs`、`node tools/test-redeem-cloud.cjs`、`python -B tools/test_redeem.py`。実コード交換を行わないオフライン検査です。
 
 `assets/app.js` の `modules` と `index.html` の領域が共通メニューです。各追加アプリは `apps/`、連携処理は `apps/bridge.js`。英雄マスターは `wos_rally_joiner_gen1-8.json`、検証記録は `research/` です。
 
