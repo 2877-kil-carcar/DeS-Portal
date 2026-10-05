@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#121f30">
-<title>WOS Toolbox — 集結を、読み解く。</title>
+<title>DeS ポータル</title>
 <style>@charset "UTF-8";
 .evidence-detail{margin-top:12px;border-top:1px solid #e1e6ed;padding-top:8px}.evidence-detail>summary{min-height:44px;display:list-item;padding:10px 0;color:#245f99;font-weight:600}.evidence-detail p{margin:8px 0}.evidence-detail a,.data-list dd,.source-links{overflow-wrap:anywhere}.evidence-detail .source-links{display:flex;flex-wrap:wrap;gap:8px 12px}.tags{flex-wrap:wrap}
 :root{--nav:#121f30;--bg:#f3f5f8;--paper:#fff;--ink:#18283e;--muted:#697789;--line:#e1e6ed;--blue:#2677c9;--ice:#e9f2fc;--orange:#b56d12;--gold:#fff4df;--green:#236c52;--violet:#7453a7;--shadow:0 4px 20px #18304705;--radius:14px}
@@ -27,14 +27,14 @@
 <a class="skip-link" href="#main">本文へ移動</a>
 <button id="scrim" class="scrim" aria-label="メニューを閉じる" hidden></button>
 <aside class="sidebar" id="sidebar" aria-label="機能メニュー">
-  <a class="brand" href="#joiners"><span class="brand-mark">W</span><span>WOS <b>TOOLBOX</b><small>ALLIANCE FIELD NOTES</small></span></a>
+  <a class="brand" href="#joiners"><span class="brand-mark">D</span><span>DeS <b>ポータル</b><small>ALLIANCE PORTAL</small></span></a>
   <div class="nav-label">WORKSPACE</div>
   <nav id="navigation"></nav>
-  <div class="sidebar-note"><span class="status-dot"></span> ALLIANCE HUB<p>スマホでも、PCでも。<br>同盟のツールをひとつに。</p></div>
+  <div class="sidebar-note"><span class="status-dot"></span> DeS PORTAL<p>スマホでも、PCでも。<br>同盟のツールをひとつに。</p></div>
   <div class="sidebar-foot"><span>非公式・試作版</span><b>GEN 01 — 08</b><small>DATA CHECK / 2026.10.04</small></div>
 </aside>
 <div class="workspace">
- <header class="topbar"><div class="breadcrumb"><button id="menu-toggle" class="icon-button mobile-only" aria-label="機能メニューを開く" aria-controls="sidebar" aria-expanded="false">☰</button><span>ALLIANCE HUB</span><span class="slash">/</span><strong id="breadcrumb-current">乗り手選定</strong></div><span class="version"><i></i> PREVIEW 03</span></header>
+ <header class="topbar"><div class="breadcrumb"><button id="menu-toggle" class="icon-button mobile-only" aria-label="機能メニューを開く" aria-controls="sidebar" aria-expanded="false">☰</button><span>DeS PORTAL</span><span class="slash">/</span><strong id="breadcrumb-current">乗り手選定</strong></div><span class="version"><i></i> v3.5</span></header>
  <main id="main" tabindex="-1">
   <div class="page-heading"><div><p class="eyebrow" id="page-eyebrow">RALLY WORKSPACE</p><h1 id="page-title">集結を、読み解く。</h1><p class="subheading" id="page-subtitle">集結主の効果を見ながら、乗り手の役割を選ぶ。</p></div><button class="quiet-button" id="reset-settings">選択をリセット</button></div>
   <section id="view-joiners" class="view">
@@ -63,7 +63,7 @@
   <section id="view-bear" class="view embedded-view" hidden><div class="embed-loading" role="status">配置ツールを読み込んでいます…</div></section>
   <section id="view-canyon" class="view embedded-view" hidden><div class="embed-loading" role="status">峡谷ガイドを読み込んでいます…</div></section>
   <section id="view-redeem" class="view embedded-view" hidden><div class="embed-loading" role="status">ギフトコード画面を読み込んでいます…</div></section>
-  <footer>WOS TOOLBOX <span>非公式の同盟ツール集 · 公開情報の調査日を各画面に記載</span><span id="save-status" role="status"></span></footer>
+  <footer>DeS ポータル <span>非公式の同盟ツール集 · 公開情報の調査日を各画面に記載</span><span id="save-status" role="status"></span></footer>
  </main>
 </div>
 <nav id="mobile-dock" class="mobile-dock" aria-label="よく使う機能"></nav>
@@ -282,7 +282,7 @@
     $('mobile-dock').querySelectorAll('[data-nav]').forEach(b=>{const on=b.dataset.nav===currentView;b.classList.toggle('active',on);b.setAttribute('aria-pressed',on);});
     if(currentView!=='battle')stopBattle();
     if(currentView==='library')renderLibrary();
-    closeMenu(); document.title=`${selected.label} | WOS Toolbox`;
+    closeMenu(); document.title=`${selected.label} | DeS ポータル`;
   }
 
   // Independent teaching module. All losses are resolved from one shared snapshot.
@@ -313,8 +313,8 @@
 
   // Register new modules here; shell, routes and navigation are shared.
   $('navigation').innerHTML=modules.map((m,i)=>`<button class="nav-button" data-nav="${m.id}"><span class="nav-icon" aria-hidden="true">${m.icon}</span>${m.label}<span class="nav-num">0${i+1}</span></button>`).join('');
-  const dockIds=window.WOS_STANDALONE?['joiners','library','battle','sources']:['joiners','bear','canyon','gallery'];
-  $('mobile-dock').innerHTML=dockIds.map(id=>{const m=modules.find(x=>x.id===id);return `<button data-nav="${id}" aria-pressed="false"><span aria-hidden="true">${m.icon}</span>${id==='gallery'?'もふもふ':m.label}</button>`;}).join('')+'<button id="dock-menu"><span aria-hidden="true">☰</span>一覧</button>';
+  const dockIds=window.WOS_STANDALONE?['joiners','library','battle','sources']:['gallery','bear','forms','redeem'];
+  $('mobile-dock').innerHTML=dockIds.map(id=>{const m=modules.find(x=>x.id===id);return `<button data-nav="${id}" aria-pressed="false"><span aria-hidden="true">${m.icon}</span>${id==='gallery'?'ギャラリー':m.label}</button>`;}).join('')+'<button id="dock-menu"><span aria-hidden="true">☰</span>一覧</button>';
   const generations=Array.from({length:8},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('');
   $('generation').innerHTML=Array.from({length:8},(_,i)=>`<option value="${i+1}">Gen ${i+1}</option>`).join('');
   $('library-generation').innerHTML=generations;$('library-generation').value=state.generation;

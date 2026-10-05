@@ -1,9 +1,10 @@
-"""Local-only WOS hub with the existing wos_redeem backend. No work runs on import."""
+"""Local-only DeS portal with gift-code support. No work runs on import."""
 import argparse
 import importlib.util
 import json
 import mimetypes
 import threading
+import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -22,6 +23,34 @@ def load_backend(folder):
     backend = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(backend)
     return backend
+
+
+def resolve_backend(folder=None):
+    """Prefer the existing store, then fall back to the bundled backend."""
+    candidates = []
+    if folder is not None:
+        candidates.append(Path(folder))
+    candidates.extend((ROOT.parent / 'wos_redeem', ROOT.parent / '_wos_redeem'))
+    seen = set()
+    for candidate in candidates:
+        candidate = candidate.resolve()
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        backend = load_backend(candidate)
+        if backend is not None:
+            return backend, f'既存データ: {candidate}'
+    spec = importlib.util.spec_from_file_location('des_portal_redeem_backend', ROOT / 'redeem_backend.py')
+    if spec is None or spec.loader is None:
+        return None, '交換バックエンドを読み込めません'
+    backend = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(backend)
+    return backend, f'内蔵データ: {backend.DATA_DIR}'
+
+
+def open_portal(url, enabled=True):
+    if enabled:
+        threading.Timer(0.35, webbrowser.open, args=(url,)).start()
 
 
 def make_handler(backend):
@@ -152,17 +181,17 @@ def make_handler(backend):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8766)
-    default_redeem = ROOT.parent / 'wos_redeem'
-    if not (default_redeem / 'server.py').is_file():
-        default_redeem = ROOT.parent / '_wos_redeem'
-    parser.add_argument('--redeem-dir', type=Path, default=default_redeem)
+    parser.add_argument('--redeem-dir', type=Path, default=None)
+    parser.add_argument('--no-browser', action='store_true', help='do not open the local portal automatically')
     args = parser.parse_args()
-    backend = load_backend(args.redeem_dir.resolve())
+    backend, backend_label = resolve_backend(args.redeem_dir)
     if backend is None:
-        print('wos_redeem/server.py not found. Use --redeem-dir to specify its directory.')
-    print(f'WOS Hub: http://127.0.0.1:{args.port}/#redeem (Ctrl+C to stop)', flush=True)
-    print('Local PC only. Existing players and history stay in wos_redeem.', flush=True)
+        print('Gift-code backend could not be loaded.', flush=True)
+    url = f'http://127.0.0.1:{args.port}/#redeem'
+    print(f'DeS Portal: {url} (Ctrl+C to stop)', flush=True)
+    print(f'Local PC only. {backend_label}', flush=True)
     with ThreadingHTTPServer(('127.0.0.1', args.port), make_handler(backend)) as server:
+        open_portal(url, not args.no_browser)
         try:
             server.serve_forever()
         except KeyboardInterrupt:

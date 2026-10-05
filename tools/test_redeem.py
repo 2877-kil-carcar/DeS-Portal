@@ -4,6 +4,8 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import shutil
+import tempfile
 from types import SimpleNamespace
 import unittest
 
@@ -77,7 +79,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_private_paths_not_served(self):
-        for path in ['/hub_server.py', '/start_hub.bat', '/players.json', '/apps/redeem/players.json', '/%2e%2e/wos_redeem/players.json', '/api/unknown']:
+        for path in ['/hub_server.py', '/redeem_backend.py', '/start_hub.bat', '/players.json', '/.redeem-data/players.json', '/apps/redeem/players.json', '/%2e%2e/wos_redeem/players.json', '/api/unknown']:
             self.assertEqual(self.invoke(path)[0], 404, path)
         for path in ['/', '/apps/redeem/index.html', '/assets/app.js']:
             self.assertEqual(self.invoke(path)[0], 200, path)
@@ -87,6 +89,21 @@ class Tests(unittest.TestCase):
             raise OSError('fake unavailable')
         self.backend.redeem = fail
         self.assertEqual(self.invoke('/api/redeem-tool/redeem', {'fid': '123', 'cdk': 'DEMO'})[0], 502)
+
+    def test_bundled_backend_is_available_without_sibling_tool(self):
+        original_root = hub.ROOT
+        with tempfile.TemporaryDirectory() as folder:
+            isolated = Path(folder) / 'portal'
+            isolated.mkdir()
+            shutil.copy2(ROOT / 'redeem_backend.py', isolated / 'redeem_backend.py')
+            hub.ROOT = isolated
+            try:
+                backend, label = hub.resolve_backend(isolated.parent / 'missing')
+                self.assertIsNotNone(backend)
+                self.assertIn('内蔵データ', label)
+                self.assertEqual(backend.load_json(backend.PLAYERS_FILE, []), [])
+            finally:
+                hub.ROOT = original_root
 
 
 if __name__ == '__main__':

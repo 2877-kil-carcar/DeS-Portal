@@ -7,10 +7,10 @@ async function scenario(mode){
  let confirmResult=false;
  const state={kingdom:'7',players:[{fid:'123',kid:'7',name:'<unsafe>'}],history:{}};
  const fetch=async(url,options)=>{calls.push({url:String(url),options});if(mode==='send-failure'&&options.method==='POST')throw Error('mock network failure');return {ok:mode!=='missing',status:mode==='missing'?404:200,headers:{get:()=>'application/json'},json:async()=>String(url).endsWith('health')?{service:'wos-redeem-hub',ready:mode!=='backend-missing'}:String(url).endsWith('state')?state:{done:true,msg:'mock done',retry:false}};};
- vm.runInNewContext(code,{document:{getElementById:node,querySelector:node},location:{href:'http://example.invalid/apps/redeem/index.html',search:mode==='preview'?'?preview=1':'',protocol:'http:'},URL,URLSearchParams,AbortController,setTimeout,clearTimeout,fetch,confirm:()=>confirmResult,prompt:()=>null,addEventListener(){}});
+ vm.runInNewContext(code,{document:{getElementById:node,querySelector:node},location:{href:'http://example.invalid/apps/redeem/index.html',search:mode==='preview'?'?preview=1':'',protocol:'http:',hostname:'example.invalid'},URL,URLSearchParams,AbortController,setTimeout,clearTimeout,fetch,confirm:()=>confirmResult,prompt:()=>null,addEventListener(){}});
  for(let i=0;i<12;i++)await new Promise(setImmediate);
  if(mode==='preview'){assert.equal(calls.length,0);assert.ok(node('startBtn').disabled);assert.ok(node('list').innerHTML.includes('サンプル'));}
- else if(['missing','backend-missing'].includes(mode)){assert.ok(node('startBtn').disabled);assert.ok(node('setup').open);assert.ok(node('connection-title').textContent.includes('利用できません'));}
+ else if(['missing','backend-missing'].includes(mode)){assert.ok(node('startBtn').disabled);assert.ok(node('setup').open);assert.ok(node('connection-title').textContent.includes('ローカル起動'));assert.equal(node('local-link').hidden,false);}
  else{
   assert.equal(node('startBtn').disabled,false);assert.ok(node('list').innerHTML.includes('&lt;unsafe&gt;'));
   node('cdk').value='DEMO';await node('startBtn').handlers.click();assert.equal(calls.filter(c=>c.options.method==='POST').length,0);

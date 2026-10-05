@@ -157,7 +157,7 @@
     $('mobile-dock').querySelectorAll('[data-nav]').forEach(b=>{const on=b.dataset.nav===currentView;b.classList.toggle('active',on);b.setAttribute('aria-pressed',on);});
     if(currentView!=='battle')stopBattle();
     if(currentView==='library')renderLibrary();
-    closeMenu(); document.title=`${selected.label} | WOS Toolbox`;
+    closeMenu(); document.title=`${selected.label} | DeS ポータル`;
   }
 
   // Independent teaching module. All losses are resolved from one shared snapshot.
@@ -188,8 +188,8 @@
 
   // Register new modules here; shell, routes and navigation are shared.
   $('navigation').innerHTML=modules.map((m,i)=>`<button class="nav-button" data-nav="${m.id}"><span class="nav-icon" aria-hidden="true">${m.icon}</span>${m.label}<span class="nav-num">0${i+1}</span></button>`).join('');
-  const dockIds=window.WOS_STANDALONE?['joiners','library','battle','sources']:['joiners','bear','canyon','gallery'];
-  $('mobile-dock').innerHTML=dockIds.map(id=>{const m=modules.find(x=>x.id===id);return `<button data-nav="${id}" aria-pressed="false"><span aria-hidden="true">${m.icon}</span>${id==='gallery'?'もふもふ':m.label}</button>`;}).join('')+'<button id="dock-menu"><span aria-hidden="true">☰</span>一覧</button>';
+  const dockIds=window.WOS_STANDALONE?['joiners','library','battle','sources']:['gallery','bear','forms','redeem'];
+  $('mobile-dock').innerHTML=dockIds.map(id=>{const m=modules.find(x=>x.id===id);return `<button data-nav="${id}" aria-pressed="false"><span aria-hidden="true">${m.icon}</span>${id==='gallery'?'ギャラリー':m.label}</button>`;}).join('')+'<button id="dock-menu"><span aria-hidden="true">☰</span>一覧</button>';
   const generations=Array.from({length:8},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('');
   $('generation').innerHTML=Array.from({length:8},(_,i)=>`<option value="${i+1}">Gen ${i+1}</option>`).join('');
   $('library-generation').innerHTML=generations;$('library-generation').value=state.generation;

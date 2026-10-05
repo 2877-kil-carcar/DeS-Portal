@@ -1,4 +1,4 @@
-# WOS Toolbox — 同盟ハブ試作 v3.4
+# DeS ポータル v3.5
 
 更新日：2026-10-05。スマートフォン向け下部ナビ＋機能一覧、PC向け左メニューを備えた統合版です。公開・本番データの変更は行っていません。現在の作業先は `D:\IHIHOST\Claude\WOS\_wos_rally_joiner` です。
 
@@ -29,6 +29,12 @@ Node.jsは閲覧には不要です。Pythonがある場合のローカル確認�
 | ギフトコード | 既存の交換ツールとローカル専用サーバーで連携 |
 
 追加アプリは同一オリジンのiframeで遅延読み込みします。メニュー切替で破棄せず、ギャラリーのアニメーションを停止します。ゲームの接続は保持するため、終了するときはゲーム内の退室操作を行ってください。元アプリのソースフォルダは変更していません。
+
+## ポータル表示・ギフトコード修正（v3.5）
+
+画面名を「DeS ポータル」に統一。スマホ下部の主要メニューを「ギャラリー／熊罠配置／申請フォーム／ギフトコード」に変更しました。「一覧」からその他の機能も開けます。
+
+ギフトコードは `start_hub.bat` を実行すると、交換可能な `http://127.0.0.1:8766/#redeem` が自動で開きます。隣に既存の `wos_redeem`／`_wos_redeem` があれば従来の登録・履歴を優先し、なければ同梱バックエンドと非公開の `.redeem-data` を使用します。
 
 ## ミニゲームの同期修正（v3.4）
 
@@ -67,7 +73,7 @@ Node.jsは閲覧には不要です。Pythonがある場合のローカル確認�
 
 ## GitHub Pages
 
-HTML/CSS/JSを配信する構成なので、静的配信部分はGitHub Pagesへ配置可能です。[GitHub公式説明](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)（2026-10-04確認）。本フォルダの内容を公開対象ディレクトリへ配置し、元からある `.nojekyll` を含めてください。今回push・公開はしていません。
+HTML/CSS/JSを配信する構成なので、静的配信部分はGitHub Pagesへ配置可能です。[GitHub公式説明](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)（2026-10-04確認）。本フォルダの内容はGitHubリポジトリへ反映しています。ただしGitHub PagesではPythonを実行できないため、ギフトコード交換だけはPC上の `start_hub.bat` が必要です。
 
 公開前に必ず確認：
 
@@ -81,7 +87,7 @@ HTML/CSS/JSを配信する構成なので、静的配信部分はGitHub Pagesへ
 
 ### ギフトコードメニュー（追加）
 
-`wos_redeem` を「ギフトコード」メニューへ追加しました。スマホ幅では「一覧」から開けます。Python 3.9以降で `start_hub.bat`、または `python hub_server.py` を実行し、表示される `http://127.0.0.1:8766/#redeem` を同じPCで開いてください。元の `wos_redeem/server.py` が統合版の隣のフォルダに必要です。現在の名前に合わせ、見つからない場合は `_wos_redeem/server.py` も探します。移動した場合は `python hub_server.py --redeem-dir "元のwos_redeemのフルパス"` で指定できます。
+「ギフトコード」はスマホ下部メニューから直接開けます。Python 3.9以降で `start_hub.bat` を実行すると、`http://127.0.0.1:8766/#redeem` が自動で開きます。既存の `wos_redeem/server.py` または `_wos_redeem/server.py` が統合版の隣にあれば、その登録・履歴を引き継ぎます。ない場合も同梱の `redeem_backend.py` で起動し、データはGit対象外の `.redeem-data` に保存します。移動済みの既存データを使う場合は `py -3 hub_server.py --redeem-dir "元のwos_redeemのフルパス"` で指定できます。
 
 プレイヤー・履歴は元フォルダを直接使用します。配布フォルダへのコピーはしていません。元ツールとの同時操作は避けてください。画面表示・状態取得だけでは交換しません。追加・王国変更時は元ツールのID確認APIを呼び、実交換は確認ダイアログの後に行います。外部APIの仕様・稼働・規約適合性は今回再検証していません。
 

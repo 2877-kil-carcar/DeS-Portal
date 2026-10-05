@@ -32,8 +32,8 @@
  async function connect(){
   if(preview){status('表示確認モード','サンプルのみ表示しています。登録情報の取得・保存・交換は行いません。');state.players=[{fid:'00000001',kid:'0000',name:'サンプルプレイヤー'}];render();return;}
   busy=true;controls();status('接続を確認中…','ローカル交換サーバーを確認しています。');
-  try{if(location.protocol==='file:')throw Error('ファイルを直接開いています。start_hub.bat を実行し、表示されるURLで開いてください。');const health=await request('health');if(health.service!=='wos-redeem-hub'||!health.ready)throw Error('元の wos_redeem/server.py が見つかりません。フォルダ構成を確認してください。');await refresh();connected=true;status('交換サーバーに接続済み','登録・履歴は元の wos_redeem フォルダと共通です。','ready');}
-  catch(error){connected=false;status('交換サーバーを利用できません',error.message,'error');$('setup').open=true;}
+  try{if(location.protocol==='file:')throw Error('ファイルを直接開いています。start_hub.bat を実行し、自動で開くURLを使用してください。');const health=await request('health');if(health.service!=='wos-redeem-hub'||!health.ready)throw Error('交換機能を読み込めません。start_hub.bat を再起動してください。');await refresh();connected=true;$('local-link').hidden=true;status('交換サーバーに接続済み','登録・履歴はこのPC内だけに保存されます。','ready');}
+  catch(error){connected=false;const local=/^(127\.0\.0\.1|localhost)$/.test(location.hostname||'');$('local-link').hidden=local;status('交換にはローカル起動が必要です',error.message+' start_hub.bat を起動してください。','error');$('setup').open=true;}
   finally{busy=false;render();}
  }
  async function change(operation){if(busy||!connected||preview)return;busy=true;render();try{await operation();await refresh();}catch(error){status('処理を完了できませんでした',error.message,'error');}finally{busy=false;render();}}

@@ -6,4 +6,5 @@ if not errorlevel 1 (
 ) else (
   python hub_server.py
 )
+if errorlevel 1 echo Python 3 をインストールしてから、もう一度実行してください。
 pause
