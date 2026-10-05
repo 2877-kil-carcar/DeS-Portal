@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ポーカー Online - ゲーム</title>
+<link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@400;700&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green-deep: #0d3320;
+    --green-felt: #1a5c38;
+    --green-light: #2d8a56;
+    --gold: #c9a84c;
+    --gold-light: #f0d080;
+    --cream: #f5f0e8;
+    --card-white: #fafaf8;
+    --red: #c0392b;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    min-height: 100vh;
+    background: var(--green-deep);
+    background-image:
+      radial-gradient(ellipse at 30% 20%, rgba(45,138,86,0.25) 0%, transparent 50%),
+      repeating-linear-gradient(45deg, transparent, transparent 40px, rgba(255,255,255,0.01) 40px, rgba(255,255,255,0.01) 41px);
+    font-family: 'Noto Sans JP', sans-serif;
+    color: var(--cream);
+    overflow-x: hidden;
+  }
+
+  /* ===== WAITING ===== */
+  #waitingScreen {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 100vh; padding: 20px;
+  }
+  .waiting-title { font-family:'Kaisei Decol',serif; font-size:2rem; color:var(--gold-light); margin-bottom:8px; text-align:center; }
+  .room-code-display { font-size:3rem; font-weight:700; letter-spacing:0.3em; color:var(--gold); text-shadow:0 0 30px rgba(201,168,76,0.4); margin:16px 0; font-family:'Kaisei Decol',serif; }
+  .waiting-hint { font-size:0.8rem; color:rgba(245,240,232,0.4); letter-spacing:0.1em; margin-bottom:32px; }
+  .player-slots { display:grid; grid-template-columns:1fr 1fr; gap:8px; width:100%; max-width:360px; margin-bottom:24px; }
+  .player-slot { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 8px; text-align:center; transition:all 0.3s; }
+  .player-slot.filled { border-color:rgba(201,168,76,0.35); background:rgba(201,168,76,0.06); }
+  .player-slot.me { border-color:rgba(45,138,86,0.6); background:rgba(45,138,86,0.08); }
+  .slot-icon { font-size:1.5rem; margin-bottom:4px; }
+  .slot-name { font-size:0.82rem; font-weight:500; }
+  .waiting-status { font-size:0.85rem; color:rgba(245,240,232,0.5); animation:pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:0.5;} 50%{opacity:1;} }
+  #startBtn {
+    display:none; margin-top:20px; padding:14px 48px;
+    background:linear-gradient(135deg,#c9a84c,#a07830); border:none; border-radius:10px;
+    font-family:'Noto Sans JP',sans-serif; font-size:1rem; font-weight:700;
+    color:#0d3320; cursor:pointer; box-shadow:0 4px 20px rgba(201,168,76,0.4); transition:all 0.2s;
+  }
+  #startBtn:hover { transform:translateY(-2px); box-shadow:0 8px 30px rgba(201,168,76,0.5); }
+  #waitingForHost { display:none; margin-top:20px; font-size:0.85rem; color:rgba(245,240,232,0.4); }
+  .leave-btn { margin-top:16px; padding:10px 28px; background:transparent; border:1px solid rgba(192,57,43,0.35); border-radius:8px; color:rgba(224,112,112,0.6); font-family:'Noto Sans JP',sans-serif; font-size:0.82rem; cursor:pointer; transition:all 0.2s; }
+  .leave-btn:hover { background:rgba(192,57,43,0.12); border-color:rgba(192,57,43,0.65); color:#e07070; }
+
+  /* ===== GAME SCREEN ===== */
+  #gameScreen { display:none; min-height:100vh; }
+  .game-layout {
+    display:grid;
+    grid-template-rows: auto auto auto 1fr auto auto;
+    min-height:100vh; max-width:640px; margin:0 auto;
+    padding:10px; gap:8px;
+  }
+
+  /* Top bar */
+  .top-bar { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:rgba(0,0,0,0.2); border-radius:10px; border:1px solid rgba(255,255,255,0.06); }
+  .top-title { font-family:'Kaisei Decol',serif; font-size:1.1rem; color:var(--gold); }
+  .round-indicator { font-size:0.82rem; color:var(--gold-light); font-weight:700; }
+  .top-hint-btn { padding:5px 10px; background:rgba(201,168,76,0.12); border:1px solid rgba(201,168,76,0.3); border-radius:6px; color:var(--gold); font-size:0.75rem; cursor:pointer; transition:all 0.2s; white-space:nowrap; }
+  .top-hint-btn:hover { background:rgba(201,168,76,0.25); }
+
+  /* Phase banner */
+  .phase-banner { text-align:center; padding:8px; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.06); border-radius:10px; font-size:0.85rem; color:rgba(245,240,232,0.7); }
+  .phase-banner.my-action { color:#70e0a0; font-weight:700; border-color:rgba(112,224,160,0.3); background:rgba(45,138,86,0.08); animation:pulse 1.2s ease-in-out infinite; }
+
+  /* Opponents */
+  .opponents-area { display:flex; flex-direction:column; gap:6px; }
+  .opp-row {
+    display:flex; align-items:center; gap:10px;
+    background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06);
+    border-radius:10px; padding:8px 12px; transition:all 0.3s;
+  }
+  .opp-row.active-turn { border-color:rgba(240,208,128,0.5); background:rgba(201,168,76,0.06); animation:pulse 1.2s ease-in-out infinite; }
+  .opp-row.done-action { border-color:rgba(112,224,160,0.3); background:rgba(45,138,86,0.04); }
+  .opp-name { font-size:0.85rem; font-weight:500; flex:1; }
+  .opp-status { font-size:0.75rem; color:rgba(245,240,232,0.45); }
+
+  /* My area */
+  .my-area { background:rgba(0,0,0,0.2); border:1px solid rgba(45,138,86,0.3); border-radius:12px; padding:12px; }
+  .my-label { font-size:0.7rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--green-light); margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; }
+  .hand-role-display { font-size:0.85rem; color:var(--gold-light); font-weight:700; }
+  .my-cards { display:flex; flex-wrap:wrap; gap:6px; min-height:90px; align-items:flex-start; padding-bottom:4px; justify-content:center; }
+
+  /* Hand cards */
+  .hand-card {
+    width:58px; height:82px;
+    background:var(--card-white); border:2px solid #ddd; border-radius:7px;
+    box-shadow:2px 2px 8px rgba(0,0,0,0.3);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    position:relative; flex-shrink:0; transition:transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    cursor:pointer; user-select:none;
+  }
+  .hand-card.red { color:var(--red); }
+  .hand-card.black { color:#1a1a2e; }
+  .hand-card.selected {
+    border-color:#e07070; box-shadow:0 0 14px rgba(224,112,112,0.45);
+    transform:translateY(10px);
+  }
+  .hand-card.joker-card { background:linear-gradient(135deg,#2a1a4e,#180a3a); border-color:rgba(160,100,255,0.6); color:#c090ff; cursor:default; }
+  .card-corner { position:absolute; top:3px; left:4px; font-size:0.58rem; font-weight:700; line-height:1.2; text-align:center; }
+  .card-rank { font-size:1rem; font-weight:700; line-height:1; }
+  .card-suit { font-size:1.1rem; }
+  .discard-mark { position:absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center; background:rgba(192,57,43,0.25); border-radius:5px; font-size:1.4rem; }
+
+  /* Action buttons */
+  .action-btn {
+    width:100%; margin-top:10px; padding:13px;
+    border:none; border-radius:9px;
+    font-family:'Noto Sans JP',sans-serif; font-size:0.95rem; font-weight:700;
+    cursor:pointer; transition:all 0.2s;
+  }
+  .btn-exchange {
+    background:linear-gradient(135deg,var(--gold),#a07830);
+    color:var(--green-deep);
+    box-shadow:0 4px 16px rgba(201,168,76,0.3);
+  }
+  .btn-exchange:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(201,168,76,0.4); }
+  .btn-stay {
+    background:rgba(255,255,255,0.07);
+    border:1px solid rgba(255,255,255,0.15);
+    color:rgba(245,240,232,0.75);
+    margin-top:6px;
+  }
+  .btn-stay:hover { background:rgba(255,255,255,0.12); color:var(--cream); }
+
+  /* Open cards area */
+  .open-area { background:rgba(0,0,0,0.18); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:10px 12px; display:none; }
+  .open-area-title { font-size:0.7rem; letter-spacing:0.2em; text-transform:uppercase; color:rgba(245,240,232,0.4); margin-bottom:8px; }
+  .open-cards { display:flex; flex-wrap:wrap; gap:4px; }
+  .open-card-chip {
+    padding:3px 7px; border-radius:5px; font-size:0.78rem; font-weight:700;
+    border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06);
+  }
+  .open-card-chip.red { color:#e07070; border-color:rgba(224,112,112,0.3); }
+  .open-card-chip.black { color:rgba(245,240,232,0.8); }
+  .open-card-chip.joker { color:#c090ff; border-color:rgba(160,100,255,0.4); background:rgba(100,40,180,0.12); }
+
+  /* Score bar */
+  .score-bar { display:flex; gap:6px; flex-wrap:wrap; background:rgba(0,0,0,0.18); border:1px solid rgba(201,168,76,0.15); border-radius:10px; padding:10px 12px; }
+  .score-item { flex:1; min-width:80px; text-align:center; }
+  .score-name { font-size:0.72rem; color:rgba(245,240,232,0.5); margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .score-pt { font-size:1.1rem; font-weight:700; color:var(--gold-light); }
+  .score-item.me .score-name { color:var(--green-light); }
+
+  /* Result */
+  #resultScreen { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); backdrop-filter:blur(8px); z-index:100; align-items:center; justify-content:center; flex-direction:column; text-align:center; padding:20px; overflow-y:auto; }
+  #resultScreen.show { display:flex; }
+  .result-emoji { font-size:4rem; margin-bottom:16px; }
+  .result-title { font-family:'Kaisei Decol',serif; font-size:2.2rem; color:var(--gold-light); margin-bottom:8px; }
+  .result-sub { font-size:0.95rem; color:rgba(245,240,232,0.6); margin-bottom:28px; }
+  .result-rankings { background:rgba(255,255,255,0.05); border:1px solid rgba(201,168,76,0.2); border-radius:14px; padding:20px 30px; margin-bottom:24px; min-width:260px; width:100%; max-width:360px; }
+  .rank-item { display:flex; align-items:center; gap:14px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06); font-size:0.92rem; }
+  .rank-item:last-child { border-bottom:none; }
+  .rank-num { font-size:1.2rem; width:28px; }
+  .rank-name { flex:1; text-align:left; }
+  .rank-pt { font-size:0.82rem; color:var(--gold); font-weight:700; }
+  .btn-play-again { padding:13px 36px; background:linear-gradient(135deg,var(--gold),#a07830); border:none; border-radius:10px; font-family:'Noto Sans JP',sans-serif; font-size:0.95rem; font-weight:700; color:var(--green-deep); cursor:pointer; transition:all 0.2s; }
+  .btn-play-again:hover { transform:translateY(-2px); box-shadow:0 8px 30px rgba(201,168,76,0.4); }
+
+  /* Round result overlay */
+  #roundResultOverlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.82); backdrop-filter:blur(6px); z-index:80; align-items:center; justify-content:center; flex-direction:column; padding:20px; overflow-y:auto; }
+  #roundResultOverlay.show { display:flex; }
+  .round-result-box { background:rgba(20,50,30,0.95); border:1px solid rgba(201,168,76,0.3); border-radius:16px; padding:24px; width:100%; max-width:420px; }
+  .round-result-title { font-family:'Kaisei Decol',serif; font-size:1.6rem; color:var(--gold-light); text-align:center; margin-bottom:20px; }
+  .round-player-result { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.07); }
+  .round-player-result:last-child { border-bottom:none; }
+  .rpr-name { flex:1; font-size:0.9rem; }
+  .rpr-hand { display:flex; gap:3px; flex-wrap:wrap; }
+  .rpr-role { font-size:0.78rem; color:var(--gold); font-weight:700; min-width:70px; text-align:right; }
+  .rpr-pt { font-size:0.82rem; color:#70e0a0; font-weight:700; min-width:40px; text-align:right; }
+  .mini-card { width:28px; height:38px; border-radius:4px; background:var(--card-white); border:1px solid #ccc; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:0.5rem; font-weight:700; line-height:1.2; }
+  .mini-card.red { color:var(--red); }
+  .mini-card.black { color:#1a1a2e; }
+  .mini-card.joker { background:linear-gradient(135deg,#2a1a4e,#180a3a); border-color:rgba(160,100,255,0.5); color:#c090ff; font-size:0.9rem; }
+  .btn-next-round { margin-top:20px; width:100%; padding:14px; background:linear-gradient(135deg,var(--gold),#a07830); border:none; border-radius:10px; font-family:'Noto Sans JP',sans-serif; font-size:1rem; font-weight:700; color:var(--green-deep); cursor:pointer; transition:all 0.2s; }
+  .btn-next-round:hover { transform:translateY(-2px); }
+  .next-round-wait { margin-top:16px; text-align:center; font-size:0.82rem; color:rgba(245,240,232,0.4); animation:pulse 1.5s ease-in-out infinite; }
+
+  /* Toast */
+  .toast { position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-60px); background:rgba(20,60,35,0.95); border:1px solid rgba(201,168,76,0.4); color:var(--gold-light); padding:12px 24px; border-radius:30px; font-size:0.9rem; z-index:200; transition:transform 0.3s ease; white-space:nowrap; }
+  .toast.show { transform:translateX(-50%) translateY(0); }
+
+  /* ===== HINT MODAL ===== */
+  #hintModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(6px); z-index:300; align-items:center; justify-content:center; padding:16px; }
+  #hintModal.show { display:flex; }
+  .hint-box { background:rgba(15,40,25,0.98); border:1px solid rgba(201,168,76,0.35); border-radius:16px; padding:20px; width:100%; max-width:480px; max-height:90vh; overflow-y:auto; }
+  .hint-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .hint-title { font-family:'Kaisei Decol',serif; font-size:1.3rem; color:var(--gold-light); }
+  .hint-close { background:none; border:none; color:rgba(245,240,232,0.5); font-size:1.4rem; cursor:pointer; padding:4px 8px; }
+  .hint-close:hover { color:var(--cream); }
+  .hint-row { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.06); }
+  .hint-row:last-child { border-bottom:none; }
+  .hint-cards { display:flex; gap:3px; flex-shrink:0; }
+  .hint-card { width:30px; height:42px; border-radius:4px; background:var(--card-white); border:1.5px solid #ccc; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:0.52rem; font-weight:700; line-height:1.3; }
+  .hint-card.red { color:var(--red); border-color:#e0aaaa; }
+  .hint-card.black { color:#1a1a2e; }
+  .hint-card.joker { background:linear-gradient(135deg,#2a1a4e,#180a3a); border-color:rgba(160,100,255,0.5); color:#c090ff; font-size:1rem; }
+  .hint-info { flex:1; }
+  .hint-role { font-size:0.88rem; font-weight:700; color:var(--cream); }
+  .hint-desc { font-size:0.72rem; color:rgba(245,240,232,0.45); margin-top:2px; }
+  .hint-pt { font-size:0.9rem; font-weight:700; color:var(--gold); min-width:36px; text-align:right; }
+
+  /* ===== じゃんけんオーバーレイ ===== */
+
+  /* ニコニココメント */
+  .nico-comment {
+    position: fixed; left: 100%; white-space: nowrap;
+    font-size: 1.15rem; font-weight: 700; color: #fff;
+    text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+    pointer-events: none; z-index: 50;
+    animation: nicoScroll 7s linear forwards;
+  }
+  @keyframes nicoScroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(calc(-100vw - 100%)); }
+  }
+  .comment-row { display:none; gap:8px; padding:0 2px 4px; }
+  .comment-input { flex:1; padding:9px 12px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.12); border-radius:8px; color:var(--cream); font-family:'Noto Sans JP',sans-serif; font-size:0.85rem; outline:none; min-width:0; }
+  .comment-input::placeholder { color:rgba(245,240,232,0.3); }
+  .comment-input:focus { border-color:rgba(201,168,76,0.5); }
+  .comment-send-btn { padding:9px 14px; background:rgba(201,168,76,0.15); border:1px solid rgba(201,168,76,0.35); border-radius:8px; color:var(--gold); font-family:'Noto Sans JP',sans-serif; font-size:0.82rem; cursor:pointer; white-space:nowrap; transition:all 0.2s; flex-shrink:0; }
+  .comment-send-btn:hover { background:rgba(201,168,76,0.28); }
+</style>
+</head>
+<body>
+
+<!-- 待機画面 -->
+<div id="waitingScreen">
+  <p class="waiting-title">ポーカー Online</p>
+  <div class="waiting-hint">ルームコードを友達に教えよう</div>
+  <div class="room-code-display" id="roomCodeDisplay">----</div>
+  <div class="player-slots" id="playerSlots"></div>
+  <div class="waiting-status" id="waitingStatus">プレイヤーを待っています...</div>
+  <button id="startBtn" onclick="hostStartGame()">ゲームを開始する 🃏</button>
+  <div id="waitingForHost">ホストがゲームを開始するまで待ってください...</div>
+  <button class="leave-btn" onclick="window._leaveRoom()">← 退出する</button>
+  <div style="margin-top:10px;"><a href="index.html" style="color:rgba(245,240,232,0.25);font-size:0.75rem;text-decoration:none;">ギャラリーに戻る</a></div>
+</div>
+
+<!-- ゲーム画面 -->
+<div id="gameScreen">
+  <div class="game-layout">
+    <div class="top-bar">
+      <span class="top-title">ポーカー</span>
+      <span class="round-indicator" id="roundIndicator">—</span>
+      <button class="top-hint-btn" onclick="window._showHint()">？ 役一覧</button>
+    </div>
+
+    <div class="phase-banner" id="phaseBanner">—</div>
+
+    <div class="opponents-area" id="opponentsArea"></div>
+
+    <div class="my-area">
+      <div class="my-label">
+        <span>あなたの手札</span>
+        <span class="hand-role-display" id="handRoleDisplay">—</span>
+      </div>
+      <div class="my-cards" id="myCards"></div>
+      <button class="action-btn btn-exchange" id="exchangeBtn" style="display:none;" onclick="window._doExchange()">選択したカードを交換する（0枚選択中）</button>
+      <button class="action-btn btn-stay" id="stayBtn" style="display:none;" onclick="window._doStay()">ステイ（交換しない）</button>
+    </div>
+
+    <div class="open-area" id="openArea">
+      <div class="open-area-title">捨て札 / 場に出たカード</div>
+      <div class="open-cards" id="openCards"></div>
+    </div>
+
+    <div class="score-bar" id="scoreBar"></div>
+
+    <div class="comment-row" id="commentRow">
+      <input class="comment-input" type="text" id="commentInput" placeholder="コメントを流す..." maxlength="30" />
+      <button class="comment-send-btn" onclick="window._sendComment()">💬 送信</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ラウンド結果オーバーレイ -->
+<div id="roundResultOverlay">
+  <div class="round-result-box">
+    <div class="round-result-title" id="roundResultTitle">ラウンド結果</div>
+    <div id="roundResultBody"></div>
+    <button class="btn-next-round" id="nextRoundBtn" onclick="window._nextRound()" style="display:none;">次のラウンドへ →</button>
+    <button class="btn-next-round" id="finalResultBtn" onclick="window._showFinalResult()" style="display:none; background:linear-gradient(135deg,#2d8a56,#1a5c38);color:#f5f0e8;">最終結果を見る 🏆</button>
+    <div class="next-round-wait" id="nextRoundWait" style="display:none;">ホストが次のラウンドを開始するまでお待ちください...</div>
+  </div>
+</div>
+
+<!-- リザルト画面 -->
+<div id="resultScreen">
+  <div class="result-emoji" id="resultEmoji">🎉</div>
+  <div class="result-title" id="resultTitle">ゲーム終了！</div>
+  <div class="result-sub" id="resultSub"></div>
+  <div class="result-rankings" id="resultRankings"></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+    <button class="btn-play-again" onclick="window._playAgain()" style="background:linear-gradient(135deg,#2d8a56,#1a5c38);color:#f5f0e8;">もう一回 🔄</button>
+    <button class="btn-play-again" onclick="window._leaveToLobby()">ロビーに戻る</button>
+  </div>
+</div>
+
+<!-- ヒントモーダル -->
+<div id="hintModal">
+  <div class="hint-box">
+    <div class="hint-header">
+      <span class="hint-title">🃏 役一覧</span>
+      <button class="hint-close" onclick="window._closeHint()">✕</button>
+    </div>
+    <div id="hintBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, onValue, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getFirestore, collection, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+// ===== INIT =====
+const params = new URLSearchParams(location.search);
+const ROOM = params.get('room');
+const MY_PID = params.get('pid');
+const MY_NAME = decodeURIComponent(params.get('name') || 'Player');
+if (!ROOM || !MY_PID) { location.href = 'poker.html'; }
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBmPQX35nYTBzJhvU5Cu4lBifpmzQW2PLk",
+  authDomain: "babanuki-5febb.firebaseapp.com",
+  databaseURL: "https://babanuki-5febb-default-rtdb.firebaseio.com",
+  projectId: "babanuki-5febb",
+  storageBucket: "babanuki-5febb.firebasestorage.app",
+  messagingSenderId: "918572931204",
+  appId: "1:918572931204:web:a1e2db96dda922b4538ad1"
+};
+const app = initializeApp(firebaseConfig, 'poker-game-' + Date.now());
+const db = getDatabase(app);
+const roomRef = ref(db, 'rooms_poker/' + ROOM);
+
+document.getElementById('roomCodeDisplay').textContent = ROOM;
+
+// ===== LOCAL PHASE =====
+// 'init' | 'waiting' | 'ready-next' | 'game' | 'result'
+let localPhase = 'init';
+
+// ===== GALLERY IMAGES =====
+let rankImages = {};
+
+function assignRankImages(urls) {
+  const shuffled = [...urls];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  ['A','2','3','4','5','6','7','8','9','10','J','Q','K'].forEach((rank, i) => {
+    rankImages[rank] = shuffled[i % shuffled.length];
+  });
+}
+
+async function loadGalleryImages() {
+  try {
+    const stored = localStorage.getItem('gallery_image_urls');
+    if (stored) {
+      const urls = JSON.parse(stored).filter(Boolean);
+      if (urls.length > 0) { assignRankImages(urls); return; }
+    }
+  } catch(e) {}
+  try {
+    const galleryApp = initializeApp({
+      apiKey: "AIzaSyBz1xFi1N4kIlxQa0mxAAgw1U5aG6eJhrU",
+      authDomain: "mofmof-gallery.firebaseapp.com",
+      projectId: "mofmof-gallery",
+    }, 'gallery-poker-' + Date.now());
+    const auth = getAuth(galleryApp);
+    const fsdb = getFirestore(galleryApp);
+    await signInAnonymously(auth);
+    const snap = await getDocs(query(collection(fsdb, 'images'), limit(52)));
+    const urls = snap.docs.map(d => d.data().thumbUrl || d.data().url).filter(Boolean);
+    if (urls.length === 0) return;
+    localStorage.setItem('gallery_image_urls', JSON.stringify(urls));
+    assignRankImages(urls);
+  } catch(e) { console.warn('ギャラリー画像取得失敗:', e); }
+}
+
+// ===== CARD CONSTANTS =====
+const SUITS = ['♠','♥','♦','♣'];
+const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const RANK_TO_NUM = { 'A':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'J':11,'Q':12,'K':13 };
+
+const HAND_SCORES = {
+  'ロイヤルフラッシュ': 30,
+  'ストレートフラッシュ': 25,
+  'フォーカード': 20,
+  'フルハウス': 16,
+  'フラッシュ': 12,
+  'ストレート': 9,
+  'スリーカード': 6,
+  'ツーペア': 4,
+  'ワンペア': 2,
+  'ハイカード': 0
+};
+
+const HAND_RANK_ORDER = Object.keys(HAND_SCORES);
+
+function createDeck() {
+  const deck = [];
+  for (const suit of SUITS)
+    for (const rank of RANKS)
+      deck.push({ suit, rank, num: RANK_TO_NUM[rank], id: suit + rank });
+  deck.push({ suit:'JOKER', rank:'JOKER', num:0, id:'JOKER1' });
+  deck.push({ suit:'JOKER', rank:'JOKER', num:0, id:'JOKER2' });
+  return deck;
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+// ===== HAND EVALUATION =====
+function evaluateHand(cards) {
+  const normals = cards.filter(c => c.rank !== 'JOKER');
+  const jokerCount = cards.length - normals.length;
+  if (jokerCount === 0) return evaluateNormal(normals);
+  return bestWithJokers(normals, jokerCount);
+}
+
+function bestWithJokers(normals, jokerCount) {
+  const allCards = [];
+  for (const suit of SUITS)
+    for (const rank of RANKS) {
+      const id = suit + rank;
+      if (!normals.some(c => c.id === id))
+        allCards.push({ suit, rank, num: RANK_TO_NUM[rank], id });
+    }
+
+  let best = 'ハイカード';
+  if (jokerCount === 1) {
+    for (const c of allCards) {
+      const hand = [...normals, c];
+      const result = evaluateNormal(hand);
+      if (HAND_RANK_ORDER.indexOf(result) < HAND_RANK_ORDER.indexOf(best)) best = result;
+      if (best === 'ロイヤルフラッシュ') break;
+    }
+  } else {
+    for (let i = 0; i < allCards.length; i++) {
+      for (let j = i+1; j < allCards.length; j++) {
+        const hand = [...normals, allCards[i], allCards[j]];
+        const result = evaluateNormal(hand);
+        if (HAND_RANK_ORDER.indexOf(result) < HAND_RANK_ORDER.indexOf(best)) best = result;
+        if (best === 'ロイヤルフラッシュ') break;
+      }
+      if (best === 'ロイヤルフラッシュ') break;
+    }
+  }
+  return best;
+}
+
+function evaluateNormal(cards) {
+  if (cards.length < 5) return 'ハイカード';
+  const nums = cards.map(c => c.num).sort((a,b) => a-b);
+  const suits = cards.map(c => c.suit);
+  const isFlush = suits.every(s => s === suits[0]);
+  const isStraight = checkStraight(nums);
+
+  if (isFlush && isStraight) {
+    if (nums.includes(1) && nums.includes(13)) return 'ロイヤルフラッシュ';
+    return 'ストレートフラッシュ';
+  }
+
+  const counts = {};
+  nums.forEach(n => { counts[n] = (counts[n]||0)+1; });
+  const freq = Object.values(counts).sort((a,b)=>b-a);
+
+  if (freq[0] === 4) return 'フォーカード';
+  if (freq[0] === 3 && freq[1] === 2) return 'フルハウス';
+  if (isFlush) return 'フラッシュ';
+  if (isStraight) return 'ストレート';
+  if (freq[0] === 3) return 'スリーカード';
+  if (freq[0] === 2 && freq[1] === 2) return 'ツーペア';
+  if (freq[0] === 2) return 'ワンペア';
+  return 'ハイカード';
+}
+
+function checkStraight(sortedNums) {
+  let straight = true;
+  for (let i = 1; i < sortedNums.length; i++) {
+    if (sortedNums[i] !== sortedNums[i-1]+1) { straight = false; break; }
+  }
+  if (straight) return true;
+  if (sortedNums[0] === 1) {
+    const alt = [...sortedNums.slice(1), 14].sort((a,b)=>a-b);
+    let s2 = true;
+    for (let i = 1; i < alt.length; i++) {
+      if (alt[i] !== alt[i-1]+1) { s2 = false; break; }
+    }
+    if (s2) return true;
+  }
+  return false;
+}
+
+// ===== UTILITY =====
+function shufflePids(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ===== STATE =====
+let gameState = null;
+let selectedCards = new Set();
+let exchangeInProgress = false;
+
+// ===== WAITING SCREEN HELPERS =====
+function updateWaitingScreen(room) {
+  if (!room || !room.players) return;
+  const players = room.players;
+  const pids = Object.keys(players);
+
+  const slotsEl = document.getElementById('playerSlots');
+  slotsEl.innerHTML = '';
+  pids.forEach(pid => {
+    const slot = document.createElement('div');
+    slot.className = 'player-slot filled' + (pid === MY_PID ? ' me' : '');
+    slot.innerHTML = `<div class="slot-icon">${pid === MY_PID ? '🙋' : '👤'}</div><div class="slot-name">${players[pid].name}</div>`;
+    slotsEl.appendChild(slot);
+  });
+
+  const hostPid = room.host || Object.keys(players).find(p => players[p]?.index === 0);
+  const isHost = hostPid === MY_PID;
+  const canStart = pids.length >= 2;
+  document.getElementById('waitingStatus').textContent = canStart
+    ? `${pids.length} 人が参加中`
+    : `${pids.length} 人参加中 — あと${2-pids.length}人待ち`;
+  document.getElementById('startBtn').style.display = (isHost && canStart) ? 'block' : 'none';
+  document.getElementById('waitingForHost').style.display = isHost ? 'none' : 'block';
+}
+
+function showWaitingScreen(room) {
+  document.getElementById('resultScreen').classList.remove('show');
+  document.getElementById('roundResultOverlay').classList.remove('show');
+  document.getElementById('gameScreen').style.display = 'none';
+  document.getElementById('waitingScreen').style.display = 'flex';
+  if (room) updateWaitingScreen(room);
+}
+
+// ===== FIREBASE LISTENERS =====
+
+// Room-level: waiting screen updates
+onValue(roomRef, async (snap) => {
+  if (!snap.exists()) return;
+  const room = snap.val();
+
+  if (localPhase === 'init') {
+    if (room.status === 'playing' && room.gameState) {
+      await startGameUI(room.gameState, room.players);
+    } else {
+      localPhase = 'waiting';
+      showWaitingScreen(room);
+    }
+    return;
+  }
+
+  if (localPhase === 'waiting' || localPhase === 'ready-next') {
+    updateWaitingScreen(room);
+    // If game started while we were on waiting screen
+    if (room.status === 'playing' && room.gameState) {
+      await startGameUI(room.gameState, room.players);
+    }
+  }
+});
+
+// GameState: in-game UI updates
+onValue(ref(db, 'rooms_poker/' + ROOM + '/gameState'), snap => {
+  if (!snap.exists()) return;
+  if (localPhase !== 'game') return;
+  gameState = snap.val();
+  get(ref(db, 'rooms_poker/' + ROOM + '/players')).then(ps => {
+    renderGame(gameState, ps.val() || {});
+  });
+});
+
+// ===== LEAVE ROOM (waiting screen) =====
+window._leaveRoom = async function() {
+  try {
+    const snap = await get(roomRef);
+    if (!snap.exists()) { location.href = 'poker.html'; return; }
+    const room = snap.val();
+    const pids = Object.keys(room.players || {});
+    if (pids.length <= 1) {
+      await set(roomRef, null);
+    } else {
+      const updates = {};
+      updates['players/' + MY_PID] = null;
+      const roomPlayers = room.players || {};
+      const currentHost = room.host || Object.keys(roomPlayers).find(p => roomPlayers[p]?.index === 0);
+      if (currentHost === MY_PID) {
+        const nextHost = pids.find(p => p !== MY_PID);
+        if (nextHost) updates['host'] = nextHost;
+      }
+      await update(roomRef, updates);
+    }
+  } catch(e) { console.error(e); }
+  location.href = 'poker.html';
+};
+
+// ===== LEAVE TO LOBBY (from result screen) =====
+window._leaveToLobby = async function() {
+  try {
+    const snap = await get(roomRef);
+    if (snap.exists()) {
+      const room = snap.val();
+      const pids = Object.keys(room.players || {});
+      if (pids.length <= 1) {
+        await set(roomRef, null);
+      } else {
+        const updates = {};
+        updates['players/' + MY_PID] = null;
+        const roomPlayers = room.players || {};
+        const currentHost = room.host || Object.keys(roomPlayers).find(p => roomPlayers[p]?.index === 0);
+        if (currentHost === MY_PID) {
+          const nextHost = pids.find(p => p !== MY_PID);
+          if (nextHost) updates['host'] = nextHost;
+        }
+        await update(roomRef, updates);
+      }
+    }
+  } catch(e) { console.error(e); }
+  location.href = 'poker.html';
+};
+
+// ===== HOST START =====
+window.hostStartGame = async function() {
+  const snap = await get(roomRef);
+  if (!snap.exists()) return;
+  const room = snap.val();
+  const roomPlayers = room.players || {};
+  const hostPid = room.host || Object.keys(roomPlayers).find(p => roomPlayers[p]?.index === 0);
+  if (hostPid !== MY_PID) return;
+  const pids = Object.keys(roomPlayers);
+  if (pids.length < 2) return;
+  await startGame(room);
+};
+
+async function startGame(room) {
+  await loadGalleryImages();
+  const pids = Object.keys(room.players);
+  const deck = shuffle(createDeck());
+  const hands = {};
+  pids.forEach(pid => { hands[pid] = []; });
+  deck.slice(0, pids.length * 5).forEach((card, i) => hands[pids[i % pids.length]].push(card));
+  const remainingDeck = deck.slice(pids.length * 5);
+
+  const scores = {};
+  pids.forEach(pid => { scores[pid] = 0; });
+
+  const gs = {
+    hands,
+    deck: remainingDeck,
+    openCards: [],
+    scores,
+    exchangeDone: { _init: true },
+    phase: 'exchange',
+    exchangeOrder: shufflePids(pids),
+    currentExchangeTurn: 0,
+    round: 1,
+    totalRounds: 3,
+    pids,
+    cardImages: rankImages,
+    roundResults: null,
+  };
+
+  await update(roomRef, { status: 'playing', gameState: gs, nextGame: null });
+}
+
+async function startGameUI(gs, players) {
+  localPhase = 'game';
+  document.getElementById('waitingScreen').style.display = 'none';
+  document.getElementById('resultScreen').classList.remove('show');
+  document.getElementById('gameScreen').style.display = 'block';
+  document.getElementById('commentRow').style.display = 'flex';
+  gameState = gs;
+  renderGame(gs, players);
+}
+
+// ===== RENDER =====
+function renderGame(gs, players) {
+  if (!gs) return;
+  if (gs.cardImages) rankImages = gs.cardImages;
+
+  document.getElementById('roundIndicator').textContent = `第${gs.round}ラウンド / ${gs.totalRounds}`;
+  renderScoreBar(gs, players);
+
+  document.getElementById('roundResultOverlay').classList.remove('show');
+  renderOpponents(gs, players);
+  renderMyHand(gs);
+  renderOpenCards(gs);
+  renderPhase(gs, players);
+
+  if (gs.phase === 'roundResult' && gs.roundResults) {
+    showRoundResult(gs, players);
+  }
+}
+
+
+// ===== PHASE / OPPONENTS =====
+function renderPhase(gs, players) {
+  const banner = document.getElementById('phaseBanner');
+  if (gs.phase !== 'exchange') {
+    banner.textContent = '—';
+    banner.className = 'phase-banner';
+    return;
+  }
+
+  const order = gs.exchangeOrder || gs.pids;
+  const turnIdx = gs.currentExchangeTurn || 0;
+  const activePid = order[turnIdx];
+
+  if (activePid === MY_PID) {
+    banner.textContent = '🟢 あなたの番です！捨てるカードを選んで交換してください';
+    banner.className = 'phase-banner my-action';
+  } else {
+    const activeName = players[activePid]?.name || activePid;
+    banner.textContent = `⏳ ${activeName} さんが交換中...`;
+    banner.className = 'phase-banner';
+  }
+}
+
+function renderScoreBar(gs, players) {
+  const el = document.getElementById('scoreBar');
+  el.innerHTML = '';
+  (gs.pids || []).forEach(pid => {
+    const item = document.createElement('div');
+    item.className = 'score-item' + (pid === MY_PID ? ' me' : '');
+    item.innerHTML = `<div class="score-name">${players[pid]?.name || pid}</div><div class="score-pt">${gs.scores?.[pid] || 0}pt</div>`;
+    el.appendChild(item);
+  });
+}
+
+function renderOpponents(gs, players) {
+  const el = document.getElementById('opponentsArea');
+  el.innerHTML = '';
+  if (gs.phase !== 'exchange') return;
+  const order = gs.exchangeOrder || gs.pids;
+  const turnIdx = gs.currentExchangeTurn || 0;
+  const activePid = order[turnIdx];
+
+  (gs.pids || []).forEach(pid => {
+    if (pid === MY_PID) return;
+    const done = gs.exchangeDone?.[pid];
+    const isActive = pid === activePid;
+    const row = document.createElement('div');
+    row.className = 'opp-row' + (done ? ' done-action' : isActive ? ' active-turn' : '');
+    row.innerHTML = `
+      <span class="opp-name">${players[pid]?.name || pid}</span>
+      <span class="opp-status">${done ? '✅ 交換完了' : isActive ? '🔄 交換中...' : '⏳ 待機中'}</span>
+    `;
+    el.appendChild(row);
+  });
+}
+
+function renderMyHand(gs) {
+  const el = document.getElementById('myCards');
+  const exchangeBtn = document.getElementById('exchangeBtn');
+  const stayBtn = document.getElementById('stayBtn');
+  el.innerHTML = '';
+
+  const hand = gs.hands?.[MY_PID] || [];
+  const order = gs.exchangeOrder || gs.pids;
+  const turnIdx = gs.currentExchangeTurn || 0;
+  const isMyTurn = gs.phase === 'exchange' && order[turnIdx] === MY_PID;
+  const myDone = gs.exchangeDone?.[MY_PID];
+
+  const role = evaluateHand(hand);
+  document.getElementById('handRoleDisplay').textContent = role + '（' + HAND_SCORES[role] + 'pt）';
+
+  const sortedHand = [...hand].sort((a,b) => {
+    if (a.rank==='JOKER' && b.rank!=='JOKER') return -1;
+    if (a.rank!=='JOKER' && b.rank==='JOKER') return 1;
+    const sd = SUITS.indexOf(a.suit)-SUITS.indexOf(b.suit);
+    if (sd!==0) return sd;
+    return a.num-b.num;
+  });
+
+  sortedHand.forEach(card => {
+    const div = document.createElement('div');
+    const isJoker = card.rank === 'JOKER';
+    const isSelected = selectedCards.has(card.id);
+
+    if (isJoker) {
+      div.className = 'hand-card joker-card';
+      div.innerHTML = `<div style="font-size:1.5rem;">🃏</div><div style="font-size:0.48rem;margin-top:3px;">JOKER</div>`;
+    } else {
+      const isRed = card.suit==='♥' || card.suit==='♦';
+      div.className = 'hand-card' + (isRed ? ' red' : ' black') + (isSelected ? ' selected' : '');
+      const imgUrl = rankImages[card.rank];
+      if (imgUrl) {
+        div.innerHTML = `
+          <div class="card-corner">${card.rank}<br><span style="font-size:0.7em;">${card.suit}</span></div>
+          <img src="${imgUrl}" style="width:46px;height:50px;object-fit:cover;border-radius:3px;display:block;margin:0 auto;">
+        `;
+      } else {
+        div.innerHTML = `
+          <div class="card-corner">${card.rank}<br><span style="font-size:0.7em;">${card.suit}</span></div>
+          <div class="card-rank">${card.rank}</div>
+          <div class="card-suit">${card.suit}</div>
+        `;
+      }
+      if (isSelected) {
+        const mark = document.createElement('div');
+        mark.className = 'discard-mark';
+        mark.textContent = '✕';
+        div.appendChild(mark);
+      }
+      if (isMyTurn && !myDone) {
+        div.onclick = () => toggleCard(card, gs);
+      }
+    }
+    el.appendChild(div);
+  });
+
+  if (isMyTurn && !myDone) {
+    exchangeBtn.style.display = 'block';
+    exchangeBtn.textContent = selectedCards.size > 0
+      ? `選択したカードを交換する（${selectedCards.size}枚選択中）`
+      : '交換する（0枚 = ステイと同じ）';
+    stayBtn.style.display = 'block';
+  } else {
+    exchangeBtn.style.display = 'none';
+    stayBtn.style.display = 'none';
+  }
+}
+
+function toggleCard(card, gs) {
+  if (card.rank === 'JOKER') return;
+  if (selectedCards.has(card.id)) selectedCards.delete(card.id);
+  else selectedCards.add(card.id);
+  renderMyHand(gs);
+  const btn = document.getElementById('exchangeBtn');
+  btn.textContent = selectedCards.size > 0
+    ? `選択したカードを交換する（${selectedCards.size}枚選択中）`
+    : '交換する（0枚 = ステイと同じ）';
+}
+
+function renderOpenCards(gs) {
+  const area = document.getElementById('openArea');
+  const el = document.getElementById('openCards');
+  const cards = gs.openCards || [];
+  if (cards.length === 0) { area.style.display = 'none'; return; }
+  area.style.display = 'block';
+  el.innerHTML = '';
+  cards.forEach(c => {
+    const chip = document.createElement('div');
+    const isJoker = c.rank === 'JOKER';
+    const isRed = c.suit==='♥' || c.suit==='♦';
+    chip.className = 'open-card-chip' + (isJoker ? ' joker' : isRed ? ' red' : ' black');
+    chip.textContent = isJoker ? '🃏' : c.rank + c.suit;
+    el.appendChild(chip);
+  });
+}
+
+// ===== EXCHANGE =====
+window._doExchange = async function() {
+  if (exchangeInProgress) return;
+  const gs = gameState;
+  if (!gs || gs.phase !== 'exchange') return;
+  const order = gs.exchangeOrder || gs.pids;
+  const turnIdx = gs.currentExchangeTurn || 0;
+  if (order[turnIdx] !== MY_PID) return;
+  if (gs.exchangeDone?.[MY_PID]) return;
+
+  // ボタンを即座に無効化して連打・二重交換を防ぐ
+  exchangeInProgress = true;
+  document.getElementById('exchangeBtn').style.display = 'none';
+  document.getElementById('stayBtn').style.display = 'none';
+
+  const hand = gs.hands?.[MY_PID] || [];
+  const discarded = hand.filter(c => selectedCards.has(c.id));
+  const kept = hand.filter(c => !selectedCards.has(c.id));
+  const deck = [...(gs.deck || [])];
+  const drawn = deck.splice(0, discarded.length);
+  const newHand = [...kept, ...drawn];
+  const newOpenCards = [...(gs.openCards || []), ...discarded];
+  const newTurn = turnIdx + 1;
+  const allDone = newTurn >= order.length;
+
+  const updates = {
+    [`hands/${MY_PID}`]: newHand,
+    deck,
+    openCards: newOpenCards,
+    [`exchangeDone/${MY_PID}`]: true,
+    currentExchangeTurn: newTurn,
+  };
+
+  if (allDone) {
+    const allHands = { ...gs.hands, [MY_PID]: newHand };
+    const roundResults = {};
+    let newScores = { ...gs.scores };
+    (gs.pids || []).forEach(pid => {
+      const h = allHands[pid] || [];
+      const role = evaluateHand(h);
+      const pt = HAND_SCORES[role] || 0;
+      roundResults[pid] = { hand: h, role, pt };
+      newScores[pid] = (newScores[pid] || 0) + pt;
+    });
+
+    const finalOpenCards = [...newOpenCards];
+    (gs.pids || []).forEach(pid => {
+      (allHands[pid] || []).forEach(c => {
+        if (!finalOpenCards.some(oc => oc.id === c.id))
+          finalOpenCards.push(c);
+      });
+    });
+
+    updates['openCards'] = finalOpenCards;
+    updates['roundResults'] = roundResults;
+    updates['scores'] = newScores;
+    updates['phase'] = 'roundResult';
+  }
+
+  try {
+    await update(ref(db, 'rooms_poker/' + ROOM + '/gameState'), updates);
+  } finally {
+    exchangeInProgress = false;
+  }
+  selectedCards = new Set();
+};
+
+window._doStay = async function() {
+  selectedCards = new Set();
+  await window._doExchange();
+};
+
+// ===== ROUND RESULT =====
+function showRoundResult(gs, players) {
+  const overlay = document.getElementById('roundResultOverlay');
+  if (overlay.classList.contains('show')) return;
+  overlay.classList.add('show'); // set immediately to block re-entrant calls
+  const body = document.getElementById('roundResultBody');
+  const nextBtn = document.getElementById('nextRoundBtn');
+  const finalBtn = document.getElementById('finalResultBtn');
+  const waitMsg = document.getElementById('nextRoundWait');
+
+  document.getElementById('roundResultTitle').textContent = `第${gs.round}ラウンド結果`;
+
+  const results = gs.roundResults || {};
+  const sorted = [...(gs.pids || [])].sort((a,b) => (results[b]?.pt||0) - (results[a]?.pt||0));
+
+  body.innerHTML = '';
+  sorted.forEach(pid => {
+    const r = results[pid] || {};
+    const hand = r.hand || [];
+    const row = document.createElement('div');
+    row.className = 'round-player-result';
+    const miniCards = hand.map(c => {
+      const isJoker = c.rank==='JOKER';
+      const isRed = c.suit==='♥'||c.suit==='♦';
+      return `<div class="mini-card${isJoker?' joker':isRed?' red':' black'}">${isJoker?'🃏':c.rank+'<br>'+c.suit}</div>`;
+    }).join('');
+    row.innerHTML = `
+      <span class="rpr-name">${players[pid]?.name || pid}${pid===MY_PID?' (あなた)':''}</span>
+      <span class="rpr-hand">${miniCards}</span>
+      <span class="rpr-role">${r.role||'—'}</span>
+      <span class="rpr-pt">+${r.pt||0}pt</span>
+    `;
+    body.appendChild(row);
+  });
+
+  const isLast = gs.round >= gs.totalRounds;
+
+  get(roomRef).then(roomSnap => {
+    if (!roomSnap.exists()) return;
+    const room = roomSnap.val();
+    const hostPid = room.host || gs.pids[0];
+    const isHost = hostPid === MY_PID;
+
+    if (isLast) {
+      nextBtn.style.display = 'none';
+      finalBtn.style.display = 'block';
+      waitMsg.style.display = 'none';
+    } else if (isHost) {
+      nextBtn.style.display = 'block';
+      finalBtn.style.display = 'none';
+      waitMsg.style.display = 'none';
+    } else {
+      nextBtn.style.display = 'none';
+      finalBtn.style.display = 'none';
+      waitMsg.style.display = 'block';
+    }
+
+    overlay.classList.add('show');
+  });
+}
+
+window._nextRound = async function() {
+  const snap = await get(roomRef);
+  if (!snap.exists()) return;
+  const room = snap.val();
+  const gs = gameState;
+  if (!gs) return;
+  const hostPid = room.host || gs.pids[0];
+  if (hostPid !== MY_PID) return;
+
+  const pids = gs.pids;
+  const deck = shuffle(createDeck());
+  const hands = {};
+  pids.forEach(pid => { hands[pid] = []; });
+  deck.slice(0, pids.length * 5).forEach((card, i) => hands[pids[i % pids.length]].push(card));
+  const remainingDeck = deck.slice(pids.length * 5);
+
+  await update(ref(db, 'rooms_poker/' + ROOM + '/gameState'), {
+    hands,
+    deck: remainingDeck,
+    openCards: [],
+    exchangeDone: { _init: true },
+    phase: 'exchange',
+    exchangeOrder: shufflePids(pids),
+    currentExchangeTurn: 0,
+    round: gs.round + 1,
+    roundResults: null,
+  });
+
+  document.getElementById('roundResultOverlay').classList.remove('show');
+};
+
+window._showFinalResult = function() {
+  document.getElementById('roundResultOverlay').classList.remove('show');
+  if (!gameState) return;
+  localPhase = 'result';
+  showFinalResult(gameState);
+};
+
+function showFinalResult(gs) {
+  get(ref(db, 'rooms_poker/' + ROOM + '/players')).then(ps => {
+    const players = ps.val() || {};
+    const pids = gs.pids || [];
+    const sorted = [...pids].sort((a,b) => (gs.scores[b]||0) - (gs.scores[a]||0));
+    const myRank = sorted.indexOf(MY_PID) + 1;
+    const isFirst = myRank === 1;
+
+    document.getElementById('resultEmoji').textContent = isFirst ? '🥇' : myRank === sorted.length ? '😢' : '🎉';
+    document.getElementById('resultTitle').textContent = isFirst ? '優勝！' : 'ゲーム終了！';
+    document.getElementById('resultSub').textContent = `あなたは ${myRank} 位でした`;
+
+    const medals = ['🥇','🥈','🥉',...Array.from({length:10},(_,i)=>`${i+4}位`)];
+    document.getElementById('resultRankings').innerHTML = sorted.map((pid, i) => `
+      <div class="rank-item">
+        <span class="rank-num">${medals[i]||i+1}</span>
+        <span class="rank-name">${players[pid]?.name||pid}${pid===MY_PID?' (あなた)':''}</span>
+        <span class="rank-pt">${gs.scores[pid]||0}pt</span>
+      </div>
+    `).join('');
+
+    document.getElementById('resultScreen').classList.add('show');
+  });
+}
+
+// ===== PLAY AGAIN =====
+window._playAgain = async function() {
+  // Mark as ready for next game in Firebase
+  await update(ref(db, 'rooms_poker/' + ROOM + '/nextGame/' + MY_PID), { ready: true });
+  // Transition locally to waiting screen (don't force others)
+  localPhase = 'ready-next';
+  document.getElementById('resultScreen').classList.remove('show');
+  document.getElementById('roundResultOverlay').classList.remove('show');
+  document.getElementById('gameScreen').style.display = 'none';
+  document.getElementById('waitingScreen').style.display = 'flex';
+  const snap = await get(roomRef);
+  if (snap.exists()) updateWaitingScreen(snap.val());
+};
+
+// ===== HINT MODAL =====
+const HINT_HANDS = [
+  { role:'ロイヤルフラッシュ',  desc:'同マーク 10-J-Q-K-A',         cards:[{r:'10',s:'♠'},{r:'J',s:'♠'},{r:'Q',s:'♠'},{r:'K',s:'♠'},{r:'A',s:'♠'}] },
+  { role:'ストレートフラッシュ', desc:'同マーク 連番5枚',             cards:[{r:'5',s:'♥'},{r:'6',s:'♥'},{r:'7',s:'♥'},{r:'8',s:'♥'},{r:'9',s:'♥'}] },
+  { role:'フォーカード',        desc:'同じ数字4枚',                  cards:[{r:'A',s:'♠'},{r:'A',s:'♥'},{r:'A',s:'♦'},{r:'A',s:'♣'},{r:'K',s:'♠'}] },
+  { role:'フルハウス',          desc:'3枚+2枚の組み合わせ',          cards:[{r:'K',s:'♠'},{r:'K',s:'♥'},{r:'K',s:'♦'},{r:'A',s:'♣'},{r:'A',s:'♠'}] },
+  { role:'フラッシュ',          desc:'同マーク5枚（連番でなくてOK）', cards:[{r:'2',s:'♦'},{r:'5',s:'♦'},{r:'8',s:'♦'},{r:'J',s:'♦'},{r:'K',s:'♦'}] },
+  { role:'ストレート',          desc:'異なるマーク 連番5枚',         cards:[{r:'7',s:'♠'},{r:'8',s:'♥'},{r:'9',s:'♦'},{r:'10',s:'♣'},{r:'J',s:'♠'}] },
+  { role:'スリーカード',        desc:'同じ数字3枚',                  cards:[{r:'Q',s:'♠'},{r:'Q',s:'♥'},{r:'Q',s:'♦'},{r:'3',s:'♣'},{r:'7',s:'♠'}] },
+  { role:'ツーペア',            desc:'2枚ペアが2組',                 cards:[{r:'J',s:'♠'},{r:'J',s:'♥'},{r:'8',s:'♦'},{r:'8',s:'♣'},{r:'2',s:'♠'}] },
+  { role:'ワンペア',            desc:'同じ数字2枚',                  cards:[{r:'7',s:'♠'},{r:'7',s:'♥'},{r:'A',s:'♦'},{r:'4',s:'♣'},{r:'9',s:'♠'}] },
+  { role:'ハイカード',          desc:'何も揃っていない',              cards:[{r:'A',s:'♠'},{r:'9',s:'♥'},{r:'6',s:'♦'},{r:'3',s:'♣'},{r:'J',s:'♠'}] },
+];
+
+window._showHint = function() {
+  const body = document.getElementById('hintBody');
+  body.innerHTML = HINT_HANDS.map(h => {
+    const cards = h.cards.map(c => {
+      const isRed = c.s==='♥'||c.s==='♦';
+      return `<div class="hint-card${isRed?' red':' black'}">${c.r}<br>${c.s}</div>`;
+    }).join('');
+    const pt = HAND_SCORES[h.role];
+    return `
+      <div class="hint-row">
+        <div class="hint-cards">${cards}</div>
+        <div class="hint-info">
+          <div class="hint-role">${h.role}</div>
+          <div class="hint-desc">${h.desc}</div>
+        </div>
+        <div class="hint-pt">${pt}pt</div>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('hintModal').classList.add('show');
+};
+
+window._closeHint = function() {
+  document.getElementById('hintModal').classList.remove('show');
+};
+
+document.getElementById('hintModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('hintModal')) window._closeHint();
+});
+
+// ===== NICO COMMENT =====
+const NICO_LANES = [15,24,33,42,51,60,69,78];
+let nicoLane = 0;
+
+function showNicoComment(name, text) {
+  const el = document.createElement('div');
+  el.className = 'nico-comment';
+  el.textContent = `${name}：${text}`;
+  el.style.top = NICO_LANES[nicoLane % NICO_LANES.length] + '%';
+  nicoLane++;
+  document.body.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
+const commentStartTime = Date.now();
+onChildAdded(ref(db, 'rooms_poker/' + ROOM + '/comments'), snap => {
+  const data = snap.val();
+  if (!data || data.t < commentStartTime) return;
+  showNicoComment(data.name, data.text);
+});
+
+window._sendComment = async function() {
+  const input = document.getElementById('commentInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  await push(ref(db, 'rooms_poker/' + ROOM + '/comments'), { name: MY_NAME, text, t: Date.now() });
+};
+
+document.getElementById('commentInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') window._sendComment();
+});
+
+// ===== TOAST =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>

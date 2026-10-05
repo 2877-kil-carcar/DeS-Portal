@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ポーカー Online</title>
+<link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@400;700&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green-deep: #0d3320;
+    --green-felt: #1a5c38;
+    --green-light: #2d8a56;
+    --gold: #c9a84c;
+    --gold-light: #f0d080;
+    --cream: #f5f0e8;
+    --card-white: #fafaf8;
+    --shadow: rgba(0,0,0,0.5);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: var(--green-deep);
+    background-image:
+      radial-gradient(ellipse at 30% 20%, rgba(45,138,86,0.3) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 80%, rgba(13,51,32,0.8) 0%, transparent 50%),
+      repeating-linear-gradient(45deg, transparent, transparent 40px, rgba(255,255,255,0.01) 40px, rgba(255,255,255,0.01) 41px);
+    font-family: 'Noto Sans JP', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .container { width: 100%; max-width: 480px; animation: fadeUp 0.6s ease forwards; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
+
+  .title-area { text-align: center; margin-bottom: 40px; }
+
+  .card-deco { display: flex; justify-content: center; gap: 12px; margin-bottom: 20px; }
+  .card-mini {
+    width: 44px; height: 60px;
+    background: var(--card-white);
+    border-radius: 6px;
+    box-shadow: 3px 3px 12px rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 700;
+    transform: rotate(-5deg);
+  }
+  .card-mini:nth-child(2) { transform: rotate(0deg); }
+  .card-mini:nth-child(3) { transform: rotate(5deg); }
+  .card-mini.red { color: #c0392b; }
+
+  h1 {
+    font-family: 'Kaisei Decol', serif;
+    font-size: 3rem;
+    color: var(--gold-light);
+    text-shadow: 0 0 40px rgba(201,168,76,0.5), 2px 2px 0 rgba(0,0,0,0.5);
+    letter-spacing: 0.1em;
+    line-height: 1;
+  }
+  .subtitle { color: rgba(245,240,232,0.5); font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase; margin-top: 6px; }
+
+  .panel {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(201,168,76,0.2);
+    border-radius: 16px;
+    padding: 32px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+    margin-bottom: 16px;
+  }
+
+  .panel-title {
+    font-size: 0.7rem; letter-spacing: 0.25em; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .panel-title::before, .panel-title::after { content:''; flex:1; height:1px; background:linear-gradient(90deg,transparent,rgba(201,168,76,0.4)); }
+  .panel-title::after { background:linear-gradient(90deg,rgba(201,168,76,0.4),transparent); }
+
+  input[type="text"] {
+    width: 100%; padding: 14px 16px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(201,168,76,0.25);
+    border-radius: 10px;
+    color: var(--cream);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 1rem; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    margin-bottom: 14px;
+  }
+  input[type="text"]::placeholder { color: rgba(245,240,232,0.3); }
+  input[type="text"]:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.1); }
+
+  .btn {
+    width: 100%; padding: 15px; border: none; border-radius: 10px;
+    font-family: 'Noto Sans JP', sans-serif; font-size: 1rem; font-weight: 500;
+    cursor: pointer; transition: all 0.2s; letter-spacing: 0.05em;
+  }
+  .btn-gold {
+    background: linear-gradient(135deg, var(--gold), #a07830);
+    color: var(--green-deep); font-weight: 700;
+    box-shadow: 0 4px 20px rgba(201,168,76,0.3);
+  }
+  .btn-gold:hover { background: linear-gradient(135deg, var(--gold-light), var(--gold)); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(201,168,76,0.4); }
+  .btn-outline { background: transparent; border: 1px solid rgba(201,168,76,0.4); color: var(--gold-light); }
+  .btn-outline:hover { background: rgba(201,168,76,0.08); border-color: var(--gold); transform: translateY(-2px); }
+
+  .divider { text-align: center; color: rgba(245,240,232,0.25); font-size: 0.75rem; margin: 20px 0; position: relative; }
+  .divider::before, .divider::after { content:''; position:absolute; top:50%; width:42%; height:1px; background:rgba(255,255,255,0.08); }
+  .divider::before { left:0; } .divider::after { right:0; }
+
+  .room-input-row { display: flex; gap: 10px; }
+  .room-input-row input { margin-bottom: 0; flex: 1; }
+  .room-input-row .btn { width: auto; padding: 14px 20px; white-space: nowrap; font-size: 0.9rem; }
+
+  .status-msg { text-align: center; font-size: 0.85rem; color: rgba(245,240,232,0.6); margin-top: 16px; min-height: 24px; }
+  .status-msg.error { color: #e07070; }
+  .status-msg.success { color: #70e0a0; }
+
+  .back-link { text-align: center; margin-top: 16px; }
+  .back-link a { color: rgba(245,240,232,0.35); font-size: 0.78rem; text-decoration: none; }
+  .back-link a:hover { color: rgba(245,240,232,0.7); }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="title-area">
+    <div class="card-deco">
+      <div class="card-mini red">♥</div>
+      <div class="card-mini">🃏</div>
+      <div class="card-mini red">♦</div>
+    </div>
+    <h1>ポーカー</h1>
+    <p class="subtitle">Online Multiplayer · 2〜4 Players</p>
+  </div>
+
+  <div class="panel" id="lobbyPanel" style="display:none;">
+    <div class="panel-title">プレイヤー名</div>
+    <input type="text" id="playerName" placeholder="あなたの名前を入力..." maxlength="12" />
+    <button class="btn btn-gold" onclick="createRoom()">新しいルームを作る</button>
+    <div class="divider">または</div>
+    <div class="room-input-row">
+      <input type="text" id="roomCodeInput" placeholder="ルームコード (例: AB12)" maxlength="4" style="text-transform:uppercase;" />
+      <button class="btn btn-outline" onclick="joinRoom()">参加</button>
+    </div>
+    <div class="status-msg" id="statusMsg"></div>
+  </div>
+
+  <div class="back-link"><a href="index.html">← ギャラリーに戻る</a></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, query, orderByChild, endAt } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBmPQX35nYTBzJhvU5Cu4lBifpmzQW2PLk",
+  authDomain: "babanuki-5febb.firebaseapp.com",
+  databaseURL: "https://babanuki-5febb-default-rtdb.firebaseio.com",
+  projectId: "babanuki-5febb",
+  storageBucket: "babanuki-5febb.firebasestorage.app",
+  messagingSenderId: "918572931204",
+  appId: "1:918572931204:web:a1e2db96dda922b4538ad1"
+};
+
+const app = initializeApp(firebaseConfig, 'poker-' + Date.now());
+const db = getDatabase(app);
+
+document.getElementById('lobbyPanel').style.display = 'block';
+
+function setStatus(msg, type='') {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = 'status-msg ' + type;
+}
+
+function genRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+function getPlayerId() {
+  let id = localStorage.getItem('babanuki_pid');
+  if (!id) {
+    id = 'p_' + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem('babanuki_pid', id);
+  }
+  return id;
+}
+
+async function cleanupOldRooms() {
+  try {
+    const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+    const snap = await get(query(ref(db, 'rooms_poker'), orderByChild('createdAt'), endAt(cutoff)));
+    if (!snap.exists()) return;
+    const del = {};
+    snap.forEach(c => { del['rooms_poker/' + c.key] = null; });
+    await update(ref(db), del);
+  } catch(e) {}
+}
+
+window.createRoom = async function() {
+  const name = document.getElementById('playerName').value.trim();
+  if (!name) { setStatus('名前を入力してください', 'error'); return; }
+  try {
+    setStatus('ルームを作成中...', '');
+    await cleanupOldRooms();
+
+    const roomCode = genRoomCode();
+    const pid = getPlayerId();
+
+    await set(ref(db, 'rooms_poker/' + roomCode), {
+      code: roomCode, status: 'waiting',
+      host: pid,
+      players: { [pid]: { name, index: 0, ready: true } },
+      createdAt: Date.now()
+    });
+
+    setStatus('ルームコード: ' + roomCode + ' — 友達に教えよう！', 'success');
+    setTimeout(() => {
+      location.href = 'poker-game.html?room=' + roomCode + '&pid=' + pid + '&name=' + encodeURIComponent(name);
+    }, 1200);
+  } catch(e) {
+    setStatus('エラー: ' + (e.message || 'Firebase接続に失敗しました'), 'error');
+    console.error(e);
+  }
+};
+
+window.joinRoom = async function() {
+  const name = document.getElementById('playerName').value.trim();
+  if (!name) { setStatus('名前を入力してください', 'error'); return; }
+
+  const code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
+  if (code.length !== 4) { setStatus('4文字のルームコードを入力してください', 'error'); return; }
+
+  try {
+    setStatus('参加中...', '');
+    await cleanupOldRooms();
+    const pid = getPlayerId();
+    const snap = await get(ref(db, 'rooms_poker/' + code));
+
+    if (!snap.exists()) { setStatus('ルームが見つかりません', 'error'); return; }
+    const room = snap.val();
+    if (room.status === 'playing') { setStatus('そのルームはゲーム中です', 'error'); return; }
+
+    const playerCount = Object.keys(room.players || {}).length;
+    if (playerCount >= 4) { setStatus('ルームが満員です (4/4)', 'error'); return; }
+
+    await update(ref(db, 'rooms_poker/' + code + '/players/' + pid), {
+      name, index: playerCount, ready: true
+    });
+
+    location.href = 'poker-game.html?room=' + code + '&pid=' + pid + '&name=' + encodeURIComponent(name);
+  } catch(e) {
+    setStatus('エラー: ' + (e.message || 'Firebase接続に失敗しました'), 'error');
+    console.error(e);
+  }
+};
+</script>
+</body>
+</html>

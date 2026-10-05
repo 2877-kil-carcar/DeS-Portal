@@ -1,0 +1,1023 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ババ抜き Online - ゲーム</title>
+<link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@400;700&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green-deep: #0d3320;
+    --green-felt: #1a5c38;
+    --green-light: #2d8a56;
+    --gold: #c9a84c;
+    --gold-light: #f0d080;
+    --cream: #f5f0e8;
+    --card-white: #fafaf8;
+    --red: #c0392b;
+    --blue: #2980b9;
+    --shadow: rgba(0,0,0,0.5);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: var(--green-deep);
+    background-image:
+      radial-gradient(ellipse at 30% 20%, rgba(45,138,86,0.25) 0%, transparent 50%),
+      repeating-linear-gradient(45deg, transparent, transparent 40px, rgba(255,255,255,0.01) 40px, rgba(255,255,255,0.01) 41px);
+    font-family: 'Noto Sans JP', sans-serif;
+    color: var(--cream);
+    overflow-x: hidden;
+  }
+
+  /* ===== WAITING SCREEN ===== */
+  #waitingScreen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+
+  .waiting-title {
+    font-family: 'Kaisei Decol', serif;
+    font-size: 2rem;
+    color: var(--gold-light);
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .room-code-display {
+    font-size: 3rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-shadow: 0 0 30px rgba(201,168,76,0.4);
+    margin: 16px 0;
+    font-family: 'Kaisei Decol', serif;
+  }
+  .waiting-hint {
+    font-size: 0.8rem;
+    color: rgba(245,240,232,0.4);
+    letter-spacing: 0.1em;
+    margin-bottom: 32px;
+  }
+
+  .player-slots {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+    max-width: 420px;
+    max-height: 320px;
+    overflow-y: auto;
+    margin-bottom: 28px;
+    padding-right: 4px;
+  }
+  .player-slot {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 10px 8px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+  .player-slot.filled {
+    border-color: rgba(201,168,76,0.35);
+    background: rgba(201,168,76,0.06);
+  }
+  .player-slot.me {
+    border-color: rgba(45,138,86,0.6);
+    background: rgba(45,138,86,0.08);
+  }
+  .slot-icon { font-size: 1.8rem; margin-bottom: 6px; }
+  .slot-name { font-size: 0.85rem; font-weight: 500; }
+  .slot-empty { font-size: 0.75rem; color: rgba(245,240,232,0.3); }
+
+  .waiting-status {
+    font-size: 0.85rem;
+    color: rgba(245,240,232,0.5);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:0.5;} 50%{opacity:1;} }
+
+  .leave-btn {
+    margin-top: 16px;
+    padding: 10px 28px;
+    background: transparent;
+    border: 1px solid rgba(192,57,43,0.35);
+    border-radius: 8px;
+    color: rgba(224,112,112,0.6);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .leave-btn:hover { background: rgba(192,57,43,0.12); border-color: rgba(192,57,43,0.65); color: #e07070; }
+
+  /* ===== GAME SCREEN ===== */
+  #gameScreen { display: none; min-height: 100vh; position: relative; }
+
+  .game-layout {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    min-height: 100vh;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 12px;
+    gap: 8px;
+  }
+
+  /* Top bar */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .top-title {
+    font-family: 'Kaisei Decol', serif;
+    font-size: 1.1rem;
+    color: var(--gold);
+  }
+  .turn-indicator {
+    font-size: 0.8rem;
+    color: rgba(245,240,232,0.6);
+  }
+  .turn-indicator.my-turn {
+    color: #70e0a0;
+    font-weight: 700;
+    animation: pulse 1s ease-in-out infinite;
+  }
+
+  /* Opponents area */
+  .opponents-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .opponent-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 10px 14px;
+    transition: all 0.3s;
+  }
+  .opponent-row.active-turn {
+    border-color: rgba(201,168,76,0.5);
+    background: rgba(201,168,76,0.05);
+    box-shadow: 0 0 20px rgba(201,168,76,0.1);
+  }
+  .opponent-row.draw-target {
+    border-color: #70e0a0;
+    background: rgba(45,138,86,0.12);
+    box-shadow: 0 0 24px rgba(112,224,160,0.25);
+    animation: targetPulse 1.2s ease-in-out infinite;
+  }
+  @keyframes targetPulse {
+    0%,100% { box-shadow: 0 0 16px rgba(112,224,160,0.2); }
+    50%      { box-shadow: 0 0 32px rgba(112,224,160,0.5); }
+  }
+  .draw-target-label {
+    font-size: 0.7rem;
+    color: #70e0a0;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    margin-left: auto;
+    padding-left: 8px;
+    flex-shrink: 0;
+  }
+  .opponent-row.eliminated {
+    opacity: 0.4;
+  }
+
+  .opp-info {
+    flex-shrink: 0;
+    width: 90px;
+  }
+  .opp-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .opp-card-count {
+    font-size: 0.7rem;
+    color: rgba(245,240,232,0.45);
+  }
+
+  .opp-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    flex: 1;
+  }
+
+  /* Card backs for opponents */
+  .card-back {
+    width: 44px;
+    height: 62px;
+    background: linear-gradient(135deg, #1a3a8a, #0d2060);
+    border: 1.5px solid rgba(255,255,255,0.15);
+    border-radius: 4px;
+    box-shadow: 1px 1px 4px rgba(0,0,0,0.4);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .card-back::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 2px;
+    background: repeating-linear-gradient(
+      45deg,
+      transparent, transparent 4px,
+      rgba(255,255,255,0.03) 4px, rgba(255,255,255,0.03) 5px
+    );
+  }
+  .card-back.drawable:hover {
+    transform: translateY(-6px) scale(1.05);
+    box-shadow: 2px 6px 16px rgba(0,0,0,0.5), 0 0 12px rgba(201,168,76,0.3);
+    border-color: rgba(201,168,76,0.6);
+    cursor: pointer;
+  }
+  .card-back.drawable {
+    animation: cardHint 2s ease-in-out infinite;
+  }
+  @keyframes cardHint {
+    0%,100%{border-color:rgba(255,255,255,0.15);}
+    50%{border-color:rgba(201,168,76,0.5);}
+  }
+
+  /* Player's own hand */
+  .my-area {
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(45,138,86,0.3);
+    border-radius: 14px;
+    padding: 14px;
+  }
+  .my-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--green-light);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .my-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 70px;
+    align-items: center;
+  }
+
+  /* Face-up card */
+  .card {
+    width: 64px;
+    height: 90px;
+    background: var(--card-white);
+    border: 1.5px solid #ddd;
+    border-radius: 6px;
+    box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+    position: relative;
+    transition: transform 0.15s, box-shadow 0.15s;
+    flex-shrink: 0;
+  }
+  .card.red { color: var(--red); }
+  .card.black { color: #1a1a2e; }
+  .card.joker {
+    background: linear-gradient(135deg, #1a1a2e, #2a1a3e);
+    color: #e0c0ff;
+    border-color: #6a3a9a;
+  }
+  .card-rank {
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .card-suit { font-size: 1.1rem; }
+  .card-corner {
+    position: absolute;
+    top: 3px;
+    left: 4px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+  }
+
+  /* Log area */
+  .game-log {
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.78rem;
+    color: rgba(245,240,232,0.55);
+    max-height: 70px;
+    overflow-y: auto;
+    line-height: 1.6;
+  }
+  .log-entry { }
+  .log-entry.highlight { color: var(--gold-light); }
+
+  /* Result screen */
+  #resultScreen {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    text-align: center;
+    padding: 20px;
+  }
+  #resultScreen.show { display: flex; }
+
+  .result-emoji { font-size: 4rem; margin-bottom: 16px; }
+  .result-title {
+    font-family: 'Kaisei Decol', serif;
+    font-size: 2.5rem;
+    color: var(--gold-light);
+    margin-bottom: 8px;
+  }
+  .result-sub { font-size: 1rem; color: rgba(245,240,232,0.6); margin-bottom: 32px; }
+  .result-rankings {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(201,168,76,0.2);
+    border-radius: 14px;
+    padding: 20px 30px;
+    margin-bottom: 28px;
+    min-width: 260px;
+  }
+  .rank-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    font-size: 0.95rem;
+  }
+  .rank-item:last-child { border-bottom: none; }
+  .rank-num { font-size: 1.3rem; width: 30px; }
+  .rank-name { flex: 1; text-align: left; }
+  .rank-badge { font-size: 0.75rem; padding: 2px 10px; border-radius: 20px; }
+  .badge-winner { background: rgba(201,168,76,0.2); color: var(--gold); }
+  .badge-loser { background: rgba(192,57,43,0.2); color: #e07070; }
+  .badge-normal { background: rgba(255,255,255,0.06); color: rgba(245,240,232,0.5); }
+
+  .btn-play-again {
+    padding: 14px 40px;
+    background: linear-gradient(135deg, var(--gold), #a07830);
+    border: none;
+    border-radius: 10px;
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--green-deep);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-play-again:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(201,168,76,0.4);
+  }
+
+  /* Notification toast */
+  .toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-60px);
+    background: rgba(20,60,35,0.95);
+    border: 1px solid rgba(201,168,76,0.4);
+    color: var(--gold-light);
+    padding: 12px 24px;
+    border-radius: 30px;
+    font-size: 0.9rem;
+    z-index: 200;
+    transition: transform 0.3s ease;
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- Waiting Screen -->
+<div id="waitingScreen">
+  <p class="waiting-title">🃏 ババ抜き Online</p>
+  <div class="waiting-hint">ルームコードを友達に教えよう</div>
+  <div class="room-code-display" id="roomCodeDisplay">----</div>
+  <div class="player-slots" id="playerSlots"></div>
+  <div class="waiting-status" id="waitingStatus">プレイヤーを待っています...</div>
+  <button id="startBtn" onclick="hostStartGame()" style="
+    display:none;
+    margin-top:24px;
+    padding:14px 48px;
+    background:linear-gradient(135deg,#c9a84c,#a07830);
+    border:none; border-radius:10px;
+    font-family:'Noto Sans JP',sans-serif;
+    font-size:1rem; font-weight:700;
+    color:#0d3320; cursor:pointer;
+    box-shadow:0 4px 20px rgba(201,168,76,0.4);
+    transition:all 0.2s;
+  ">ゲームを開始する 🃏</button>
+  <div id="waitingForHost" style="display:none;margin-top:24px;font-size:0.85rem;color:rgba(245,240,232,0.4);">ホストがゲームを開始するまで待ってください...</div>
+  <button class="leave-btn" onclick="leaveRoom()">← 退出する</button>
+  <div style="margin-top:10px;"><a href="index.html" style="color:rgba(245,240,232,0.25);font-size:0.75rem;text-decoration:none;">ギャラリーに戻る</a></div>
+</div>
+
+<!-- Game Screen -->
+<div id="gameScreen">
+  <div class="game-layout">
+    <!-- Top bar -->
+    <div class="top-bar">
+      <span class="top-title">🃏 ババ抜き</span>
+      <span class="turn-indicator" id="turnIndicator">—</span>
+      <span style="font-size:0.75rem;color:rgba(245,240,232,0.3);" id="roomCodeSmall"></span>
+    </div>
+
+    <!-- Opponents -->
+    <div class="opponents-area" id="opponentsArea"></div>
+
+    <!-- My hand -->
+    <div>
+      <div class="my-area">
+        <div class="my-label">
+          <span>あなたの手札</span>
+          <span id="myCardCount" style="color:rgba(245,240,232,0.4);">0枚</span>
+        </div>
+        <div class="my-cards" id="myCards"></div>
+      </div>
+      <div class="game-log" id="gameLog"><div class="log-entry">ゲーム開始！</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Result Screen -->
+<div id="resultScreen">
+  <div class="result-emoji" id="resultEmoji">🎉</div>
+  <div class="result-title" id="resultTitle">ゲーム終了！</div>
+  <div class="result-sub" id="resultSub"></div>
+  <div class="result-rankings" id="resultRankings"></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+    <button class="btn-play-again" onclick="playAgain()" style="background:linear-gradient(135deg,#2d8a56,#1a5c38);color:#f5f0e8;">もう一回 🔄</button>
+    <button class="btn-play-again" onclick="location.href='babanuki.html'">ロビーに戻る</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, onValue, push, off } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getFirestore, collection, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+// ===== INIT =====
+const params = new URLSearchParams(location.search);
+const ROOM = params.get('room');
+const MY_PID = params.get('pid');
+const MY_NAME = decodeURIComponent(params.get('name') || 'Player');
+
+if (!ROOM || !MY_PID) { location.href = 'babanuki.html'; }
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBmPQX35nYTBzJhvU5Cu4lBifpmzQW2PLk",
+  authDomain: "babanuki-5febb.firebaseapp.com",
+  databaseURL: "https://babanuki-5febb-default-rtdb.firebaseio.com",
+  projectId: "babanuki-5febb",
+  storageBucket: "babanuki-5febb.firebasestorage.app",
+  messagingSenderId: "918572931204",
+  appId: "1:918572931204:web:a1e2db96dda922b4538ad1"
+};
+const app = initializeApp(firebaseConfig, 'game-' + Date.now());
+const db = getDatabase(app);
+
+document.getElementById('roomCodeDisplay').textContent = ROOM;
+document.getElementById('roomCodeSmall').textContent = ROOM;
+
+// ===== GALLERY IMAGES FOR CARD FACES =====
+let rankImages = {};
+
+function assignRankImages(urls) {
+  const shuffled = [...urls];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  ['A','2','3','4','5','6','7','8','9','10','J','Q','K'].forEach((rank, i) => {
+    rankImages[rank] = shuffled[i % shuffled.length];
+  });
+}
+
+async function loadGalleryImages() {
+  // ① まずlocalStorage（ギャラリーページを開いていれば即取得できる）
+  try {
+    const stored = localStorage.getItem('gallery_image_urls');
+    if (stored) {
+      const urls = JSON.parse(stored).filter(Boolean);
+      if (urls.length > 0) { assignRankImages(urls); return; }
+    }
+  } catch(e) {}
+
+  // ② なければFirestoreから直接取得
+  try {
+    const galleryApp = initializeApp({
+      apiKey: "AIzaSyBz1xFi1N4kIlxQa0mxAAgw1U5aG6eJhrU",
+      authDomain: "mofmof-gallery.firebaseapp.com",
+      projectId: "mofmof-gallery",
+    }, 'gallery-' + Date.now());
+    const auth = getAuth(galleryApp);
+    const fsdb = getFirestore(galleryApp);
+    await signInAnonymously(auth);
+    const snap = await getDocs(query(collection(fsdb, 'images'), limit(52)));
+    const urls = snap.docs.map(d => d.data().thumbUrl || d.data().url).filter(Boolean);
+    if (urls.length === 0) return;
+    localStorage.setItem('gallery_image_urls', JSON.stringify(urls));
+    assignRankImages(urls);
+    // ゲームが始まっていたら手札を再描画
+    if (gameState && document.getElementById('gameScreen').style.display === 'block') {
+      const ps = await get(ref(db, 'rooms/' + ROOM + '/players'));
+      renderGame(gameState, ps.val() || {});
+    }
+  } catch(e) {
+    console.warn('ギャラリー画像取得失敗（テキスト表示）:', e);
+  }
+}
+loadGalleryImages();
+
+// ===== CARD LOGIC =====
+const SUITS = ['♠','♥','♦','♣'];
+const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+
+function createDeck(numDecks = 1) {
+  const deck = [];
+  for (let d = 0; d < numDecks; d++) {
+    for (const suit of SUITS) {
+      for (const rank of RANKS) {
+        // 複数デッキでも id をユニークにする
+        deck.push({ suit, rank, id: `${suit}${rank}_${d}` });
+      }
+    }
+  }
+  deck.push({ suit: '🃏', rank: 'JOKER', id: 'JOKER' }); // ジョーカーは常に1枚
+  return deck;
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function dealCards(deck, numPlayers) {
+  const hands = Array.from({ length: numPlayers }, () => []);
+  deck.forEach((card, i) => hands[i % numPlayers].push(card));
+  return hands;
+}
+
+function removePairs(hand) {
+  // Remove pairs (same rank, not joker)
+  const rankGroups = {};
+  for (const card of hand) {
+    if (card.rank === 'JOKER') continue;
+    if (!rankGroups[card.rank]) rankGroups[card.rank] = [];
+    rankGroups[card.rank].push(card);
+  }
+  const toRemove = new Set();
+  for (const rank in rankGroups) {
+    const cards = rankGroups[rank];
+    const pairs = Math.floor(cards.length / 2);
+    for (let i = 0; i < pairs * 2; i++) toRemove.add(cards[i].id);
+  }
+  return hand.filter(c => !toRemove.has(c.id));
+}
+
+function serializeHands(hands) {
+  // Convert to plain objects for Firebase
+  return hands.map(h => h.map(c => ({ suit: c.suit, rank: c.rank, id: c.id })));
+}
+
+// ===== STATE =====
+let gameState = null;
+let myIndex = -1;
+let playerOrder = []; // pids in order
+
+// ===== WAITING SCREEN =====
+const roomRef = ref(db, 'rooms/' + ROOM);
+onValue(roomRef, async (snap) => {
+  if (!snap.exists()) return;
+  const room = snap.val();
+
+  if (room.status === 'playing' && room.gameState) {
+    startGameUI(room.gameState, room.players);
+    return;
+  }
+
+  // Update player slots dynamically
+  const players = room.players || {};
+  const pids = Object.keys(players);
+  playerOrder = pids;
+  myIndex = pids.indexOf(MY_PID);
+
+  const slotsEl = document.getElementById('playerSlots');
+  slotsEl.innerHTML = '';
+  pids.forEach((pid) => {
+    const slot = document.createElement('div');
+    slot.className = 'player-slot filled' + (pid === MY_PID ? ' me' : '');
+    slot.innerHTML = `<div class="slot-icon">${pid === MY_PID ? '🙋' : '👤'}</div><div class="slot-name">${players[pid].name}</div>`;
+    slotsEl.appendChild(slot);
+  });
+
+  const ws = document.getElementById('waitingStatus');
+  ws.textContent = `${pids.length} 人が参加中`;
+
+  const isHost = pids[0] === MY_PID;
+  const canStart = pids.length >= 2;
+  const startBtn = document.getElementById('startBtn');
+  const waitingForHost = document.getElementById('waitingForHost');
+
+  if (isHost) {
+    startBtn.style.display = canStart ? 'block' : 'none';
+    waitingForHost.style.display = 'none';
+    if (!canStart) ws.textContent = `${pids.length} 人が参加中 — あと${2 - pids.length}人待ち`;
+  } else {
+    startBtn.style.display = 'none';
+    waitingForHost.style.display = 'block';
+  }
+});
+
+// ===== LEAVE ROOM =====
+window.leaveRoom = async function() {
+  try {
+    const snap = await get(roomRef);
+    if (!snap.exists()) { location.href = 'babanuki.html'; return; }
+    const pids = Object.keys(snap.val().players || {});
+    if (pids.length <= 1) {
+      // 最後の1人 → ルームごと削除
+      await set(roomRef, null);
+    } else {
+      // 自分だけ削除
+      const updates = {};
+      updates['players/' + MY_PID] = null;
+      await update(roomRef, updates);
+    }
+  } catch(e) { console.error(e); }
+  location.href = 'babanuki.html';
+};
+
+window.hostStartGame = async function() {
+  // 画像が取得できるまで待ってからゲームを開始する
+  await loadGalleryImages();
+  const snap = await get(roomRef);
+  if (!snap.exists()) return;
+  const room = snap.val();
+  const pids = Object.keys(room.players || {});
+  if (pids.length < 2) return;
+  await startGame(room);
+};
+
+async function startGame(room) {
+  const pids = Object.keys(room.players);
+  const numPlayers = pids.length;
+  // 1人あたり約4枚になるようデッキ数を自動調整（最低1）
+  const numDecks = Math.max(1, Math.ceil(numPlayers * 4 / 52));
+  const deck = shuffle(createDeck(numDecks));
+  let hands = dealCards(deck, numPlayers);
+  hands = hands.map(h => removePairs(h));
+  const serialized = serializeHands(hands);
+
+  const gs = {
+    hands: {},
+    currentTurn: 0,
+    pids: pids,
+    eliminated: [],
+    finished: [],
+    logs: ['ゲーム開始！ペアを除いて配りました。'],
+    cardImages: rankImages  // ホストの画像URLを全員に配布
+  };
+  pids.forEach((pid, i) => {
+    gs.hands[pid] = serialized[i];
+  });
+
+  await update(ref(db, 'rooms/' + ROOM), {
+    status: 'playing',
+    gameState: gs
+  });
+}
+
+function startGameUI(gs, players) {
+  document.getElementById('waitingScreen').style.display = 'none';
+  document.getElementById('gameScreen').style.display = 'block';
+  gameState = gs;
+  renderGame(gs, players);
+}
+
+// ===== GAME RENDER =====
+function renderGame(gs, players) {
+  if (!gs) return;
+  // ホストが配布した画像URLをセット（全員共通）
+  if (gs.cardImages) rankImages = gs.cardImages;
+  const pids = gs.pids;
+  myIndex = pids.indexOf(MY_PID);
+  const currentPid = pids[gs.currentTurn % pids.length];
+  const isMyTurn = currentPid === MY_PID;
+
+  // Turn indicator
+  const ti = document.getElementById('turnIndicator');
+  if (isMyTurn) {
+    const tpid = getDrawTarget(gs);
+    const tName = tpid ? (players[tpid]?.name || tpid) : '？';
+    ti.textContent = `🟢 あなたのターン — ${tName} から引いてください`;
+    ti.className = 'turn-indicator my-turn';
+  } else {
+    const cName = players[currentPid]?.name || currentPid;
+    ti.textContent = `⏳ ${cName} のターン`;
+    ti.className = 'turn-indicator';
+  }
+
+  // My cards
+  const myHand = gs.hands[MY_PID] || [];
+  renderMyCards(myHand);
+  document.getElementById('myCardCount').textContent = myHand.length + '枚';
+
+  // Opponents
+  const oppArea = document.getElementById('opponentsArea');
+  oppArea.innerHTML = '';
+  const targetPid = getDrawTarget(gs);
+  // 大人数時はカードバックを小さく
+  const totalPlayers = pids.length;
+  const cardW = totalPlayers > 10 ? 28 : totalPlayers > 6 ? 36 : 44;
+  const cardH = totalPlayers > 10 ? 40 : totalPlayers > 6 ? 51 : 62;
+
+  pids.forEach((pid, i) => {
+    if (pid === MY_PID) return;
+    const hand = gs.hands[pid] || [];
+    const name = players[pid]?.name || pid;
+    const isActive = pids[gs.currentTurn % pids.length] === pid;
+    const isElim = gs.eliminated?.includes(pid);
+    const isTarget = (pid === targetPid) && isMyTurn;
+
+    const row = document.createElement('div');
+    row.className = 'opponent-row'
+      + (isActive ? ' active-turn' : '')
+      + (isElim ? ' eliminated' : '')
+      + (isTarget ? ' draw-target' : '');
+    row.innerHTML = `
+      <div class="opp-info">
+        <div class="opp-name">${name}${isElim ? ' ✅' : ''}</div>
+        <div class="opp-card-count">${hand.length}枚</div>
+      </div>
+      <div class="opp-cards" id="oppCards_${pid}"></div>
+      ${isTarget ? '<span class="draw-target-label">👆 ここから引く</span>' : ''}
+    `;
+    oppArea.appendChild(row);
+
+    const cardsEl = document.getElementById('oppCards_' + pid);
+    hand.forEach((card, ci) => {
+      const cb = document.createElement('div');
+      cb.className = 'card-back' + (isTarget ? ' drawable' : '');
+      cb.style.width = cardW + 'px';
+      cb.style.height = cardH + 'px';
+      if (isTarget) {
+        cb.title = 'クリックしてカードを引く';
+        cb.onclick = () => drawCard(pid, ci, gs, players);
+      }
+      cardsEl.appendChild(cb);
+    });
+  });
+
+  // Log
+  renderLog(gs.logs || []);
+
+  // Check win condition
+  if (gs.finished && gs.finished.length >= pids.length - 1) {
+    showResult(gs, players);
+  }
+}
+
+function getDrawTarget(gs) {
+  // Current player draws from the next player clockwise (skip eliminated)
+  const pids = gs.pids;
+  const currentTurn = gs.currentTurn % pids.length;
+  // Actually: it's MY turn to draw. Who do I draw from?
+  // In ババ抜き, on your turn you draw from the player to your left (next index)
+  if (pids[currentTurn] !== MY_PID) return null;
+  let target = (myIndex + 1) % pids.length;
+  for (let i = 0; i < pids.length; i++) {
+    const tpid = pids[target];
+    if (!gs.eliminated?.includes(tpid) && tpid !== MY_PID && (gs.hands[tpid]?.length || 0) > 0) {
+      return tpid;
+    }
+    target = (target + 1) % pids.length;
+  }
+  return null;
+}
+
+function renderMyCards(hand) {
+  const el = document.getElementById('myCards');
+  el.innerHTML = '';
+  if (hand.length === 0) {
+    el.innerHTML = '<span style="color:rgba(245,240,232,0.3);font-size:0.85rem;">手札なし（あがり！）</span>';
+    return;
+  }
+  hand.forEach(card => {
+    const div = document.createElement('div');
+    const isRed = card.suit === '♥' || card.suit === '♦';
+    const isJoker = card.rank === 'JOKER';
+    div.className = 'card' + (isJoker ? ' joker' : (isRed ? ' red' : ' black'));
+    const imgUrl = rankImages[card.rank];
+    if (isJoker) {
+      div.innerHTML = `<div class="card-rank">🃏</div><div style="font-size:0.55rem;margin-top:2px;">JOKER</div>`;
+    } else if (imgUrl) {
+      div.innerHTML = `
+        <div class="card-corner">${card.rank}<br><span style="font-size:0.7em;">${card.suit}</span></div>
+        <img src="${imgUrl}" style="width:54px;height:60px;object-fit:cover;border-radius:3px;display:block;margin:0 auto;">
+      `;
+    } else {
+      div.innerHTML = `
+        <div class="card-corner">${card.rank}<br>${card.suit}</div>
+        <div class="card-rank">${card.rank}</div>
+        <div class="card-suit">${card.suit}</div>
+      `;
+    }
+    el.appendChild(div);
+  });
+}
+
+function renderLog(logs) {
+  const el = document.getElementById('gameLog');
+  const last5 = logs.slice(-5);
+  el.innerHTML = last5.map((l, i) => `<div class="log-entry${i === last5.length-1 ? ' highlight' : ''}">${l}</div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+// ===== DRAW CARD =====
+async function drawCard(fromPid, cardIndex, gs, players) {
+  const pids = gs.pids;
+  // Take card from opponent
+  const fromHand = [...(gs.hands[fromPid] || [])];
+  if (fromHand.length === 0) return;
+  const drawnCard = fromHand.splice(cardIndex, 1)[0];
+
+  let myHand = [...(gs.hands[MY_PID] || [])];
+  myHand.push(drawnCard);
+
+  // Remove pairs from my hand
+  const beforeLen = myHand.length;
+  myHand = removePairs(myHand);
+
+  // 毎回シャッフル（どれがジョーカーか相手にわからないように）
+  myHand = shuffle(myHand);
+  const pairedCount = (beforeLen - myHand.length) / 2;
+
+  const logEntry = pairedCount > 0
+    ? `${MY_NAME} が ${players[fromPid]?.name} からカードを引き、${pairedCount}ペア除去！`
+    : `${MY_NAME} が ${players[fromPid]?.name} からカードを引いた`;
+
+  // Update hands
+  const newHands = { ...gs.hands, [MY_PID]: myHand, [fromPid]: fromHand };
+
+  // Check if I'm out
+  let newElim = [...(gs.eliminated || [])];
+  let newFinished = [...(gs.finished || [])];
+  if (myHand.length === 0 && !newFinished.includes(MY_PID)) {
+    newFinished.push(MY_PID);
+    showToast('🎉 あがり！');
+  }
+  if (fromHand.length === 0 && !newFinished.includes(fromPid)) {
+    newFinished.push(fromPid);
+  }
+
+  // Advance turn
+  let nextTurn = (gs.currentTurn + 1) % pids.length;
+  for (let i = 0; i < pids.length; i++) {
+    const p = pids[nextTurn % pids.length];
+    if (!newFinished.includes(p) && (newHands[p]?.length || 0) > 0) break;
+    nextTurn++;
+  }
+
+  const newLogs = [...(gs.logs || []), logEntry];
+
+  await update(ref(db, 'rooms/' + ROOM + '/gameState'), {
+    hands: newHands,
+    currentTurn: nextTurn,
+    eliminated: newElim,
+    finished: newFinished,
+    logs: newLogs.slice(-30)
+  });
+}
+
+// ===== RESULT =====
+function showResult(gs, players) {
+  const pids = gs.pids;
+  const finished = gs.finished || [];
+  // The loser is whoever has cards (with joker)
+  const loser = pids.find(pid => (gs.hands[pid]?.length || 0) > 0 && !finished.includes(pid));
+
+  document.getElementById('resultEmoji').textContent = loser === MY_PID ? '😢' : '🎉';
+  document.getElementById('resultTitle').textContent = loser === MY_PID ? 'ババを引いた！' : 'ゲーム終了！';
+  document.getElementById('resultSub').textContent = loser === MY_PID ? 'あなたがババ抜きでした...' : 'お疲れさまでした！';
+
+  const ranks = [
+    ...finished.map((pid, i) => ({ pid, rank: i + 1 })),
+    ...(loser ? [{ pid: loser, rank: finished.length + 1 }] : [])
+  ];
+
+  const medals = ['🥇','🥈','🥉',...Array.from({length:27},(_,i)=>`${i+4}`)];
+  const html = ranks.map(r => {
+    const name = players[r.pid]?.name || r.pid;
+    const isLast = r.rank === pids.length;
+    const badgeClass = r.rank === 1 ? 'badge-winner' : (isLast ? 'badge-loser' : 'badge-normal');
+    const badge = r.rank === 1 ? '優勝' : (isLast ? 'ババ' : `${r.rank}位`);
+    return `<div class="rank-item">
+      <span class="rank-num">${medals[r.rank-1]||r.rank}</span>
+      <span class="rank-name">${name}${r.pid === MY_PID ? ' (あなた)' : ''}</span>
+      <span class="rank-badge ${badgeClass}">${badge}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('resultRankings').innerHTML = html;
+  document.getElementById('resultScreen').classList.add('show');
+}
+
+// ===== PLAY AGAIN =====
+window.playAgain = async function() {
+  // ゲーム状態をリセットし全員を待機画面に戻す
+  await update(ref(db, 'rooms/' + ROOM), {
+    status: 'waiting',
+    gameState: null
+  });
+  document.getElementById('resultScreen').classList.remove('show');
+  document.getElementById('gameScreen').style.display = 'none';
+  document.getElementById('waitingScreen').style.display = 'flex';
+};
+
+// ===== TOAST =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ===== LISTEN FOR GAME STATE CHANGES =====
+onValue(ref(db, 'rooms/' + ROOM + '/gameState'), (snap) => {
+  if (!snap.exists()) return;
+  gameState = snap.val();
+  get(ref(db, 'rooms/' + ROOM + '/players')).then(ps => {
+    const players = ps.val() || {};
+    if (document.getElementById('gameScreen').style.display === 'block') {
+      renderGame(gameState, players);
+    }
+  });
+});
+
+onValue(ref(db, 'rooms/' + ROOM + '/status'), (snap) => {
+  const status = snap.val();
+  if (status === 'playing') {
+    get(ref(db, 'rooms/' + ROOM)).then(roomSnap => {
+      if (!roomSnap.exists()) return;
+      const room = roomSnap.val();
+      if (room.gameState) startGameUI(room.gameState, room.players);
+    });
+  } else if (status === 'waiting') {
+    // もう一回 — 全員を待機画面に戻す
+    document.getElementById('resultScreen').classList.remove('show');
+    document.getElementById('gameScreen').style.display = 'none';
+    document.getElementById('waitingScreen').style.display = 'flex';
+  }
+});
+</script>
+</body>
+</html>

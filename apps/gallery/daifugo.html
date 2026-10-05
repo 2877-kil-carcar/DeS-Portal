@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大富豪 Online</title>
+<link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@400;700&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green-deep: #0d3320;
+    --green-felt: #1a5c38;
+    --green-light: #2d8a56;
+    --gold: #c9a84c;
+    --gold-light: #f0d080;
+    --cream: #f5f0e8;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    min-height:100vh;
+    background:var(--green-deep);
+    background-image:
+      radial-gradient(ellipse at 30% 20%, rgba(45,138,86,0.3) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 80%, rgba(13,51,32,0.8) 0%, transparent 50%),
+      repeating-linear-gradient(45deg,transparent,transparent 40px,rgba(255,255,255,0.01) 40px,rgba(255,255,255,0.01) 41px);
+    font-family:'Noto Sans JP',sans-serif;
+    color:var(--cream);
+  }
+
+  /* ===== LOBBY ===== */
+  #lobbyScreen { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:20px; }
+  .title-area { text-align:center; margin-bottom:36px; }
+  .title-deco { display:flex; justify-content:center; gap:12px; margin-bottom:16px; font-size:2.2rem; }
+  h1 { font-family:'Kaisei Decol',serif; font-size:2.8rem; color:var(--gold-light); text-shadow:0 0 40px rgba(201,168,76,0.5),2px 2px 0 rgba(0,0,0,0.5); letter-spacing:0.12em; }
+  .subtitle { color:rgba(245,240,232,0.45); font-size:0.75rem; letter-spacing:0.3em; text-transform:uppercase; margin-top:6px; }
+  .panel { background:rgba(255,255,255,0.04); border:1px solid rgba(201,168,76,0.2); border-radius:16px; padding:28px; backdrop-filter:blur(10px); box-shadow:0 20px 60px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.08); margin-bottom:14px; width:100%; max-width:440px; }
+  .panel-title { font-size:0.7rem; letter-spacing:0.25em; text-transform:uppercase; color:var(--gold); margin-bottom:18px; display:flex; align-items:center; gap:10px; }
+  .panel-title::before,.panel-title::after { content:''; flex:1; height:1px; background:linear-gradient(90deg,transparent,rgba(201,168,76,0.4)); }
+  .panel-title::after { background:linear-gradient(90deg,rgba(201,168,76,0.4),transparent); }
+  input[type="text"] { width:100%; padding:12px 14px; background:rgba(0,0,0,0.3); border:1px solid rgba(201,168,76,0.25); border-radius:10px; color:var(--cream); font-family:'Noto Sans JP',sans-serif; font-size:0.95rem; outline:none; transition:border-color 0.2s,box-shadow 0.2s; margin-bottom:12px; }
+  input[type="text"]::placeholder { color:rgba(245,240,232,0.3); }
+  input[type="text"]:focus { border-color:var(--gold); box-shadow:0 0 0 3px rgba(201,168,76,0.1); }
+  .btn { width:100%; padding:14px; border:none; border-radius:10px; font-family:'Noto Sans JP',sans-serif; font-size:0.95rem; font-weight:500; cursor:pointer; transition:all 0.2s; letter-spacing:0.05em; }
+  .btn-gold { background:linear-gradient(135deg,var(--gold),#a07830); color:var(--green-deep); font-weight:700; box-shadow:0 4px 20px rgba(201,168,76,0.3); }
+  .btn-gold:hover { background:linear-gradient(135deg,var(--gold-light),var(--gold)); transform:translateY(-2px); }
+  .btn-outline { background:transparent; border:1px solid rgba(201,168,76,0.4); color:var(--gold-light); }
+  .btn-outline:hover { background:rgba(201,168,76,0.08); transform:translateY(-2px); }
+  .divider { text-align:center; color:rgba(245,240,232,0.25); font-size:0.75rem; margin:16px 0; }
+  .room-row { display:flex; gap:8px; }
+  .room-row input { margin-bottom:0; flex:1; }
+  .room-row .btn { width:auto; padding:12px 18px; font-size:0.88rem; white-space:nowrap; }
+  .status-msg { text-align:center; font-size:0.82rem; color:rgba(245,240,232,0.55); margin-top:14px; min-height:22px; }
+  .status-msg.error { color:#e07070; }
+  .status-msg.success { color:#70e0a0; }
+  .back-link { text-align:center; margin-top:12px; }
+  .back-link a { color:rgba(245,240,232,0.3); font-size:0.76rem; text-decoration:none; }
+  .back-link a:hover { color:rgba(245,240,232,0.65); }
+
+  /* ===== WAITING ===== */
+  #waitingScreen { display:none; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:20px; }
+  .room-code-big { font-size:3rem; font-weight:700; letter-spacing:0.3em; color:var(--gold); text-shadow:0 0 30px rgba(201,168,76,0.4); font-family:'Kaisei Decol',serif; margin:12px 0; }
+  .player-slots { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; width:100%; max-width:420px; margin-bottom:20px; }
+  .player-slot { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 6px; text-align:center; transition:all 0.3s; }
+  .player-slot.filled { border-color:rgba(201,168,76,0.35); background:rgba(201,168,76,0.05); }
+  .player-slot.me { border-color:rgba(45,138,86,0.6); background:rgba(45,138,86,0.07); }
+  .slot-icon { font-size:1.4rem; margin-bottom:3px; }
+  .slot-name { font-size:0.76rem; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .waiting-status { font-size:0.84rem; color:rgba(245,240,232,0.45); margin-bottom:16px; }
+  .waiting-actions { display:flex; flex-direction:column; gap:10px; width:100%; max-width:340px; }
+  .btn-rule-settings { padding:12px; background:rgba(201,168,76,0.1); border:1.5px solid rgba(201,168,76,0.4); border-radius:10px; color:var(--gold-light); font-family:'Noto Sans JP',sans-serif; font-size:0.9rem; cursor:pointer; transition:all 0.2s; }
+  .btn-rule-settings:hover { background:rgba(201,168,76,0.2); border-color:var(--gold); }
+  .btn-start { padding:14px; background:linear-gradient(135deg,var(--gold),#a07830); border:none; border-radius:10px; color:var(--green-deep); font-family:'Noto Sans JP',sans-serif; font-size:1rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:none; }
+  .btn-start:hover { transform:translateY(-2px); box-shadow:0 8px 28px rgba(201,168,76,0.4); }
+  #waitingForHost { font-size:0.82rem; color:rgba(245,240,232,0.38); display:none; }
+  .btn-leave { padding:10px 26px; background:transparent; border:1px solid rgba(192,57,43,0.35); border-radius:8px; color:rgba(224,112,112,0.6); font-family:'Noto Sans JP',sans-serif; font-size:0.8rem; cursor:pointer; transition:all 0.2s; margin-top:6px; }
+  .btn-leave:hover { background:rgba(192,57,43,0.12); border-color:rgba(192,57,43,0.65); color:#e07070; }
+
+  /* ===== RULE SETTINGS OVERLAY ===== */
+  #ruleOverlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); backdrop-filter:blur(8px); z-index:200; align-items:flex-start; justify-content:center; padding:16px; overflow-y:auto; }
+  #ruleOverlay.show { display:flex; }
+  .rule-box { background:rgba(15,40,25,0.98); border:1px solid rgba(201,168,76,0.3); border-radius:18px; padding:22px; width:100%; max-width:480px; margin:auto; }
+  .rule-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .rule-title { font-family:'Kaisei Decol',serif; font-size:1.35rem; color:var(--gold-light); }
+  .rule-close { background:none; border:none; color:rgba(245,240,232,0.45); font-size:1.5rem; cursor:pointer; padding:2px 8px; }
+  .rule-close:hover { color:var(--cream); }
+  .rule-readonly-note { font-size:0.72rem; color:rgba(245,240,232,0.35); margin-bottom:16px; display:none; }
+
+  /* Category grid */
+  .rule-cat-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:20px; }
+  .rule-cat-btn { background:rgba(255,255,255,0.04); border:1.5px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px 6px 8px; text-align:center; cursor:pointer; transition:all 0.15s; color:var(--cream); font-family:'Noto Sans JP',sans-serif; font-size:0.82rem; display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .rule-cat-btn:hover { background:rgba(201,168,76,0.08); border-color:rgba(201,168,76,0.35); }
+  .rule-cat-btn.has-active { border-color:rgba(201,168,76,0.6); background:rgba(201,168,76,0.07); color:var(--gold-light); }
+  .cat-dot { width:7px; height:7px; border-radius:50%; background:var(--gold); display:none; }
+  .rule-cat-btn.has-active .cat-dot { display:block; }
+
+  /* Rule ID */
+  .rule-id-section { border-top:1px solid rgba(255,255,255,0.08); padding-top:14px; }
+  .rule-id-label { font-size:0.7rem; letter-spacing:0.2em; text-transform:uppercase; color:rgba(201,168,76,0.7); margin-bottom:8px; }
+  .rule-id-row { display:flex; gap:8px; }
+  .rule-id-input { flex:1; padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid rgba(201,168,76,0.2); border-radius:8px; color:var(--cream); font-family:'Courier New',monospace; font-size:0.88rem; outline:none; letter-spacing:0.1em; }
+  .rule-id-input:focus { border-color:var(--gold); }
+  .rule-id-apply { padding:10px 14px; background:rgba(201,168,76,0.15); border:1px solid rgba(201,168,76,0.4); border-radius:8px; color:var(--gold); font-family:'Noto Sans JP',sans-serif; font-size:0.8rem; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+  .rule-id-apply:hover { background:rgba(201,168,76,0.28); }
+  .rule-id-get { padding:10px 14px; background:linear-gradient(135deg,var(--gold),#a07830); border:none; border-radius:8px; color:var(--green-deep); font-family:'Noto Sans JP',sans-serif; font-size:0.8rem; font-weight:700; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+  .rule-id-get:hover { transform:translateY(-1px); }
+  /* プリセット */
+  .rule-preset-list { display:flex; flex-direction:column; gap:8px; }
+  .preset-row { display:flex; gap:8px; }
+  .preset-apply { flex:1; padding:11px 12px; background:rgba(201,168,76,0.12); border:1px solid rgba(201,168,76,0.35); border-radius:8px; color:var(--gold); font-family:'Noto Sans JP',sans-serif; font-size:0.9rem; font-weight:700; cursor:pointer; transition:all 0.15s; text-align:left; }
+  .preset-apply:hover:not(:disabled) { background:rgba(201,168,76,0.26); }
+  .preset-apply.empty { color:rgba(201,168,76,0.4); font-weight:400; }
+  .preset-apply:disabled { cursor:not-allowed; opacity:0.55; }
+  .preset-save { padding:11px 14px; background:linear-gradient(135deg,var(--gold),#a07830); border:none; border-radius:8px; color:var(--green-deep); font-size:0.82rem; font-weight:700; cursor:pointer; white-space:nowrap; transition:transform 0.15s; }
+  .preset-save:hover:not(:disabled) { transform:translateY(-1px); }
+  .preset-save:disabled { display:none; }
+
+  /* Sub panel */
+  #ruleSubPanel { display:none; }
+  .rule-sub-header { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+  .rule-sub-back { background:none; border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:6px 14px; color:var(--cream); font-size:0.82rem; cursor:pointer; transition:all 0.15s; }
+  .rule-sub-back:hover { background:rgba(255,255,255,0.07); }
+  .rule-sub-title { font-family:'Kaisei Decol',serif; font-size:1.15rem; color:var(--gold-light); }
+  .sub-cat-desc { font-size:0.73rem; color:rgba(245,240,232,0.5); background:rgba(255,255,255,0.04); border-left:3px solid rgba(201,168,76,0.4); border-radius:0 8px 8px 0; padding:10px 13px; margin-bottom:16px; line-height:1.7; }
+
+  .rule-item { display:flex; align-items:flex-start; gap:10px; padding:11px 0; border-bottom:1px solid rgba(255,255,255,0.06); }
+  .rule-item:last-child { border-bottom:none; }
+  .rule-item-left { flex:1; min-width:0; }
+  .rule-item-name { font-size:0.85rem; font-weight:500; }
+  .rule-item-desc { font-size:0.69rem; color:rgba(245,240,232,0.38); margin-top:3px; line-height:1.55; }
+  .rule-item-example { font-size:0.67rem; color:rgba(201,168,76,0.55); margin-top:3px; line-height:1.5; white-space:pre-line; }
+  .rule-item-fixed { font-size:0.84rem; color:rgba(245,240,232,0.45); padding:6px 12px; background:rgba(255,255,255,0.05); border-radius:6px; border:1px solid rgba(255,255,255,0.08); flex-shrink:0; }
+  .rule-item.disabled { opacity:0.35; pointer-events:none; }
+  .depends-note { font-size:0.65rem; color:rgba(201,168,76,0.55); margin-top:3px; }
+
+  /* Toggle buttons */
+  .toggle-group { display:flex; border-radius:7px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); flex-shrink:0; }
+  .tgl { padding:7px 11px; background:rgba(0,0,0,0.25); border:none; color:rgba(245,240,232,0.45); font-family:'Noto Sans JP',sans-serif; font-size:0.76rem; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+  .tgl + .tgl { border-left:1px solid rgba(255,255,255,0.1); }
+  .tgl.active { background:linear-gradient(135deg,var(--gold),#a07830); color:var(--green-deep); font-weight:700; }
+  .tgl:hover:not(.active) { background:rgba(201,168,76,0.12); color:var(--cream); }
+
+  /* Toast */
+  .toast { position:fixed; top:18px; left:50%; transform:translateX(-50%) translateY(-60px); background:rgba(20,60,35,0.96); border:1px solid rgba(201,168,76,0.45); color:var(--gold-light); padding:11px 22px; border-radius:30px; font-size:0.88rem; z-index:300; transition:transform 0.3s ease; white-space:nowrap; }
+  .toast.show { transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- ロビー画面 -->
+<div id="lobbyScreen">
+  <div class="title-area">
+    <div class="title-deco">🂱 🃁 🂾</div>
+    <h1>大富豪</h1>
+    <p class="subtitle">Online Multiplayer · 2〜6 Players</p>
+  </div>
+  <div class="panel" id="lobbyPanel" style="display:none;">
+    <div class="panel-title">プレイヤー名</div>
+    <input type="text" id="playerName" placeholder="あなたの名前を入力..." maxlength="12" />
+    <button class="btn btn-gold" onclick="createRoom()">新しいルームを作る</button>
+    <div class="divider">または</div>
+    <div class="room-row">
+      <input type="text" id="roomCodeInput" placeholder="ルームコード (例: AB12)" maxlength="4" style="text-transform:uppercase;" />
+      <button class="btn btn-outline" onclick="joinRoom()">参加</button>
+    </div>
+    <div class="status-msg" id="statusMsg"></div>
+  </div>
+  <div class="back-link"><a href="index.html">← ギャラリーに戻る</a></div>
+</div>
+
+<!-- 待機画面 -->
+<div id="waitingScreen">
+  <p style="font-family:'Kaisei Decol',serif;font-size:1.6rem;color:var(--gold-light);margin-bottom:4px;">大富豪 Online</p>
+  <p style="font-size:0.78rem;color:rgba(245,240,232,0.38);letter-spacing:0.1em;margin-bottom:4px;">ルームコードを友達に教えよう</p>
+  <div class="room-code-big" id="waitingRoomCode">----</div>
+  <div class="player-slots" id="playerSlots"></div>
+  <div class="waiting-status" id="waitingStatus">プレイヤーを待っています...</div>
+  <div class="waiting-actions">
+    <button class="btn-rule-settings" id="ruleSettingsBtn" onclick="openRuleSettings()">⚙️ ルール設定</button>
+    <button class="btn-start" id="startBtn" onclick="hostStartGame()">ゲームを開始する 🃏</button>
+    <div id="waitingForHost">ホストがゲームを開始するまで待ってください...</div>
+    <button class="btn-leave" onclick="leaveRoom()">← 退出する</button>
+  </div>
+  <div style="margin-top:12px;"><a href="index.html" style="color:rgba(245,240,232,0.22);font-size:0.73rem;text-decoration:none;">ギャラリーに戻る</a></div>
+</div>
+
+<!-- ルール設定オーバーレイ -->
+<div id="ruleOverlay">
+  <div class="rule-box">
+    <div id="ruleMainPanel">
+      <div class="rule-header">
+        <span class="rule-title">⚙️ ルール設定</span>
+        <button class="rule-close" onclick="closeRuleSettings()">✕</button>
+      </div>
+      <p class="rule-readonly-note" id="ruleReadonlyNote">※ ホストのみ変更できます（閲覧中）</p>
+      <div class="rule-cat-grid" id="ruleCatGrid"></div>
+      <div class="rule-id-section">
+        <div class="rule-id-label">プリセット（💾で現在の設定を保存／タップで適用）</div>
+        <div class="rule-preset-list" id="rulePresetList"></div>
+      </div>
+    </div>
+    <div id="ruleSubPanel">
+      <div class="rule-sub-header">
+        <button class="rule-sub-back" onclick="backToRuleMain()">← もどる</button>
+        <span class="rule-sub-title" id="ruleSubTitle"></span>
+      </div>
+      <div id="ruleSubCatDesc" class="sub-cat-desc" style="display:none;"></div>
+      <div id="ruleSubContent"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ルール定義を先に読み込む（file://でも動作） -->
+<script src="daifugo-rules.js"></script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, onValue, query, orderByChild, endAt }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// daifugo-rules.js がグローバルに公開した定数を取り出す
+const { DEFAULT_RULES, RULE_BOOL_KEYS, CATEGORIES, SUB_ITEMS, encodeRuleId, decodeRuleId } = window.DaifugoRules;
+
+// ===== Firebase =====
+const firebaseConfig = {
+  apiKey: "AIzaSyBmPQX35nYTBzJhvU5Cu4lBifpmzQW2PLk",
+  authDomain: "babanuki-5febb.firebaseapp.com",
+  databaseURL: "https://babanuki-5febb-default-rtdb.firebaseio.com",
+  projectId: "babanuki-5febb",
+  storageBucket: "babanuki-5febb.firebasestorage.app",
+  messagingSenderId: "918572931204",
+  appId: "1:918572931204:web:a1e2db96dda922b4538ad1",
+};
+const app = initializeApp(firebaseConfig, 'daifugo-' + Date.now());
+const db  = getDatabase(app);
+
+// ===== State =====
+const params = new URLSearchParams(location.search);
+let ROOM    = params.get('room');
+let MY_PID  = params.get('pid');
+let MY_NAME = decodeURIComponent(params.get('name') || '');
+let roomRef = null;
+let isHost  = false;
+let rules   = { ...DEFAULT_RULES };
+
+function getPlayerId() {
+  let id = localStorage.getItem('babanuki_pid');
+  if (!id) { id = 'p_' + Math.random().toString(36).slice(2, 10); localStorage.setItem('babanuki_pid', id); }
+  return id;
+}
+
+// ===== ルールUI: カテゴリグリッド =====
+function isCategoryActive(catId) {
+  const cat = CATEGORIES.find(c => c.id === catId);
+  if (!cat) return false;
+  return cat.keys.some(k => {
+    const v = rules[k];
+    return v === true || (typeof v === 'string' && v !== 'off');
+  });
+}
+
+function renderCatGrid() {
+  const grid = document.getElementById('ruleCatGrid');
+  grid.innerHTML = '';
+  CATEGORIES.forEach(cat => {
+    const active = isCategoryActive(cat.id);
+    const btn = document.createElement('button');
+    btn.className = 'rule-cat-btn' + (active ? ' has-active' : '');
+    btn.innerHTML = `<span class="cat-dot"></span><span>${cat.name}</span>`;
+    btn.onclick = () => openSubPanel(cat.id);
+    grid.appendChild(btn);
+  });
+}
+
+// ===== ルールUI: サブパネル =====
+function openSubPanel(catId) {
+  const cat = CATEGORIES.find(c => c.id === catId);
+  if (!cat) return;
+  document.getElementById('ruleMainPanel').style.display = 'none';
+  document.getElementById('ruleSubPanel').style.display  = 'block';
+  document.getElementById('ruleSubTitle').textContent    = cat.name;
+  const descEl = document.getElementById('ruleSubCatDesc');
+  if (cat.catDesc) {
+    descEl.style.display = 'block';
+    descEl.innerHTML = cat.catDesc.replace(/\n/g, '<br>');
+  } else {
+    descEl.style.display = 'none';
+  }
+  renderSubContent(catId);
+}
+
+function isItemDisabled(item) {
+  if (item.dependsAll) {
+    return item.dependsAll.some(k => { const v = rules[k]; return !v || v === 'off'; });
+  }
+  if (item.depends) {
+    const v = rules[item.depends];
+    return !v || v === 'off';
+  }
+  return false;
+}
+
+function renderSubContent(catId) {
+  const items   = SUB_ITEMS[catId] || [];
+  const content = document.getElementById('ruleSubContent');
+  content.innerHTML = '';
+
+  items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'rule-item' + (isItemDisabled(item) ? ' disabled' : '');
+
+    if (item.type === 'fixed') {
+      div.innerHTML = `
+        <div class="rule-item-left"><div class="rule-item-name">${item.label}</div></div>
+        <div class="rule-item-fixed">${item.value}</div>`;
+
+    } else if (item.type === 'bool') {
+      const val = rules[item.key];
+      div.innerHTML = `
+        <div class="rule-item-left">
+          <div class="rule-item-name">${item.label}</div>
+          ${item.desc    ? `<div class="rule-item-desc">${item.desc}</div>` : ''}
+          ${item.example ? `<div class="rule-item-example">${item.example}</div>` : ''}
+          ${item.dependsLabel ? `<div class="depends-note">※ ${item.dependsLabel}</div>` : ''}
+        </div>
+        <div class="toggle-group">
+          <button class="tgl ${val  ? 'active':''}" onclick="setRule('${item.key}',true,'${catId}')">ON</button>
+          <button class="tgl ${!val ? 'active':''}" onclick="setRule('${item.key}',false,'${catId}')">OFF</button>
+        </div>`;
+
+    } else if (item.type === 'three') {
+      const val = rules[item.key] || 'off';
+      div.innerHTML = `
+        <div class="rule-item-left">
+          <div class="rule-item-name">${item.label}</div>
+          ${item.desc    ? `<div class="rule-item-desc">${item.desc}</div>` : ''}
+          ${item.example ? `<div class="rule-item-example">${item.example}</div>` : ''}
+          ${item.dependsLabel ? `<div class="depends-note">※ ${item.dependsLabel}</div>` : ''}
+        </div>
+        <div class="toggle-group">
+          <button class="tgl ${val==='on'       ? 'active':''}" onclick="setRule('${item.key}','on','${catId}')">ON</button>
+          <button class="tgl ${val==='yasashii'  ? 'active':''}" onclick="setRule('${item.key}','yasashii','${catId}')">やさしい</button>
+          <button class="tgl ${val==='off'       ? 'active':''}" onclick="setRule('${item.key}','off','${catId}')">OFF</button>
+        </div>`;
+
+    } else if (item.type === 'threeCustom') {
+      const val    = rules[item.key] || item.values[item.values.length - 1];
+      const btns   = item.values.map((v, i) =>
+        `<button class="tgl ${val===v?'active':''}" onclick="setRule('${item.key}','${v}','${catId}')">${item.labels[i]}</button>`
+      ).join('');
+      div.innerHTML = `
+        <div class="rule-item-left">
+          <div class="rule-item-name">${item.label}</div>
+          ${item.desc    ? `<div class="rule-item-desc">${item.desc}</div>` : ''}
+          ${item.example ? `<div class="rule-item-example">${item.example}</div>` : ''}
+        </div>
+        <div class="toggle-group">${btns}</div>`;
+    }
+
+    content.appendChild(div);
+  });
+}
+
+window.backToRuleMain = function() {
+  document.getElementById('ruleSubPanel').style.display  = 'none';
+  document.getElementById('ruleMainPanel').style.display = 'block';
+  renderCatGrid();
+};
+
+// ===== ルール変更 =====
+window.setRule = async function(key, val, catId) {
+  if (!isHost) return;
+  rules[key] = val;
+  if (ROOM) await update(ref(db, 'rooms_daifugo/' + ROOM + '/rules'), { [key]: val });
+  renderSubContent(catId);
+};
+
+// ===== オーバーレイ 開閉 =====
+window.openRuleSettings = function() {
+  document.getElementById('ruleOverlay').classList.add('show');
+  document.getElementById('ruleMainPanel').style.display = 'block';
+  document.getElementById('ruleSubPanel').style.display  = 'none';
+  document.getElementById('ruleReadonlyNote').style.display = isHost ? 'none' : 'block';
+  renderCatGrid();
+  renderPresets();
+};
+window.closeRuleSettings = function() {
+  document.getElementById('ruleOverlay').classList.remove('show');
+  // 常にメインパネルに戻しておく（次回開いたときサブパネルのまま残らないように）
+  document.getElementById('ruleSubPanel').style.display  = 'none';
+  document.getElementById('ruleMainPanel').style.display = 'block';
+};
+
+// Esc/背景クリックの共通処理：サブパネル表示中は「メインへ戻る」、メインなら閉じる
+function dismissRuleOverlay() {
+  const subVisible = document.getElementById('ruleSubPanel').style.display === 'block';
+  if (subVisible) {
+    window.backToRuleMain(); // サブ→メイン（戻るボタンと同じ）
+  } else {
+    window.closeRuleSettings();
+  }
+}
+// 背景（暗い部分）タップ
+document.getElementById('ruleOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'ruleOverlay') dismissRuleOverlay();
+});
+// Escキー
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('ruleOverlay').classList.contains('show')) {
+    dismissRuleOverlay();
+  }
+});
+
+// ===== ルールプリセット（ブラウザに5枠まで保存・タップで適用） =====
+const PRESET_SLOTS = 5;
+const PRESET_KEY = 'daifugo_rule_presets';
+
+function loadPresets() {
+  try { return JSON.parse(localStorage.getItem(PRESET_KEY) || '[]') || []; }
+  catch (e) { return []; }
+}
+function storePresets(arr) {
+  try { localStorage.setItem(PRESET_KEY, JSON.stringify(arr)); } catch (e) {}
+}
+
+function renderPresets() {
+  const list = document.getElementById('rulePresetList');
+  if (!list) return;
+  const presets = loadPresets();
+  list.innerHTML = '';
+  for (let i = 0; i < PRESET_SLOTS; i++) {
+    const has = !!presets[i];
+    const row = document.createElement('div');
+    row.className = 'preset-row';
+    row.innerHTML = `
+      <button class="preset-apply ${has ? '' : 'empty'}" data-i="${i}" ${(!isHost || !has) ? 'disabled' : ''}>
+        プリセット${i + 1}${has ? '' : '（空）'}
+      </button>
+      <button class="preset-save" data-i="${i}" ${isHost ? '' : 'disabled'}>💾 保存</button>`;
+    list.appendChild(row);
+  }
+  list.querySelectorAll('.preset-apply').forEach(b => b.onclick = () => applyPreset(+b.dataset.i));
+  list.querySelectorAll('.preset-save').forEach(b  => b.onclick = () => savePreset(+b.dataset.i));
+}
+
+async function applyPreset(i) {
+  if (!isHost) return;
+  const p = loadPresets()[i];
+  if (!p) { showToast('このプリセットは空です'); return; }
+  rules = { ...DEFAULT_RULES, ...p };
+  if (ROOM) await update(ref(db, 'rooms_daifugo/' + ROOM + '/rules'), rules);
+  renderCatGrid();
+  showToast(`プリセット${i + 1} を適用しました`);
+}
+
+function savePreset(i) {
+  if (!isHost) return;
+  const presets = loadPresets();
+  // DEFAULT_RULES に存在するキーだけ保存（撤去済みルール等の残骸混入を防ぐ）
+  const clean = {};
+  for (const k of Object.keys(DEFAULT_RULES)) clean[k] = rules[k];
+  presets[i] = clean;
+  storePresets(presets);
+  renderPresets();
+  showToast(`現在のルールをプリセット${i + 1} に保存しました`);
+}
+
+// ===== Firebase: 部屋管理 =====
+async function cleanupOldRooms() {
+  try {
+    const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+    const snap = await get(query(ref(db, 'rooms_daifugo'), orderByChild('createdAt'), endAt(cutoff)));
+    if (!snap.exists()) return;
+    const del = {};
+    snap.forEach(c => { del['rooms_daifugo/' + c.key] = null; });
+    await update(ref(db), del);
+  } catch (e) {}
+}
+
+function genRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+function setStatus(msg, type = '') {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = 'status-msg ' + type;
+}
+
+window.createRoom = async function() {
+  const name = document.getElementById('playerName').value.trim();
+  if (!name) { setStatus('名前を入力してください', 'error'); return; }
+  try {
+    setStatus('ルームを作成中...', '');
+    await cleanupOldRooms();
+    const code = genRoomCode();
+    const pid  = getPlayerId();
+    await set(ref(db, 'rooms_daifugo/' + code), {
+      code, status: 'waiting', host: pid,
+      players: { [pid]: { name, index: 0, ready: true } },
+      rules: { ...DEFAULT_RULES },
+      createdAt: Date.now(),
+    });
+    setStatus('ルームコード: ' + code + ' — 友達に教えよう！', 'success');
+    setTimeout(() => enterWaiting(code, pid, name), 900);
+  } catch (e) { setStatus('エラー: ' + (e.message || 'Firebase接続に失敗'), 'error'); }
+};
+
+window.joinRoom = async function() {
+  const name = document.getElementById('playerName').value.trim();
+  if (!name) { setStatus('名前を入力してください', 'error'); return; }
+  const code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
+  if (code.length !== 4) { setStatus('4文字のルームコードを入力してください', 'error'); return; }
+  try {
+    setStatus('参加中...', '');
+    await cleanupOldRooms();
+    const pid  = getPlayerId();
+    const snap = await get(ref(db, 'rooms_daifugo/' + code));
+    if (!snap.exists()) { setStatus('ルームが見つかりません', 'error'); return; }
+    const room = snap.val();
+    if (room.status === 'playing') { setStatus('そのルームはゲーム中です', 'error'); return; }
+    const playerCount = Object.keys(room.players || {}).length;
+    if (playerCount >= 6) { setStatus('ルームが満員です (6/6)', 'error'); return; }
+    await update(ref(db, 'rooms_daifugo/' + code + '/players/' + pid), { name, index: playerCount, ready: true });
+    enterWaiting(code, pid, name);
+  } catch (e) { setStatus('エラー: ' + (e.message || 'Firebase接続に失敗'), 'error'); }
+};
+
+function enterWaiting(code, pid, name) {
+  ROOM = code; MY_PID = pid; MY_NAME = name;
+  roomRef = ref(db, 'rooms_daifugo/' + ROOM);
+  document.getElementById('lobbyScreen').style.display   = 'none';
+  document.getElementById('waitingScreen').style.display = 'flex';
+  document.getElementById('waitingRoomCode').textContent = ROOM;
+  startRoomListener();
+}
+
+function startRoomListener() {
+  onValue(roomRef, snap => {
+    if (!snap.exists()) return;
+    const room    = snap.val();
+    const players = room.players || {};
+    const pids    = Object.keys(players);
+
+    if (room.status === 'playing') {
+      location.href = `daifugo-game.html?room=${ROOM}&pid=${MY_PID}&name=${encodeURIComponent(MY_NAME)}`;
+      return;
+    }
+
+    if (room.rules) rules = { ...DEFAULT_RULES, ...room.rules };
+
+    const slots = document.getElementById('playerSlots');
+    slots.innerHTML = '';
+    pids.forEach(pid => {
+      const slot = document.createElement('div');
+      slot.className = 'player-slot filled' + (pid === MY_PID ? ' me' : '');
+      slot.innerHTML = `<div class="slot-icon">${pid === MY_PID ? '🙋' : '👤'}</div><div class="slot-name">${players[pid].name}</div>`;
+      slots.appendChild(slot);
+    });
+    for (let i = pids.length; i < 6; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'player-slot';
+      slot.innerHTML = `<div class="slot-icon" style="opacity:0.2">👤</div><div class="slot-name" style="color:rgba(245,240,232,0.2)">空き</div>`;
+      slots.appendChild(slot);
+    }
+
+    const hostPid = room.host || pids.find(p => players[p]?.index === 0);
+    isHost = hostPid === MY_PID;
+    const canStart = pids.length >= 3;
+
+    document.getElementById('waitingStatus').textContent =
+      canStart ? `${pids.length} 人が参加中` : `${pids.length} 人参加中 — あと${Math.max(0, 3 - pids.length)}人待ち`;
+    document.getElementById('startBtn').style.display       = (isHost && canStart) ? 'block' : 'none';
+    document.getElementById('waitingForHost').style.display = !isHost ? 'block' : 'none';
+    document.getElementById('ruleSettingsBtn').textContent  = isHost ? '⚙️ ルール設定' : '👁 ルールを見る';
+  });
+}
+
+window.leaveRoom = async function() {
+  try {
+    const snap = await get(roomRef);
+    if (!snap.exists()) { location.href = 'daifugo.html'; return; }
+    const room = snap.val();
+    const pids = Object.keys(room.players || {});
+    if (pids.length <= 1) {
+      await set(roomRef, null);
+    } else {
+      const upd = { ['players/' + MY_PID]: null };
+      if (isHost) { const next = pids.find(p => p !== MY_PID); if (next) upd['host'] = next; }
+      await update(roomRef, upd);
+    }
+  } catch (e) {}
+  location.href = 'daifugo.html';
+};
+
+window.hostStartGame = async function() {
+  const snap = await get(roomRef);
+  if (!snap.exists()) return;
+  const room = snap.val();
+  const pids = Object.keys(room.players || {});
+  if (pids.length < 3) { showToast('3人以上必要です'); return; }
+
+  // カードを配る
+  const deck = shuffle(makeDeck());
+  const hands = dealCards(deck, pids);
+  const scores = {};
+  pids.forEach(p => scores[p] = 0);
+
+  // ♦3を持つプレイヤーを探す
+  let starterPid = pids[0];
+  for (const pid of pids) {
+    if ((hands[pid] || []).some(c => c.s === 'D' && c.n === 3)) { starterPid = pid; break; }
+  }
+
+  const updates = {};
+  pids.forEach(pid => { updates[`rooms_daifugo/${ROOM}/hands/${pid}`] = hands[pid]; });
+  updates[`rooms_daifugo/${ROOM}/status`] = 'playing';
+  updates[`rooms_daifugo/${ROOM}/game`] = {
+    round: 1,
+    turn: starterPid,
+    direction: 1,
+    turnOrder: pids,
+    field: [],
+    fieldPid: null,
+    passCount: 0,
+    revolution: false,
+    elevenBack: false,
+    omen: false,
+    shibari: null,
+    rankings: [],
+    scores,
+    finished: [],
+    disqualified: [],
+    forbidden: {},
+    pendingClear: false,
+    phase: 'playing',
+  };
+  await update(ref(db), updates);
+  location.href = `daifugo-game.html?room=${ROOM}&pid=${MY_PID}&name=${encodeURIComponent(MY_NAME)}`;
+};
+
+// デッキ生成
+function makeDeck() {
+  const deck = [];
+  for (const s of ['S','H','D','C']) for (let n = 3; n <= 15; n++) deck.push({s, n});
+  deck.push({s:'JK',n:16},{s:'JK',n:16});
+  return deck;
+}
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+function dealCards(deck, pids) {
+  const hands = {};
+  pids.forEach(p => hands[p] = []);
+  deck.forEach((c,i) => hands[pids[i % pids.length]].push(c));
+  return hands;
+}
+
+// ===== Toast =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ===== Init =====
+document.getElementById('lobbyPanel').style.display = 'block';
+if (ROOM && MY_PID) enterWaiting(ROOM, MY_PID, MY_NAME);
+</script>
+</body>
+</html>
