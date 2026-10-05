@@ -142,7 +142,7 @@ def make_handler(backend):
                 with LOCK:
                     players = backend.load_json(backend.PLAYERS_FILE, [])
                     current = next((p for p in players if p['fid'] == fid), None)
-                    if action != 'players' and current is None:
+                    if action in {'players/rename', 'players/delete'} and current is None:
                         raise ValueError('登録されていないプレイヤーです。再読込してください。')
                     if action == 'players':
                         kid = str(body.get('kid') or (current or {}).get('kid') or backend.DEFAULT_KINGDOM)
@@ -164,12 +164,15 @@ def make_handler(backend):
                         cdk = str(body.get('cdk', '')).strip()
                         if not cdk or len(cdk) > 256:
                             raise ValueError('交換コードを確認してください。')
+                        kid = str(body.get('kid') or (current or {}).get('kid') or backend.DEFAULT_KINGDOM)
+                        if not kid.isascii() or not kid.isdecimal():
+                            raise ValueError('王国は数字で入力してください。')
                         history = backend.load_json(backend.HISTORY_FILE, {})
                         prior = history.get(cdk, {}).get(fid)
                         if prior:
                             result = {'done': True, 'retry': False, 'bad_cdk': False, 'msg': '記録済：' + prior['msg']}
                         else:
-                            result = backend.redeem(fid, current.get('kid') or backend.DEFAULT_KINGDOM, cdk)
+                            result = backend.redeem(fid, kid, cdk)
                 self.send(200, result)
             except (ValueError, KeyError, TypeError) as error:
                 self.send(400, {'ok': False, 'msg': str(error)})

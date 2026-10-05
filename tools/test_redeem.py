@@ -73,8 +73,13 @@ class Tests(unittest.TestCase):
         self.assertTrue(self.invoke('/api/redeem-tool/redeem', body)[1]['done'])
         self.assertEqual(self.calls, [('123', '7', 'DEMO')])
 
+    def test_shared_player_can_redeem_with_supplied_kingdom(self):
+        result = self.invoke('/api/redeem-tool/redeem', {'fid': '999', 'kid': '2856', 'cdk': 'SHARED'})
+        self.assertEqual(result[0], 200)
+        self.assertEqual(self.calls, [('999', '2856', 'SHARED')])
+
     def test_invalid_player_code_and_payload_do_not_call_backend(self):
-        for body in [{'fid': '999', 'cdk': 'DEMO'}, {'fid': '123', 'cdk': ''}, {'fid': 'x', 'cdk': 'DEMO'}, []]:
+        for body in [{'fid': '999', 'kid': 'bad', 'cdk': 'DEMO'}, {'fid': '123', 'cdk': ''}, {'fid': 'x', 'cdk': 'DEMO'}, []]:
             self.assertEqual(self.invoke('/api/redeem-tool/redeem', body)[0], 400)
         self.assertEqual(self.calls, [])
 
