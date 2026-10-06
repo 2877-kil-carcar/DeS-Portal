@@ -72,7 +72,9 @@ test('bear member UI omits furnace data and uses the expanded mobile sheet',()=>
  const files=['apps/bear/index.html','apps/bear/members.html','apps/bear/js/app.js','apps/bear/js/ui.js','apps/bear/js/members.js','apps/bear/css/style.css'];
  const combined=files.map(read).join('\n');
  assert.ok(!/furnace|溶鉱炉|FC\d|goBack/.test(combined));
- assert.ok(!read('apps/bear/members.html').includes('>戻る<'));
+ assert.ok(read('apps/bear/members.html').includes('id="memberBackLink"'));
+ assert.ok(read('apps/bear/members.html').includes('← 戻る'));
+ assert.ok(read('apps/bear/css/style.css').includes('white-space: nowrap'));
  assert.ok(read('apps/bear/css/mobile.css').includes('height: calc(100dvh - 6px)'));
 });
 test('gift code, gallery and forms lead navigation without changing default module',()=>{

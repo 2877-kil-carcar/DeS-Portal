@@ -17,8 +17,11 @@ const list = document.getElementById("memberList");
 const membersForm = document.getElementById("membersForm");
 const addBtn = document.querySelector("#membersForm button");
 const nameDropdown = document.getElementById("nameDropdown");
+const memberBackLink = document.getElementById("memberBackLink");
 
 const isAdmin = !PREVIEW && sessionStorage.getItem("adminApproved") === "true";
+
+memberBackLink.href = PREVIEW ? "./index.html?preview=1" : "./index.html";
 
 let memberCount = 0;
 

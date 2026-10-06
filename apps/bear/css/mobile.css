@@ -43,8 +43,9 @@
   .sheet-tabs { margin-top: 8px; }
   #list { margin-top: 5px; }
   .list-row { min-height: 54px; }
-  #topBar.members-topbar { height: 54px; padding: 15px 12px; }
-  #membersContainer { top: 54px; padding: 10px; }
+  #topBar.members-topbar { height: 58px; padding: 8px 10px; }
+  #membersContainer { top: 58px; padding: 10px; }
+  .members-back { min-width: 72px; padding-right: 10px; padding-left: 10px; font-size: 13px; }
   #membersForm { padding: 12px; }
 }
 
