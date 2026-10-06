@@ -1,6 +1,8 @@
 // Offline DOM doubles. The official API and Firebase are always stubs.
 const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const code=fs.readFileSync(path.resolve(__dirname,'../apps/redeem/redeem.js'),'utf8');
+const html=fs.readFileSync(path.resolve(__dirname,'../apps/redeem/index.html'),'utf8');
+assert.ok(html.indexOf('class="connection"')>html.indexOf('id="list"'),'connection status and retry belong at the bottom');
 async function scenario(mode){
  const nodes=new Map(),cloudCalls=[],apiCalls=[];
  const node=id=>{if(!nodes.has(id))nodes.set(id,{value:'',textContent:'',innerHTML:'',handlers:{},className:'',disabled:false,addEventListener(k,fn){this.handlers[k]=fn;},focus(){}});return nodes.get(id);};
