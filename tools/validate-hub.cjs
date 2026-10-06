@@ -64,7 +64,7 @@ test('gift code and gallery lead navigation without changing default module',()=
  assert.ok(app.includes("navigationModules=window.WOS_STANDALONE?modules:[modules.find(m=>m.id==='redeem'),modules.find(m=>m.id==='gallery')"));
  assert.ok(app.includes("['redeem','gallery','bear','forms']"));
  assert.ok(app.includes("let state = C.normalizeState(saved, heroes), currentView = 'joiners'"));
- assert.ok(html.includes('brand-title">DeS<span>ポータル'));assert.ok(html.includes('<div class="nav-label">メニュー</div>'));assert.ok(fs.existsSync(path.join(root,'assets/pepper-portal.jpg')));
- assert.ok(css.includes('.brand{gap:15px}.brand-title{display:flex;flex-direction:column;justify-content:center;line-height:1.18;font-size:22px'));assert.ok(css.includes('.brand-title>span{font-size:18px'));assert.ok(css.includes('.brand-mark{width:70px;height:78px;flex:0 0 70px;place-items:end center;padding-bottom:7px'));assert.ok(css.includes('font-size:22px'));
+ assert.ok(html.includes('brand-mark">DeS</span><span class="brand-title">ポータル'));assert.ok(html.includes('<div class="nav-label">メニュー</div>'));assert.ok(fs.existsSync(path.join(root,'assets/pepper-portal.jpg')));
+ assert.ok(css.includes('.brand{gap:12px}.brand-title{display:block;line-height:1.2;font-size:23px'));assert.ok(css.includes('.brand-mark{width:70px;height:78px;flex:0 0 70px;place-items:center;padding-bottom:0'));assert.ok(css.includes('color:#ffffff70'));assert.ok(css.includes('font-size:17px'));
 });
 console.log(groups+' hub test groups passed (static/unit only; not browser E2E)');
