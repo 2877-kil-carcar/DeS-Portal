@@ -34,10 +34,9 @@
     if(button.dataset.action==='kingdom'){const kid=prompt('王国（公式交換APIでIDを確認します）',player.kid||state.kingdom);if(kid===null)return;if(!/^\d+$/.test(kid.trim()))throw Error('王国は数字で入力してください。');await verifiedSave({...player,kid:kid.trim()});}
   });});
   $('addBtn').addEventListener('click',()=>change(async()=>{
-    const ids=[...new Set($('newFid').value.split(/[\s,、]+/).filter(Boolean))],kid=$('newKid').value.trim();
-    if(!ids.length||ids.some(id=>!/^\d+$/.test(id))||!/^\d+$/.test(kid))throw Error('IDと王国は数字で入力してください。複数IDは改行かカンマで区切ります。');if(!confirm(ids.length+'人を公式交換APIで確認して共有登録しますか？'))return;
-    const failed=[];for(let index=0;index<ids.length;index++){$('addBtn').textContent=`確認中 ${index+1}/${ids.length}`;try{await verifiedSave({fid:ids[index],kid,name:ids.length===1?$('newName').value.trim():''});}catch(error){failed.push(ids[index]+': '+error.message);}if(index+1<ids.length)await sleep(2200);}
-    $('addBtn').textContent='確認して追加';if(!failed.length){$('newFid').value='';$('newName').value='';}else status('一部を登録できませんでした',failed.join(' / '),'error');
+    const fid=$('newFid').value.trim(),kid=$('newKid').value.trim();
+    if(!/^\d+$/.test(fid)||!/^\d+$/.test(kid))throw Error('IDと王国は数字で入力してください。');if(!confirm('このプレイヤーを公式交換APIで確認して共有登録しますか？'))return;
+    $('addBtn').textContent='確認中…';try{await verifiedSave({fid,kid,name:$('newName').value.trim()});$('newFid').value='';$('newName').value='';}finally{$('addBtn').textContent='確認して追加';}
   }));
   $('startBtn').addEventListener('click',async()=>{
     if(busy||!connected||!directApi||preview)return;const cdk=$('cdk').value.trim();if(!cdk){$('cdk').focus();return;}const done=state.history[cdk]||{},targets=state.players.filter(player=>!done[player.fid]);
