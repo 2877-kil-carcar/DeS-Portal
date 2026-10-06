@@ -43,7 +43,7 @@ test('local static HTML references resolve',()=>{
  walk(path.join(root,'apps'));
 });
 test('shell source IDs and dynamic element targets',()=>{
- const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+ const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8'),css=fs.readFileSync(path.join(root,'assets/app.css'),'utf8');
  const data=JSON.parse(fs.readFileSync(path.join(root,'wos_rally_joiner_gen1-8.json'),'utf8'));
  const ids=new Set(data.sources.map(s=>s.id));
  for(const m of app.matchAll(/cite\('([^']+)'\)/g))assert.ok(ids.has(m[1]),m[1]);
@@ -60,10 +60,11 @@ test('preview gates and atomic relocation preserved',()=>{
  assert.ok(read('apps/canyon/index.html').includes('toc-search'));assert.ok(read('apps/bridge.js').includes('wos:visibility'));
 });
 test('gift code and gallery lead navigation without changing default module',()=>{
- const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+ const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8'),css=fs.readFileSync(path.join(root,'assets/app.css'),'utf8');
  assert.ok(app.includes("navigationModules=window.WOS_STANDALONE?modules:[modules.find(m=>m.id==='redeem'),modules.find(m=>m.id==='gallery')"));
  assert.ok(app.includes("['redeem','gallery','bear','forms']"));
  assert.ok(app.includes("let state = C.normalizeState(saved, heroes), currentView = 'joiners'"));
  assert.ok(html.includes('brand-title">みんなの<span>ポータル'));assert.ok(html.includes('<div class="nav-label">メニュー</div>'));assert.ok(fs.existsSync(path.join(root,'assets/pepper-portal.jpg')));
+ assert.ok(css.includes('.brand-mark{width:70px;height:78px;flex:0 0 70px'));assert.ok(css.includes('font-size:22px'));
 });
 console.log(groups+' hub test groups passed (static/unit only; not browser E2E)');
