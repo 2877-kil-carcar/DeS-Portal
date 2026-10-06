@@ -18,7 +18,7 @@
 .sidebar{overflow-y:auto}.nav-label{margin-top:30px}.sidebar-note{margin-top:18px}.nav-button{font-size:12px}.mobile-dock{display:none}.embedded-module main{max-width:none;padding:0}.embedded-module .page-heading,.embedded-module main>footer{display:none}.embedded-view{height:calc(100dvh - 70px);position:relative;background:#f3f5f8}.module-frame{display:block;border:0;width:100%;height:100%;background:#f3f5f8}.embed-loading{position:absolute;inset:0;display:grid;place-items:center;color:#657a90;font-size:13px;pointer-events:none}.topbar{position:sticky;top:0;z-index:25;backdrop-filter:blur(16px)}
 @media(max-width:760px){body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}.mobile-dock{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));position:fixed;bottom:0;left:0;right:0;background:#fffef9f5;border-top:1px solid #dce4ed;z-index:30;padding:5px 5px max(5px,env(safe-area-inset-bottom));height:calc(64px + env(safe-area-inset-bottom));backdrop-filter:blur(16px)}.mobile-dock button{display:flex;flex-direction:column;justify-content:center;align-items:center;border:0;background:transparent;color:#71849a;font-size:9px;min-height:48px;padding:4px 2px;gap:2px}.mobile-dock button>span{font-size:20px;line-height:1.2}.mobile-dock button.active{background:#e9f2fc;color:#2c70b4}.embedded-module{overflow:hidden}.embedded-view{height:calc(100dvh - 59px - 64px - env(safe-area-inset-bottom))}.sidebar{padding-bottom:max(24px,env(safe-area-inset-bottom));max-height:100dvh}.sidebar-foot{padding-top:10px}.nav-label{margin-top:24px}.nav-button{min-height:45px;margin-bottom:3px}.sidebar-note{font-size:10px;margin-top:10px;padding:14px}.sidebar-note p{font-size:10px}input,select{font-size:16px!important}.icon-button,.quiet-button{min-height:44px}.toast{bottom:calc(80px + env(safe-area-inset-bottom))}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
-.brand{gap:12px}.brand-title{display:block;line-height:1.2;font-size:23px;letter-spacing:.01em;white-space:nowrap}.brand-mark{width:70px;height:78px;flex:0 0 70px;place-items:center;padding-bottom:0;background-image:linear-gradient(#10253a12,#10253a2b),url('./pepper-portal.jpg');background-size:cover;background-position:center;color:#ffffff70;text-shadow:0 1px 3px #10253a99;border:1px solid #ffffff52;font-size:17px}
+.brand{gap:12px}.brand-title{display:block;line-height:1.2;font-size:23px;letter-spacing:.01em;white-space:nowrap}.brand-mark{width:70px;height:78px;flex:0 0 70px;place-items:center;padding-bottom:0;position:relative;isolation:isolate;overflow:visible;clip-path:none;background:none;border:0;color:#ffffff70;text-shadow:0 1px 3px #10253a99;font-size:34px}.brand-mark::before{content:"";position:absolute;inset:0;z-index:-1;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background-image:linear-gradient(#10253a12,#10253a2b),url('./pepper-portal.jpg');background-size:cover;background-position:center}.brand-mark>span{position:relative;z-index:1;white-space:nowrap}
 </style>
 
 
@@ -28,14 +28,14 @@
 <a class="skip-link" href="#main">本文へ移動</a>
 <button id="scrim" class="scrim" aria-label="メニューを閉じる" hidden></button>
 <aside class="sidebar" id="sidebar" aria-label="機能メニュー">
-  <a class="brand" href="#joiners"><span class="brand-mark">DeS</span><span class="brand-title">ポータル</span></a>
+  <a class="brand" href="#joiners"><span class="brand-mark"><span>DeS</span></span><span class="brand-title">ポータル</span></a>
   <div class="nav-label">メニュー</div>
   <nav id="navigation"></nav>
   <div class="sidebar-note"><span class="status-dot"></span> DeS PORTAL<p>スマホでも、PCでも。<br>同盟のツールをひとつに。</p></div>
   <div class="sidebar-foot"><span>非公式・試作版</span><b>GEN 01 — 08</b><small>DATA CHECK / 2026.10.04</small></div>
 </aside>
 <div class="workspace">
- <header class="topbar"><div class="breadcrumb"><button id="menu-toggle" class="icon-button mobile-only" aria-label="機能メニューを開く" aria-controls="sidebar" aria-expanded="false">☰</button><span>DeS PORTAL</span><span class="slash">/</span><strong id="breadcrumb-current">乗り手選定</strong></div><span class="version"><i></i> v3.17</span></header>
+ <header class="topbar"><div class="breadcrumb"><button id="menu-toggle" class="icon-button mobile-only" aria-label="機能メニューを開く" aria-controls="sidebar" aria-expanded="false">☰</button><span>DeS PORTAL</span><span class="slash">/</span><strong id="breadcrumb-current">乗り手選定</strong></div><span class="version"><i></i> v3.18</span></header>
  <main id="main" tabindex="-1">
   <div class="page-heading"><div><p class="eyebrow" id="page-eyebrow">RALLY WORKSPACE</p><h1 id="page-title">集結を、読み解く。</h1><p class="subheading" id="page-subtitle">集結主の効果を見ながら、乗り手の役割を選ぶ。</p></div><button class="quiet-button" id="reset-settings">選択をリセット</button></div>
   <section id="view-joiners" class="view">
@@ -152,7 +152,7 @@
     { id: 'games', label:'ミニゲーム', icon:'♠', path:'./apps/games/index.html', title:'ミニゲーム', eyebrow:'PLAY TOGETHER', subtitle:'みんなで楽しむカードゲーム' },
     { id: 'svs', label:'2856SvS補助ツール', icon:'⚑', path:'./apps/svs/index.html', title:'2856SvS補助ツール', eyebrow:'SVS OPERATIONS', subtitle:'参加管理・集結設定・振り分け・カウントアップ' },
     { id: 'forms', label:'申請フォーム一覧', icon:'▧', path:'./apps/forms/index.html', title:'申請フォーム一覧', eyebrow:'APPLICATION DESK', subtitle:'各種申請・スプレッドシート・端末メモ' },
-    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.17', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
+    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.18', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
   ].filter(m => !window.WOS_STANDALONE || !m.path);
   const navigationModules=window.WOS_STANDALONE?modules:[modules.find(m=>m.id==='redeem'),modules.find(m=>m.id==='gallery'),...modules.filter(m=>!['redeem','gallery'].includes(m.id))];
   const moduleFrames = new Map();
