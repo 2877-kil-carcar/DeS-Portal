@@ -23,7 +23,7 @@ async function connectedForms(){
  const s=sandbox(),writes=[],opened=[],savedMemo='</textarea><script>untrusted()</script>';
  s.ctx.FormUtils=U;s.ctx.location.search='';s.ctx.localStorage={getItem:()=>savedMemo,setItem(){}};s.ctx.open=(...args)=>opened.push(args);
  let failSave=false;
- const exports={getApps:()=>[],initializeApp:()=>({}),getAuth:()=>({}),signInAnonymously:async()=>{},getFirestore:()=>({}),doc:()=>({}),getDoc:async()=>({exists:()=>true,data:()=>({svs_form:'https://example.invalid/original',svs_sheet:'https://example.invalid/sheet'})}),setDoc:async(ref,patch,options)=>{writes.push({patch,options});if(failSave)throw Error('mock denied');}};
+ const exports={getApps:()=>[],initializeApp:()=>({}),getAuth:()=>({}),signInAnonymously:async()=>{},getFirestore:()=>({}),doc:()=>({}),getDoc:async()=>({exists:()=>true,data:()=>({svs_form:'https://example.invalid/original',svs_sheet:'https://example.invalid/sheet',svs_form_updatedAt:{toDate:()=>new Date('2026-10-06T09:00:00Z')}})}),serverTimestamp:()=> 'SERVER_TIME',setDoc:async(ref,patch,options)=>{writes.push({patch,options});if(failSave)throw Error('mock denied');}};
  vm.runInContext(read('apps/forms/app.js'),s.ctx,{filename:'forms/app.js',importModuleDynamically:async spec=>{
   assert.ok(spec.startsWith('https://www.gstatic.com/firebasejs/'));
   const m=new vm.SyntheticModule(Object.keys(exports),function(){for(const [key,value]of Object.entries(exports))this.setExport(key,value);},{context:s.ctx});
@@ -34,8 +34,9 @@ async function connectedForms(){
  return {...s,writes,opened,savedMemo,click,failSave:()=>{failSave=true;},submit:()=>s.node('link-form').handlers.submit({preventDefault(){}})};
 }
 (async()=>{
- await test('forms retain all 10 link fields and 4 memo keys',()=>{
-  assert.equal(U.fields.length,10);assert.equal(U.sections.length,4);
+ await test('forms retain all 12 link fields and 5 memo keys',()=>{
+  assert.equal(U.fields.length,12);assert.equal(U.sections.length,5);
+  assert.equal(U.sections[3].id,'heiki');assert.equal(U.sections[3].label,'兵器リーグ');
   assert.equal(U.memoKey('toride'),'2856_toride_memo');assert.ok(U.fields.includes('imin_tokubetsu_sheet'));
  });
  await test('forms reject executable/credential URLs and update only one field',()=>{
@@ -44,6 +45,7 @@ async function connectedForms(){
   assert.deepEqual(U.linkPatch('svs_form','https://example.invalid/'),{svs_form:'https://example.invalid/'});
   assert.throws(()=>U.linkPatch('__proto__','https://example.invalid/'));
   assert.deepEqual(U.readLinks({svs_form:42,imin_futsuu_form:'https://example.invalid/',unrelated:'x'}),{imin_futsuu_form:'https://example.invalid/'});
+  assert.deepEqual(U.readUpdatedAt({svs_form_updatedAt:{toDate:()=>new Date('2026-10-06T09:00:00Z')}}),{svs_form:'2026-10-06T09:00:00.000Z'});
  });
  await test('SvS scripts initialize with complete empty state',()=>{
   const s=svs();assert.equal(s.ctx.getState('groups').length,0);assert.ok(s.node('rally').innerHTML.includes('集結設定'));
@@ -91,19 +93,19 @@ async function connectedForms(){
  await test('forms preview is usable with denied localStorage and creates no requests',async()=>{
   const s=sandbox();s.ctx.FormUtils=U;s.ctx.localStorage={getItem(){throw Error('denied');},setItem(){throw Error('denied');}};
   vm.runInContext(read('apps/forms/app.js'),s.ctx,{filename:'forms/app.js'});
-  assert.equal(s.node('sections').children.length,4);assert.ok(s.node('status').textContent.includes('プレビュー'));
+  assert.equal(s.node('sections').children.length,5);assert.ok(s.node('status').textContent.includes('プレビュー'));
   assert.equal(s.node('head').children.length,0);
  });
  await test('forms initial load failure is visible and retryable',async()=>{
   const s=sandbox();s.ctx.FormUtils=U;s.ctx.location.search='';s.ctx.localStorage={getItem(){throw Error('denied');}};
   vm.runInContext(read('apps/forms/app.js'),s.ctx,{filename:'forms/app.js',importModuleDynamically:async()=>{throw Error('mock offline');}});
   for(let i=0;i<4;i++)await new Promise(setImmediate);
-  assert.ok(s.node('status').textContent.includes('取得できません'));assert.equal(s.node('retry').hidden,false);assert.equal(s.node('sections').children.length,4);
+  assert.ok(s.node('status').textContent.includes('取得できません'));assert.equal(s.node('retry').hidden,false);assert.equal(s.node('sections').children.length,5);
  });
  await test('forms connected edit saves only changed field and opens sanitized URL',async()=>{
   const s=await connectedForms();s.click('edit');assert.equal(s.node('modal-input').value,'https://example.invalid/original');
   s.node('modal-input').value='https://example.invalid/new';await s.submit();
-  assert.equal(s.writes.length,1);assert.deepEqual(s.writes[0].patch,{svs_form:'https://example.invalid/new'});assert.equal(s.writes[0].options.merge,true);
+  assert.equal(s.writes.length,1);assert.equal(s.writes[0].patch.svs_form,'https://example.invalid/new');assert.equal(s.writes[0].patch.svs_form_updatedAt,'SERVER_TIME');assert.equal(Object.keys(s.writes[0].patch).length,2);assert.equal(s.writes[0].options.merge,true);
   assert.equal(s.node('link-dialog').open,false);assert.equal(s.node('modal-save').disabled,false);
   s.click('open');assert.deepEqual(s.opened[0],['https://example.invalid/new','_blank','noopener,noreferrer']);
   s.click('open','svs_sheet');assert.equal(s.opened[1][0],'https://example.invalid/sheet');
