@@ -26,8 +26,9 @@
     { id: 'games', label:'ミニゲーム', icon:'♠', path:'./apps/games/index.html', title:'ミニゲーム', eyebrow:'PLAY TOGETHER', subtitle:'みんなで楽しむカードゲーム' },
     { id: 'svs', label:'2856SvS補助ツール', icon:'⚑', path:'./apps/svs/index.html', title:'2856SvS補助ツール', eyebrow:'SVS OPERATIONS', subtitle:'参加管理・集結設定・振り分け・カウントアップ' },
     { id: 'forms', label:'申請フォーム一覧', icon:'▧', path:'./apps/forms/index.html', title:'申請フォーム一覧', eyebrow:'APPLICATION DESK', subtitle:'各種申請・スプレッドシート・端末メモ' },
-    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.10', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
+    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.11', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
   ].filter(m => !window.WOS_STANDALONE || !m.path);
+  const navigationModules=window.WOS_STANDALONE?modules:[modules.find(m=>m.id==='redeem'),...modules.filter(m=>m.id!=='redeem')];
   const moduleFrames = new Map();
   const previewMode = new URLSearchParams(location.search).get('preview') === '1';
   let gamePath = '', navigationLock = false;
@@ -187,8 +188,8 @@
   }
 
   // Register new modules here; shell, routes and navigation are shared.
-  $('navigation').innerHTML=modules.map((m,i)=>`<button class="nav-button" data-nav="${m.id}"><span class="nav-icon" aria-hidden="true">${m.icon}</span>${m.label}<span class="nav-num">0${i+1}</span></button>`).join('');
-  const dockIds=window.WOS_STANDALONE?['joiners','library','battle','sources']:['gallery','bear','forms','redeem'];
+  $('navigation').innerHTML=navigationModules.map((m,i)=>`<button class="nav-button" data-nav="${m.id}"><span class="nav-icon" aria-hidden="true">${m.icon}</span>${m.label}<span class="nav-num">0${i+1}</span></button>`).join('');
+  const dockIds=window.WOS_STANDALONE?['joiners','library','battle','sources']:['redeem','gallery','bear','forms'];
   $('mobile-dock').innerHTML=dockIds.map(id=>{const m=modules.find(x=>x.id===id);return `<button data-nav="${id}" aria-pressed="false"><span aria-hidden="true">${m.icon}</span>${id==='gallery'?'ギャラリー':m.label}</button>`;}).join('')+'<button id="dock-menu"><span aria-hidden="true">☰</span>一覧</button>';
   const generations=Array.from({length:8},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('');
   $('generation').innerHTML=Array.from({length:8},(_,i)=>`<option value="${i+1}">Gen ${i+1}</option>`).join('');
