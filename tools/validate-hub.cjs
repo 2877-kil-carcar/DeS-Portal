@@ -22,6 +22,12 @@ test('layout limits, member and coordinate validation',()=>{
  assert.equal(P.planPlacement([],'flag',null,{x:47,y:26}).next.x,47);
  assert.equal(P.planPlacement([],'player','a',{x:46,y:26}).next.y,25);
 });
+test('an existing facility can be moved without becoming a duplicate',()=>{
+ const first={type:'trap',x:2,y:2,size:3},second={type:'trap',x:10,y:10,size:3},objects=[first,second];
+ const plan=P.planPlacement(objects,'trap',null,{x:20,y:20},48,27,first);
+ assert.equal(plan.previous,first);assert.equal(plan.next.x,20);assert.equal(plan.next.y,18);
+ assert.equal(objects.length,2);
+});
 test('all inline and local scripts parse without executing remote services',()=>{
  let scripts=0,htmls=0;
  function walk(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())walk(file);else if(/\.(html|js)$/.test(file)){
@@ -53,8 +59,10 @@ test('shell source IDs and dynamic element targets',()=>{
 });
 test('preview gates and atomic relocation preserved',()=>{
  const read=f=>fs.readFileSync(path.join(root,f),'utf8');
- const bear=read('apps/bear/js/app.js');assert.ok(bear.indexOf('planPlacement')<bear.indexOf('batch.delete'));assert.ok(bear.includes('await batch.commit()'));
- assert.ok(read('apps/bear/js/firebase.js').includes('PREVIEW'));assert.ok(bear.includes('if(PREVIEW)'));
+ const bear=read('apps/bear/js/app.js');assert.ok(bear.includes('const plan = window.WOS_PLACEMENT.planPlacement'));assert.ok(bear.includes('await commitPlan(plan)'));assert.ok(bear.includes('batch.delete'));assert.ok(bear.includes('await batch.commit()'));
+ const bearHtml=read('apps/bear/index.html');for(const id of ['focusTrap','findMember','mapAll','modeBadge','placementTray','confirmPlacement','selectionSummary','memberSearch'])assert.ok(bearHtml.includes('id="'+id+'"'),id);
+ for(const tab of ['unplaced','placed','facilities'])assert.ok(bearHtml.includes('data-tab="'+tab+'"'),tab);
+ assert.ok(read('apps/bear/js/firebase.js').includes('PREVIEW'));assert.match(bear,/if\s*\(PREVIEW\)/);
  for(const name of ['babanuki','sevens','poker','daifugo'])for(const suffix of ['', '-game'])assert.ok(read('apps/games/'+name+suffix+'.html').includes('対戦は無効'));
  const gallery=read('apps/gallery/index.html');assert.ok(gallery.includes('safeImageUrl'));assert.ok(!gallery.includes('<div class="game-banner">'));
  assert.ok(read('apps/canyon/index.html').includes('toc-search'));assert.ok(read('apps/bridge.js').includes('wos:visibility'));
