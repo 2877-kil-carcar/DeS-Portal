@@ -67,6 +67,14 @@ test('preview gates and atomic relocation preserved',()=>{
  const gallery=read('apps/gallery/index.html');assert.ok(gallery.includes('safeImageUrl'));assert.ok(!gallery.includes('<div class="game-banner">'));
  assert.ok(read('apps/canyon/index.html').includes('toc-search'));assert.ok(read('apps/bridge.js').includes('wos:visibility'));
 });
+test('bear member UI omits furnace data and uses the expanded mobile sheet',()=>{
+ const read=f=>fs.readFileSync(path.join(root,f),'utf8');
+ const files=['apps/bear/index.html','apps/bear/members.html','apps/bear/js/app.js','apps/bear/js/ui.js','apps/bear/js/members.js','apps/bear/css/style.css'];
+ const combined=files.map(read).join('\n');
+ assert.ok(!/furnace|溶鉱炉|FC\d|goBack/.test(combined));
+ assert.ok(!read('apps/bear/members.html').includes('>戻る<'));
+ assert.ok(read('apps/bear/css/mobile.css').includes('height: calc(100dvh - 6px)'));
+});
 test('gift code, gallery and forms lead navigation without changing default module',()=>{
  const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8'),css=fs.readFileSync(path.join(root,'assets/app.css'),'utf8');
  assert.ok(app.includes("navigationModules=window.WOS_STANDALONE?modules:[modules.find(m=>m.id==='redeem'),modules.find(m=>m.id==='gallery'),modules.find(m=>m.id==='forms')"));

@@ -85,7 +85,7 @@ function renderSummary() {
   if (obj.type === "player") {
     const member = members.find(item => String(item.id) === String(obj.memberId));
     heading.textContent = member?.name || "登録情報のない同盟員";
-    detail.textContent = [member?.rank, member?.furnace, coordinates(obj.x, obj.y + obj.size - 1)].filter(Boolean).join(" · ");
+    detail.textContent = [member?.rank, coordinates(obj.x, obj.y + obj.size - 1)].filter(Boolean).join(" · ");
   } else {
     heading.textContent = facilityLabels[obj.type] || obj.type;
     detail.textContent = coordinates(obj.x, obj.y + obj.size - 1);
@@ -165,7 +165,7 @@ function memberRow(member, placed) {
   const strong = document.createElement("strong");
   strong.textContent = member.name;
   const small = document.createElement("small");
-  small.textContent = [member.rank || "階級なし", member.furnace || "炉レベルなし"].join(" · ");
+  small.textContent = member.rank || "階級なし";
   copy.append(strong, small);
   row.appendChild(copy);
   if (adminApproved) row.appendChild(actionButton(current ? "ここに配置" : (placed ? "移動" : "配置先を選ぶ"), () => choose("player", member.id, member.name)));

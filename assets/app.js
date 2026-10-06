@@ -20,13 +20,13 @@
     { id: 'library', label: 'スキル図鑑', icon: '▤', eyebrow: 'HERO LIBRARY', title: '英雄の役割を、ひと目で。', subtitle: '第1〜8世代・SR＋SSR。説明と計算上の扱いを比較する。' },
     { id: 'battle', label: '戦闘ターン', icon: '⇄', eyebrow: 'COMBAT FIELD NOTES', title: '1ターンの、その中へ。', subtitle: '両軍が同時に動く仕組みを、ステップで確かめる。' },
     { id: 'sources', label: '出典・検証', icon: '◎', eyebrow: 'RESEARCH LOG', title: '根拠から、確かめる。', subtitle: '公式ルール・採用した本文・未確認事項を分けて記録。' },
-    { id: 'bear', label:'熊罠配置', icon:'▦', path:'./apps/bear/index.html?v=3.23', title:'熊罠配置', eyebrow:'ALLIANCE LAYOUT', subtitle:'同盟の配置を確認・調整' },
+    { id: 'bear', label:'熊罠配置', icon:'▦', path:'./apps/bear/index.html?v=3.24', title:'熊罠配置', eyebrow:'ALLIANCE LAYOUT', subtitle:'同盟の配置を確認・調整' },
     { id: 'canyon', label:'峡谷合戦', icon:'△', path:'./apps/canyon/index.html', title:'峡谷合戦', eyebrow:'CANYON CLASH', subtitle:'42レッスンの攻略ガイド' },
     { id: 'gallery', label:'もふもふギャラリー', icon:'♧', path:'./apps/gallery/index.html', title:'もふもふギャラリー', eyebrow:'THE FLUFFY HALL', subtitle:'同盟のもふもふコレクション' },
     { id: 'games', label:'ミニゲーム', icon:'♠', path:'./apps/games/index.html', title:'ミニゲーム', eyebrow:'PLAY TOGETHER', subtitle:'みんなで楽しむカードゲーム' },
     { id: 'svs', label:'2856SvS補助ツール', icon:'⚑', path:'./apps/svs/index.html', title:'2856SvS補助ツール', eyebrow:'SVS OPERATIONS', subtitle:'参加管理・集結設定・振り分け・カウントアップ' },
-    { id: 'forms', label:'申請フォーム一覧', icon:'▧', path:'./apps/forms/index.html?v=3.23', title:'申請フォーム一覧', eyebrow:'APPLICATION DESK', subtitle:'各種申請・スプレッドシート・端末メモ' },
-    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.23', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
+    { id: 'forms', label:'申請フォーム一覧', icon:'▧', path:'./apps/forms/index.html?v=3.24', title:'申請フォーム一覧', eyebrow:'APPLICATION DESK', subtitle:'各種申請・スプレッドシート・端末メモ' },
+    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.24', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
   ].filter(m => !window.WOS_STANDALONE || !m.path);
   const navigationModules=window.WOS_STANDALONE?modules:[modules.find(m=>m.id==='redeem'),modules.find(m=>m.id==='gallery'),modules.find(m=>m.id==='forms'),...modules.filter(m=>!['redeem','gallery','forms'].includes(m.id))];
   const moduleFrames = new Map();

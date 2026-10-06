@@ -2,7 +2,7 @@ import { db, authReady, PREVIEW } from "./firebase.js";
 import { doc, writeBatch, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { GRID_COLS, GRID_ROWS, members, setObjects, objects, setMembers, adminApproved, setAdminApproved } from "./data.js";
 import { getObjectAt } from "./grid.js";
-import * as ui from "./ui.js?v=3.23.1";
+import * as ui from "./ui.js?v=3.24";
 
 const grid = document.getElementById("grid");
 const wrapper = document.getElementById("gridWrapper");
@@ -283,13 +283,9 @@ function drawObject(cell, object, x, y) {
     const member = members.find(item => String(item.id) === String(object.memberId));
     if (!member) return;
     if (x === object.x && y === object.y) appendText(cell, "cell-name", member.name);
-    else if (x === object.x + 1 && y === object.y) appendText(cell, "cell-furnace-center", member.furnace);
+    else if (x === object.x + 1 && y === object.y) appendText(cell, "cell-center", member.rank || "");
     else if (x === object.x && y === object.y + 1) appendCoordinates(cell, object);
-    else if (x === object.x + 1 && y === object.y + 1) appendText(cell, "cell-furnace-center", member.rank || "");
-    if (String(member.furnace || "").startsWith("FC")) {
-      const level = parseInt(String(member.furnace).replace("FC", ""), 10);
-      cell.classList.add("fc" + Math.min(level, 10));
-    } else cell.classList.add("player-normal");
+    cell.classList.add("player-normal");
   } else {
     cell.textContent = ({ flag: "🚩", trap: "🐻", base: "🕌", mine: "⛏️", food: "🍕" })[object.type] || "";
   }
@@ -305,7 +301,7 @@ function appendText(cell, className, value) {
 
 function appendCoordinates(cell, object) {
   const element = document.createElement("div");
-  element.className = "cell-furnace-center";
+  element.className = "cell-center";
   const first = document.createTextNode("X" + (411 + object.x));
   const br = document.createElement("br");
   const second = document.createTextNode("Y" + (659 - (object.y + 1)));
@@ -348,9 +344,9 @@ function drawMultiBorder(cell, object, x, y) {
 async function connect() {
   if (PREVIEW) {
     setMembers([
-      { id: "demo-a", name: "サンプル A", furnace: "FC5", rank: "R4" },
-      { id: "demo-b", name: "サンプル B", furnace: "30", rank: "R3" },
-      { id: "demo-c", name: "未配置サンプル", furnace: "FC3", rank: "R2" }
+      { id: "demo-a", name: "サンプル A", rank: "R4" },
+      { id: "demo-b", name: "サンプル B", rank: "R3" },
+      { id: "demo-c", name: "未配置サンプル", rank: "R2" }
     ]);
     setObjects([
       { type: "trap", x: 7, y: 5, size: 3, updatedAt: Date.now() - 3600000 },

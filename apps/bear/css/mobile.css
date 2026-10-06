@@ -26,7 +26,8 @@
   #sheet {
     top: auto;
     width: 100%;
-    height: min(78dvh, 660px);
+    height: calc(100dvh - 6px);
+    max-height: 820px;
     border-top: 1px solid var(--line);
     border-left: 0;
     border-radius: 18px 18px 0 0;
@@ -42,6 +43,9 @@
   .sheet-tabs { margin-top: 8px; }
   #list { margin-top: 5px; }
   .list-row { min-height: 54px; }
+  #topBar.members-topbar { height: 54px; padding: 15px 12px; }
+  #membersContainer { top: 54px; padding: 10px; }
+  #membersForm { padding: 12px; }
 }
 
 @media (max-width: 390px) {

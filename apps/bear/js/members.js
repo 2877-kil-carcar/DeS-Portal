@@ -12,7 +12,6 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const nameInput = document.getElementById("name");
-const furnaceSelect = document.getElementById("furnace");
 const rankSelect = document.getElementById("rank");
 const list = document.getElementById("memberList");
 const membersForm = document.getElementById("membersForm");
@@ -103,7 +102,6 @@ function buildNameDropdown(filter) {
 function selectMember(docSnap) {
   const d = docSnap.data();
   nameInput.value = d.name;
-  furnaceSelect.value = d.furnace;
   rankSelect.value = d.rank || "R5";
   addBtn.textContent = "更新";
   nameDropdown.classList.remove("show");
@@ -121,7 +119,6 @@ nameInput.addEventListener("input", () => {
   const existing = window._docs.find(d => d.data().name === name);
   if (existing) {
     const d = existing.data();
-    furnaceSelect.value = d.furnace;
     rankSelect.value = d.rank || "R5";
     addBtn.textContent = "更新";
   } else {
@@ -133,23 +130,10 @@ nameInput.addEventListener("blur", () => {
   blurTimer = setTimeout(() => nameDropdown.classList.remove("show"), 300);
 });
 
-function initFurnace() {
-  for (let i = 1; i <= 30; i++) addOption(i);
-  for (let i = 1; i <= 10; i++) addOption("FC" + i);
-}
-
-function addOption(val) {
-  const opt = document.createElement("option");
-  opt.value = val;
-  opt.textContent = val;
-  furnaceSelect.appendChild(opt);
-}
-
 async function addMember() {
   if (!isAdmin) return;
 
   const name = nameInput.value.trim();
-  const furnace = furnaceSelect.value;
   const rank = rankSelect.value;
 
   if (!name) {
@@ -163,7 +147,6 @@ async function addMember() {
     // 既存メンバーの更新（名前以外）
     await setDoc(doc(db, "members", existing.id), {
       name: existing.data().name,
-      furnace,
       rank,
       createdAt: existing.data().createdAt
     });
@@ -180,7 +163,6 @@ async function addMember() {
 
   await addDoc(collection(db, "members"), {
     name,
-    furnace,
     rank,
     createdAt: Date.now()
   });
@@ -234,7 +216,7 @@ if (!PREVIEW && connectionReady) onSnapshot(q, snap => {
     div.style.padding = "6px 8px";
     div.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
     div.style.cursor = isAdmin ? "pointer" : "default";
-    div.textContent = `${d.name} (${d.furnace})`;
+    div.textContent = d.name;
 
     if (isAdmin) {
       div.onclick = async () => {
@@ -256,10 +238,4 @@ window.addMember = async () => {
   catch (_) { alert('保存できませんでした。入力内容は残しています。通信・権限を確認してください。'); }
   finally { addBtn.disabled=false; }
 };
-window.goBack = () => {
-  location.href = PREVIEW ? "./index.html?preview=1" : "./index.html";
-};
-
-initFurnace();
-
 if(PREVIEW){list.textContent="表示確認モード：同盟員の読込・登録は無効です。";}

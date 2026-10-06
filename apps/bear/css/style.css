@@ -151,16 +151,12 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .cell.placement-preview { z-index: 4; background: #dff5e9 !important; box-shadow: inset 0 0 0 2px #2b9d69; }
 .cell.placement-origin { opacity: .48; }
 .cell-name { position: absolute; top: 50%; right: 2px; left: 2px; overflow-wrap: anywhere; line-height: 10px; text-align: center; transform: translateY(-50%); }
-.cell-furnace-center { color: #233b52; font-size: 9px; font-weight: 600; line-height: 1.3; text-align: center; }
+.cell-center { color: #233b52; font-size: 9px; font-weight: 600; line-height: 1.3; text-align: center; }
 .border-top { border-top: 3px solid #4ebbd0; }
 .border-bottom { border-bottom: 3px solid #4ebbd0; }
 .border-left { border-left: 3px solid #4ebbd0; }
 .border-right { border-right: 3px solid #4ebbd0; }
-#grid .fc1 { background: #ffe5e5; } #grid .fc2 { background: #ffd6d6; } #grid .fc3 { background: #ffbfbf; }
-#grid .fc4 { background: #ffa8a8; } #grid .fc5 { background: #ff9191; } #grid .fc6 { background: #ff7a7a; }
-#grid .fc7 { background: #ff6363; } #grid .fc8 { background: #ff4c4c; } #grid .fc9 { background: #ff2a2a; }
-#grid .fc10 { background: #f00; } #grid .player-normal { background: #d7ebfa; }
-#grid .fc5, #grid .fc6, #grid .fc7, #grid .fc8, #grid .fc9, #grid .fc10 { color: #fff; font-weight: 700; }
+#grid .player-normal { background: #d7ebfa; }
 
 .map-controls {
   position: fixed;
@@ -294,8 +290,14 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .dialog-card input { min-height: 46px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 16px; }
 
-#membersContainer { position: fixed; top: 115px; right: 0; bottom: 0; left: 0; overflow-y: auto; padding: 16px; background: #f3f6fa; }
+#topBar.members-topbar { height: 58px; padding: 17px 16px; }
+.members-topbar h1 { margin: 0; font-size: 17px; line-height: 24px; }
+#membersContainer { position: fixed; top: 58px; right: 0; bottom: 0; left: 0; overflow-y: auto; padding: 16px; background: #f3f6fa; }
 #membersForm { padding: 16px; border-radius: 12px; background: #fff; }
+.member-field { display: flex; margin-bottom: 10px; align-items: center; gap: 10px; }
+.member-field label { font-weight: 700; }
+#membersForm select { min-height: 42px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink); }
+#memberList > div:not(.name-dropdown-header) { min-height: 42px; display: flex; align-items: center; }
 #memberList .item { padding: 12px; border: 1px solid #dbe5ee; border-radius: 10px; background: #fff; color: #284a64; }
 
 @media (prefers-reduced-motion: reduce) {

@@ -4,16 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>同盟員登録</title>
-  <link rel="stylesheet" href="css/style.css">
-<link rel="stylesheet" href="css/mobile.css"></head>
+  <link rel="stylesheet" href="css/style.css?v=3.24">
+  <link rel="stylesheet" href="css/mobile.css?v=3.24">
+</head>
 <body>
 
-  <div id="topBar">
-    <h3>同盟員登録</h3>
-    <div id="topActions">
-      <button type="button" onclick="goBack()">戻る</button>
-    </div>
-  </div>
+  <header id="topBar" class="members-topbar"><h1>同盟員登録</h1></header>
 
   <div id="membersContainer">
     <div id="membersForm">
@@ -23,9 +19,8 @@
           <div id="nameDropdown"></div>
         </span>
       </div>
-      <div style="margin-bottom: 8px;">
-        溶鉱炉：<select id="furnace"></select>
-        &nbsp;階級：<select id="rank">
+      <div class="member-field">
+        <label for="rank">階級</label><select id="rank">
           <option value="R5">R5</option>
           <option value="R4">R4</option>
           <option value="R3">R3</option>
@@ -42,6 +37,6 @@
     <div id="memberList"></div>
   </div>
 
-  <script type="module" src="js/members.js"></script>
+  <script type="module" src="js/members.js?v=3.24"></script>
 <script src="../bridge.js"></script></body>
 </html>
