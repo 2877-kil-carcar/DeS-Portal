@@ -12,7 +12,7 @@ const api=context.window.WOS_REDEEM_API;
  const signed=api._signed({fid:'123',kid:'7',cdk:'DEMO',time:1});
  assert.equal(signed.sign,'c3604cc900a53292af76ac6ec617882c');
  const checked=await api.checkPlayer('123','7');assert.equal(checked.ok,true);
- assert.equal(requests[0].url,'https://wos-giftcode-api.centurygame.com/api/gift_code');
+ assert.equal(requests[0].url,'https://des-giftcode-proxy.shunya3624716.workers.dev/');
  assert.equal(requests[0].options.method,'POST');
  for(const key of ['sign','fid','kid','cdk','time'])assert.ok(requests[0].options.body.values.has(key));
  assert.equal(requests[0].options.body.values.get('cdk'),'ZZCHECKONLY0');

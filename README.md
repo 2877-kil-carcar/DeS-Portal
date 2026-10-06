@@ -1,4 +1,4 @@
-# DeS ポータル v3.7
+# DeS ポータル v3.8
 
 更新日：2026-10-06。スマートフォン向け下部ナビ＋機能一覧、PC向け左メニューを備えた統合版です。現在の作業先は `D:\IHIHOST\Claude\WOS\_wos_rally_joiner` です。
 
@@ -26,13 +26,19 @@ Node.jsは閲覧には不要です。Pythonがある場合のローカル確認�
 | ミニゲーム | ババ抜き／七並べ／ポーカー／大富豪を独立メニューへ |
 | 2856SvS補助ツール | 英雄・グループ・同盟・参加者・所持英雄・集結・振り分け・カウントアップ・管理者・ログ |
 | 申請フォーム一覧 | 砦／SvS／霜竜／移民の10リンクと4つの端末メモ |
-| ギフトコード | Firebaseで登録・履歴を全端末共有し、公式APIへ直接一括交換 |
+| ギフトコード | Firebaseで登録・履歴を全端末共有し、Cloudflare中継経由で公式APIへ一括交換 |
 
 追加アプリは同一オリジンのiframeで遅延読み込みします。メニュー切替で破棄せず、ギャラリーのアニメーションを停止します。ゲームの接続は保持するため、終了するときはゲーム内の退室操作を行ってください。元アプリのソースフォルダは変更していません。
 
-## 公式API直接交換（v3.7）
+## Cloudflare交換中継（v3.8）
 
-ギフトコード交換をローカルPython経由から、Century Games公式交換APIへのブラウザ直接送信へ修正しました。GitHub Pagesとスマートフォンから、共有登録・ID確認・一括交換・履歴共有まで利用できます。APIキーやローカルサーバーは不要です。API所定のMD5署名はブラウザ内で生成します。
+ブラウザからCentury Games公式交換APIへの直接POSTは送信元検査でHTTP 403になるため、固定宛先だけを許可するCloudflare Workerを追加しました。ポータルは `des-giftcode-proxy.shunya3624716.workers.dev` に署名済みフォームを送り、Workerが公式サイトの送信元情報を付けて公式APIへ転送します。Workerはポータル本番URLと指定ローカル開発URLだけをCORSで許可し、入力形式を検査します。中継コードは `cloudflare-worker/worker.js`、オフライン検査は `node tools/test-redeem-worker.mjs` です。
+
+APIキーや利用者ログインは不要です。プレイヤーID、王国、交換コード、時刻、署名は交換処理のためCloudflare WorkerとCentury Gamesへ送信されます。Workerコードでは保存・ログ出力を行いませんが、Cloudflareおよび送信先側の基盤ログまでは本リポジトリから保証できません。
+
+## 公式API交換処理（v3.7）
+
+ギフトコード交換をローカルPython必須からWeb上で完結する構成へ修正しました。API所定のMD5署名はブラウザ内で生成します。v3.8では公式APIの送信元検査に対応するため、ブラウザ直接送信からCloudflare Worker中継へ変更しています。
 
 ## 共有ギフトコード登録（v3.6）
 
@@ -46,7 +52,7 @@ Node.jsは閲覧には不要です。Pythonがある場合のローカル確認�
 
 画面名を「DeS ポータル」に統一。スマホ下部の主要メニューを「ギャラリー／熊罠配置／申請フォーム／ギフトコード」に変更しました。「一覧」からその他の機能も開けます。
 
-ギフトコードはGitHub Pages上から直接利用できます。`start_hub.bat` はポータル全体をローカル確認するときの任意の起動方法で、交換の必須条件ではありません。
+ギフトコードはGitHub Pages上からCloudflare中継を介して利用できます。`start_hub.bat` はポータル全体をローカル確認するときの任意の起動方法で、交換の必須条件ではありません。
 
 ## ミニゲームの同期修正（v3.4）
 
@@ -85,7 +91,7 @@ Node.jsは閲覧には不要です。Pythonがある場合のローカル確認�
 
 ## GitHub Pages
 
-HTML/CSS/JSを配信する構成なのでGitHub Pagesへ配置可能です。[GitHub公式説明](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)（2026-10-04確認）。ギフトコードもブラウザから公式APIへ直接送信するため、Pythonは不要です。
+HTML/CSS/JSを配信する構成なのでGitHub Pagesへ配置可能です。[GitHub公式説明](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)（2026-10-04確認）。ギフトコードはCloudflare Worker経由で送信するため、利用者PCのPythonは不要です。
 
 公開前に必ず確認：
 
@@ -99,9 +105,9 @@ HTML/CSS/JSを配信する構成なのでGitHub Pagesへ配置可能です。[Gi
 
 ### ギフトコードメニュー（追加）
 
-「ギフトコード」はスマホ下部メニューから直接開けます。プレイヤー・履歴の正本は専用Firebaseです。追加・王国変更時は公式交換APIでIDと王国を確認し、実交換は確認ダイアログの後に同APIへ直接送信します。`?preview=1` ではサンプルのみ表示し、Firebase認証・DB・交換APIへの通信を行いません。1ファイル版の対象には含めません。
+「ギフトコード」はスマホ下部メニューから直接開けます。プレイヤー・履歴の正本は専用Firebaseです。追加・王国変更時はCloudflare中継経由で公式交換APIにIDと王国を確認し、実交換も確認ダイアログの後に同じ中継へ送信します。`?preview=1` ではサンプルのみ表示し、Firebase認証・DB・交換APIへの通信を行いません。1ファイル版の対象には含めません。
 
-追加検査：`node tools/test-redeem-api.cjs`、`node tools/test-redeem-ui.cjs`、`node tools/test-redeem-cloud.cjs`、`python -B tools/test_redeem.py`。実コード交換を行わないオフライン検査です。
+追加検査：`node tools/test-redeem-worker.mjs`、`node tools/test-redeem-api.cjs`、`node tools/test-redeem-ui.cjs`、`node tools/test-redeem-cloud.cjs`、`python -B tools/test_redeem.py`。実コード交換を行わないオフライン検査です。
 
 `assets/app.js` の `modules` と `index.html` の領域が共通メニューです。各追加アプリは `apps/`、連携処理は `apps/bridge.js`。英雄マスターは `wos_rally_joiner_gen1-8.json`、検証記録は `research/` です。
 

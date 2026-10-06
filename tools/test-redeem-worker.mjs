@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const source=await readFile(new URL('../cloudflare-worker/worker.js',import.meta.url),'utf8');
+const worker=(await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'))).default;
+const allowed='https://2877-kil-carcar.github.io';let upstream;
+globalThis.fetch=async(url,options)=>{upstream={url,options};return new Response(JSON.stringify({err_code:40020,msg:'USER INFO ERROR.'}),{status:200,headers:{'Content-Type':'application/json'}});};
+let response=await worker.fetch(new Request('https://worker.test/',{method:'OPTIONS',headers:{Origin:allowed}}));assert.equal(response.status,204);assert.equal(response.headers.get('Access-Control-Allow-Origin'),allowed);
+response=await worker.fetch(new Request('https://worker.test/',{headers:{Origin:'https://evil.invalid'}}));assert.equal(response.status,403);
+response=await worker.fetch(new Request('https://worker.test/',{headers:{Origin:allowed}}));assert.equal((await response.json()).service,'des-giftcode-proxy');
+const invalid=new FormData();invalid.append('fid','1');response=await worker.fetch(new Request('https://worker.test/',{method:'POST',headers:{Origin:allowed},body:invalid}));assert.equal(response.status,400);
+const body=new FormData();for(const [key,value]of Object.entries({sign:'0123456789abcdef0123456789abcdef',fid:'1',kid:'1',cdk:'ZZCHECKONLY0',time:'1'}))body.append(key,value);
+response=await worker.fetch(new Request('https://worker.test/',{method:'POST',headers:{Origin:allowed},body}));assert.equal(response.status,200);assert.equal(response.headers.get('Access-Control-Allow-Origin'),allowed);
+assert.equal(upstream.url,'https://wos-giftcode-api.centurygame.com/api/gift_code');assert.equal(upstream.options.headers.Origin,'https://wos-giftcode.centurygame.com');assert.equal(upstream.options.headers.Referer,'https://wos-giftcode.centurygame.com/');for(const key of ['sign','fid','kid','cdk','time'])assert.ok(upstream.options.body.has(key));
+console.log('PASS Cloudflare Worker: fixed upstream, origin restriction, validation and CORS');

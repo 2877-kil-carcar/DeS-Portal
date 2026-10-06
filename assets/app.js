@@ -26,7 +26,7 @@
     { id: 'games', label:'ミニゲーム', icon:'♠', path:'./apps/games/index.html', title:'ミニゲーム', eyebrow:'PLAY TOGETHER', subtitle:'みんなで楽しむカードゲーム' },
     { id: 'svs', label:'2856SvS補助ツール', icon:'⚑', path:'./apps/svs/index.html', title:'2856SvS補助ツール', eyebrow:'SVS OPERATIONS', subtitle:'参加管理・集結設定・振り分け・カウントアップ' },
     { id: 'forms', label:'申請フォーム一覧', icon:'▧', path:'./apps/forms/index.html', title:'申請フォーム一覧', eyebrow:'APPLICATION DESK', subtitle:'各種申請・スプレッドシート・端末メモ' },
-    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.7', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・公式APIへ直接一括交換' }
+    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.8', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・安全な中継経由で一括交換' }
   ].filter(m => !window.WOS_STANDALONE || !m.path);
   const moduleFrames = new Map();
   const previewMode = new URLSearchParams(location.search).get('preview') === '1';
