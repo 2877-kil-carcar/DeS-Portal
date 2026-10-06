@@ -119,7 +119,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   top: 0;
   left: 0;
   display: grid;
-  grid-template-columns: repeat(48, 34px);
+  grid-template-columns: repeat(39, 34px);
   gap: 3px;
   padding: 8px;
   color: #34546b;
@@ -144,6 +144,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   -webkit-user-select: none;
 }
 .cell:active { filter: brightness(.94); }
+.cell.out-of-range { display: none; }
 .coord-cell { background: #dfe9f2; color: #678098; font-size: 9px; font-weight: 700; }
 .cell.active { z-index: 3; outline: 2px solid #2077bd; outline-offset: -2px; }
 .cell.flash { animation: flashAnim .8s ease; }

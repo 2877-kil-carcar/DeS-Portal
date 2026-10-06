@@ -1,5 +1,5 @@
-import { members, objects, adminApproved } from "./data.js";
-import { getObjectAt } from "./grid.js";
+import { members, objects, adminApproved } from "./data.js?v=3.27.1";
+import { getObjectAt } from "./grid.js?v=3.27.1";
 
 const sheet = document.getElementById("sheet");
 const list = document.getElementById("list");

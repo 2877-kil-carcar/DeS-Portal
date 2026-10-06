@@ -28,6 +28,15 @@ test('an existing facility can be moved without becoming a duplicate',()=>{
  assert.equal(plan.previous,first);assert.equal(plan.next.x,20);assert.equal(plan.next.y,18);
  assert.equal(objects.length,2);
 });
+test('cropped bear map accepts only X416 through X453',()=>{
+ const bounds=[48,27,null,5,42];
+ assert.throws(()=>P.planPlacement([],'flag',null,{x:4,y:10},...bounds),/マップ/);
+ assert.equal(P.planPlacement([],'flag',null,{x:5,y:10},...bounds).next.x,5);
+ assert.equal(P.planPlacement([],'flag',null,{x:42,y:10},...bounds).next.x,42);
+ assert.throws(()=>P.planPlacement([],'flag',null,{x:43,y:10},...bounds),/マップ/);
+ assert.equal(P.planPlacement([],'player','a',{x:41,y:10},...bounds).next.x,41);
+ assert.throws(()=>P.planPlacement([],'player','a',{x:42,y:10},...bounds),/マップ/);
+});
 test('all inline and local scripts parse without executing remote services',()=>{
  let scripts=0,htmls=0;
  function walk(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())walk(file);else if(/\.(html|js)$/.test(file)){
@@ -79,6 +88,8 @@ test('bear member UI omits furnace data and uses the expanded mobile sheet',()=>
  assert.ok(read('apps/bear/js/members.js').includes('登録済み候補 · 選択すると更新'));
  assert.ok(read('apps/bear/css/style.css').includes('#nameDropdown.show { display: block; }'));
  assert.ok(read('apps/bear/css/style.css').includes('max-height: min(42dvh, 320px)'));
+ assert.ok(read('apps/bear/js/data.js').includes('GRID_MIN_X = 5'));
+ assert.ok(read('apps/bear/js/data.js').includes('GRID_MAX_X = 42'));
 });
 test('gift code, gallery and forms lead navigation without changing default module',()=>{
  const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8'),css=fs.readFileSync(path.join(root,'assets/app.css'),'utf8');

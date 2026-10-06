@@ -1,4 +1,4 @@
-import { objects, GRID_COLS, GRID_ROWS } from "./data.js";
+import { objects, GRID_COLS, GRID_ROWS } from "./data.js?v=3.27.1";
 
 
 export function getObjectAt(x, y) {

@@ -1,8 +1,8 @@
 import { db, authReady, PREVIEW } from "./firebase.js";
 import { doc, writeBatch, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { GRID_COLS, GRID_ROWS, members, setObjects, objects, setMembers, adminApproved, setAdminApproved } from "./data.js";
-import { getObjectAt } from "./grid.js";
-import * as ui from "./ui.js?v=3.26";
+import { GRID_COLS, GRID_ROWS, GRID_MIN_X, GRID_MAX_X, GRID_VIEW_COLS, members, setObjects, objects, setMembers, adminApproved, setAdminApproved } from "./data.js?v=3.27.1";
+import { getObjectAt } from "./grid.js?v=3.27.1";
+import * as ui from "./ui.js?v=3.27.1";
 
 const grid = document.getElementById("grid");
 const wrapper = document.getElementById("gridWrapper");
@@ -27,6 +27,8 @@ let scale = 1;
 let lastDist = null;
 let lastPanAt = -1000;
 let trapIndex = -1;
+const GRID_PIXEL_WIDTH = GRID_VIEW_COLS * 37 + 13;
+const GRID_PIXEL_HEIGHT = 1015;
 
 function showStatus(message, error = false) {
   status.textContent = message;
@@ -40,8 +42,8 @@ new ResizeObserver(updateMapHeight).observe(document.getElementById("topBar"));
 
 function syncScale() {
   grid.style.transform = "scale(" + scale + ")";
-  stage.style.width = (1792 * scale) + "px";
-  stage.style.height = (1015 * scale) + "px";
+  stage.style.width = (GRID_PIXEL_WIDTH * scale) + "px";
+  stage.style.height = (GRID_PIXEL_HEIGHT * scale) + "px";
   document.getElementById("zoomReset").textContent = Math.round(scale * 100) + "%";
 }
 
@@ -56,7 +58,7 @@ function zoomTo(next) {
 }
 
 function showWholeMap() {
-  zoomTo(Math.min(wrapper.clientWidth / 1792, wrapper.clientHeight / 1015));
+  zoomTo(Math.min(wrapper.clientWidth / GRID_PIXEL_WIDTH, wrapper.clientHeight / GRID_PIXEL_HEIGHT));
   wrapper.scrollTo(0, 0);
 }
 
@@ -170,7 +172,7 @@ async function commitPlan(plan) {
 ui.setOnSelectCallback(async (type, memberId, pos) => {
   if (!adminApproved || saving) return;
   try {
-    const plan = window.WOS_PLACEMENT.planPlacement(objects, type, memberId, pos);
+    const plan = window.WOS_PLACEMENT.planPlacement(objects, type, memberId, pos, GRID_COLS, GRID_ROWS, null, GRID_MIN_X, GRID_MAX_X);
     await commitPlan(plan);
   } catch (error) {
     showStatus(error.message, true);
@@ -200,7 +202,9 @@ function previewPlacement(pos) {
       pos,
       GRID_COLS,
       GRID_ROWS,
-      pendingSelection.previous
+      pendingSelection.previous,
+      GRID_MIN_X,
+      GRID_MAX_X
     );
     placementHint.textContent = coordinates(pos.x, pos.y) + " に配置できます";
     placementHint.classList.remove("error");
@@ -238,6 +242,10 @@ function render() {
     const y = Math.floor(i / GRID_COLS);
     cell.className = "cell";
     cell.replaceChildren();
+    if (x !== 0 && (x < GRID_MIN_X || x > GRID_MAX_X)) {
+      cell.classList.add("out-of-range");
+      continue;
+    }
     if (x === 0 && y === 0) {
       cell.textContent = "Y\\X";
       cell.classList.add("coord-cell");
@@ -384,7 +392,8 @@ async function connect() {
 
 export function jumpTo(x, y) {
   const cellSize = 37;
-  const targetX = x * cellSize * scale;
+  const visibleX = Math.max(1, Math.min(GRID_VIEW_COLS - 1, x - GRID_MIN_X + 1));
+  const targetX = visibleX * cellSize * scale;
   const targetY = y * cellSize * scale;
   activeCellPos = { x, y };
   flashCellPos = { x, y };
