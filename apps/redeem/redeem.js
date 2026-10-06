@@ -8,16 +8,23 @@
   const results=new Map();
   function status(title,message,kind=''){$('connection-title').textContent=title;$('connection-message').textContent=message;document.querySelector('.connection').className='connection '+kind;}
   function controls(){$('startBtn').disabled=!connected||!directApi||busy||preview;for(const id of ['addBtn','newFid','newKid','newName'])$(id).disabled=!connected||busy||preview;$('retry').disabled=busy||preview;$('cdk').disabled=running;$('stopBtn').disabled=!running||stop;}
+  function renderRecent(){
+    const recent=Object.entries(state.history||{}).map(([cdk,records])=>{
+      const values=Object.values(records||{}),latest=values.reduce((best,item)=>!best.at&&best.atMillis===undefined||Number(item.atMillis||Date.parse(item.at||'')||0)>Number(best.atMillis||Date.parse(best.at||'')||0)?item:best,{});
+      return {cdk,at:String(latest.at||''),atMillis:Number(latest.atMillis||Date.parse(latest.at||'')||0)};
+    }).filter(item=>item.cdk).sort((a,b)=>b.atMillis-a.atMillis||b.at.localeCompare(a.at,'ja')).slice(0,5);
+    $('recent-list').innerHTML=recent.length?recent.map(item=>`<div class="recent-code"><strong>${esc(item.cdk)}</strong><time>${esc(item.at||'日時記録なし')}</time></div>`).join(''):'<p class="empty">交換履歴はまだありません。</p>';
+  }
   function render(){
     $('count').textContent=state.players.length+'人';
     const query=$('search').value.trim().toLowerCase(),done=state.history[$('cdk').value.trim()]||{},players=state.players.filter(player=>[player.name,player.fid,player.kid].join(' ').toLowerCase().includes(query));
-    $('list').innerHTML=players.map(player=>{const result=results.get(player.fid)||(done[player.fid]?{cls:'muted',msg:'記録済：'+done[player.fid].msg}:null),disabled=busy||!connected?'disabled':'';return `<article class="player"><h3>${esc(player.name||'名前なし')}</h3><div class="player-meta">ID ${esc(player.fid)} · 王国 ${esc(player.kid||state.kingdom)}</div><p class="player-result ${result?.cls||'muted'}">${esc(result?.msg||'未実行')}</p><div class="player-actions"><button class="secondary" data-action="rename" data-id="${esc(player.fid)}" ${disabled}>名前編集</button><button class="secondary" data-action="kingdom" data-id="${esc(player.fid)}" ${disabled}>王国変更</button><button class="secondary danger" data-action="delete" data-id="${esc(player.fid)}" ${disabled}>削除</button></div></article>`;}).join('')||'<p class="empty">'+(state.players.length?'検索に一致するプレイヤーがいません。':'登録プレイヤーがいません。')+'</p>';controls();
+    $('list').innerHTML=players.map(player=>{const result=results.get(player.fid)||(done[player.fid]?{cls:'muted',msg:'記録済：'+done[player.fid].msg}:null),disabled=busy||!connected?'disabled':'';return `<article class="player"><h3>${esc(player.name||'名前なし')}</h3><div class="player-meta">ID ${esc(player.fid)} · 王国 ${esc(player.kid||state.kingdom)}</div><p class="player-result ${result?.cls||'muted'}">${esc(result?.msg||'未実行')}</p><div class="player-actions"><button class="secondary" data-action="rename" data-id="${esc(player.fid)}" ${disabled}>名前編集</button><button class="secondary" data-action="kingdom" data-id="${esc(player.fid)}" ${disabled}>王国変更</button><button class="secondary danger" data-action="delete" data-id="${esc(player.fid)}" ${disabled}>削除</button></div></article>`;}).join('')||'<p class="empty">'+(state.players.length?'検索に一致するプレイヤーがいません。':'登録プレイヤーがいません。')+'</p>';renderRecent();controls();
   }
   async function connect(){
     if(preview){status('表示確認モード','サンプルのみ表示しています。Firebase・交換APIへの通信は行いません。');state.players=[{fid:'00000001',kid:'0000',name:'サンプルプレイヤー'}];render();return;}
     busy=true;controls();status('接続を確認中…','共有登録へ接続しています。');
-    try{if(!cloud)throw Error('Firebase SDKを読み込めません。');if(!directApi)throw Error('交換処理を読み込めません。');await cloud.connect({players:[],history:{}},next=>{state=next;connected=true;render();status('共有登録・交換中継を利用できます','Cloudflare中継を通じて公式交換APIへ送信します。','ready');},error=>{connected=false;status('共有登録に接続できません',error.message,'error');});connected=true;status('共有登録・交換中継を利用できます','Cloudflare中継を通じて公式交換APIへ送信します。','ready');}
-    catch(error){connected=false;status('接続できません',error.message,'error');$('setup').open=true;}finally{busy=false;render();}
+    try{if(!cloud)throw Error('Firebase SDKを読み込めません。');if(!directApi)throw Error('交換処理を読み込めません。');await cloud.connect({players:[],history:{}},next=>{state=next;connected=true;render();status('利用できます','共有データに接続しました。','ready');},error=>{connected=false;status('共有登録に接続できません',error.message,'error');});connected=true;status('利用できます','共有データに接続しました。','ready');}
+    catch(error){connected=false;status('接続できません',error.message,'error');}finally{busy=false;render();}
   }
   async function change(operation){if(busy||!connected||preview)return;busy=true;render();try{await operation();}catch(error){status('処理を完了できませんでした',error.message,'error');}finally{busy=false;render();}}
   async function verifiedSave(player){const checked=await directApi.checkPlayer(player.fid,player.kid);if(!checked.ok)throw Error(checked.msg||'プレイヤーを確認できません。');await cloud.setPlayer(player);}

@@ -34,7 +34,7 @@
   <div class="sidebar-foot"><span>非公式・試作版</span><b>GEN 01 — 08</b><small>DATA CHECK / 2026.10.04</small></div>
 </aside>
 <div class="workspace">
- <header class="topbar"><div class="breadcrumb"><button id="menu-toggle" class="icon-button mobile-only" aria-label="機能メニューを開く" aria-controls="sidebar" aria-expanded="false">☰</button><span>DeS PORTAL</span><span class="slash">/</span><strong id="breadcrumb-current">乗り手選定</strong></div><span class="version"><i></i> v3.8</span></header>
+ <header class="topbar"><div class="breadcrumb"><button id="menu-toggle" class="icon-button mobile-only" aria-label="機能メニューを開く" aria-controls="sidebar" aria-expanded="false">☰</button><span>DeS PORTAL</span><span class="slash">/</span><strong id="breadcrumb-current">乗り手選定</strong></div><span class="version"><i></i> v3.9</span></header>
  <main id="main" tabindex="-1">
   <div class="page-heading"><div><p class="eyebrow" id="page-eyebrow">RALLY WORKSPACE</p><h1 id="page-title">集結を、読み解く。</h1><p class="subheading" id="page-subtitle">集結主の効果を見ながら、乗り手の役割を選ぶ。</p></div><button class="quiet-button" id="reset-settings">選択をリセット</button></div>
   <section id="view-joiners" class="view">
@@ -151,7 +151,7 @@
     { id: 'games', label:'ミニゲーム', icon:'♠', path:'./apps/games/index.html', title:'ミニゲーム', eyebrow:'PLAY TOGETHER', subtitle:'みんなで楽しむカードゲーム' },
     { id: 'svs', label:'2856SvS補助ツール', icon:'⚑', path:'./apps/svs/index.html', title:'2856SvS補助ツール', eyebrow:'SVS OPERATIONS', subtitle:'参加管理・集結設定・振り分け・カウントアップ' },
     { id: 'forms', label:'申請フォーム一覧', icon:'▧', path:'./apps/forms/index.html', title:'申請フォーム一覧', eyebrow:'APPLICATION DESK', subtitle:'各種申請・スプレッドシート・端末メモ' },
-    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.8', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・安全な中継経由で一括交換' }
+    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.9', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
   ].filter(m => !window.WOS_STANDALONE || !m.path);
   const moduleFrames = new Map();
   const previewMode = new URLSearchParams(location.search).get('preview') === '1';

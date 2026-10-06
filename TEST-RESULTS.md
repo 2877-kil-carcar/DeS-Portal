@@ -1,5 +1,9 @@
 # テスト結果 / 2026-10-06
 
+## v3.9 ギフトコード画面整理
+
+技術説明の削除、再接続ボタンの最下部配置、直近5コードの日時順表示を静的検査とUIモックで確認。コード表示はHTMLとして解釈されないよう無害化しています。
+
 ## v3.8 Cloudflare交換中継
 
 ブラウザからCentury Games公式交換APIへの実POSTがHTTP 403になることを確認し、固定宛先・許可Origin・入力形式を制限したCloudflare Worker中継へ変更しました。`tools/test-redeem-worker.mjs` で許可／拒否Origin、CORS、固定転送先、公式Origin・Referer、入力検査をオフライン確認。実コード交換は未実施です。

@@ -23,7 +23,11 @@
     history = {};
     snapshot.docs.forEach(item => {
       const value = item.data(), cdk = String(value.cdk || ''), fid = String(value.fid || '');
-      if (cdk && fid) (history[cdk] ||= {})[fid] = {msg: String(value.msg || ''), at: value.atText || ''};
+      if (cdk && fid) (history[cdk] ||= {})[fid] = {
+        msg: String(value.msg || ''),
+        at: String(value.atText || ''),
+        atMillis: Number(value.updatedAt?.toMillis?.() || Date.parse(value.atText || '') || 0)
+      };
     });
   }
   function historyId(cdk, fid) { return encodeURIComponent(cdk) + '--' + fid; }

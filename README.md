@@ -1,4 +1,4 @@
-# DeS ポータル v3.8
+# DeS ポータル v3.9
 
 更新日：2026-10-06。スマートフォン向け下部ナビ＋機能一覧、PC向け左メニューを備えた統合版です。現在の作業先は `D:\IHIHOST\Claude\WOS\_wos_rally_joiner` です。
 
@@ -35,6 +35,10 @@ Node.jsは閲覧には不要です。Pythonがある場合のローカル確認�
 ブラウザからCentury Games公式交換APIへの直接POSTは送信元検査でHTTP 403になるため、固定宛先だけを許可するCloudflare Workerを追加しました。ポータルは `des-giftcode-proxy.shunya3624716.workers.dev` に署名済みフォームを送り、Workerが公式サイトの送信元情報を付けて公式APIへ転送します。Workerはポータル本番URLと指定ローカル開発URLだけをCORSで許可し、入力形式を検査します。中継コードは `cloudflare-worker/worker.js`、オフライン検査は `node tools/test-redeem-worker.mjs` です。
 
 APIキーや利用者ログインは不要です。プレイヤーID、王国、交換コード、時刻、署名は交換処理のためCloudflare WorkerとCentury Gamesへ送信されます。Workerコードでは保存・ログ出力を行いませんが、Cloudflareおよび送信先側の基盤ログまでは本リポジトリから保証できません。
+
+## ギフトコード画面整理（v3.9）
+
+利用者向け画面から中継方式の技術説明と「共有・交換方法」を外し、再接続ボタンを画面最下部へ移動しました。コード交換欄には共有履歴をコード単位でまとめ、最新の交換日時順に直近5件を表示します。
 
 ## 公式API交換処理（v3.7）
 

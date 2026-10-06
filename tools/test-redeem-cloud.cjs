@@ -57,6 +57,7 @@ const cloud = context.window.WOS_REDEEM_CLOUD;
   assert.equal(latest.players.length,2);
   await cloud.recordHistory('CODE2','1003',{msg:'ALREADY RECEIVED'});
   assert.equal(latest.history.CODE2['1003'].msg,'ALREADY RECEIVED');
+  assert.equal(typeof latest.history.CODE2['1003'].atMillis,'number');
 
   await cloud.connect({players:[{fid:'9999',kid:'1',name:'復活させない'}],history:{}}, state=>{latest=state;}, error=>{throw error;});
   assert.equal(signIns,2);
