@@ -65,6 +65,11 @@ function buildNameDropdown(filter) {
     return;
   }
 
+  const guide = document.createElement("div");
+  guide.className = "name-dropdown-guide";
+  guide.textContent = "登録済み候補 · 選択すると更新";
+  nameDropdown.appendChild(guide);
+
   let currentRank = null;
   filtered.forEach(docSnap => {
     const d = docSnap.data();

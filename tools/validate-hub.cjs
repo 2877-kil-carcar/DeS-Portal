@@ -76,6 +76,9 @@ test('bear member UI omits furnace data and uses the expanded mobile sheet',()=>
  assert.ok(read('apps/bear/members.html').includes('← 戻る'));
  assert.ok(read('apps/bear/css/style.css').includes('white-space: nowrap'));
  assert.ok(read('apps/bear/css/mobile.css').includes('height: calc(100dvh - 6px)'));
+ assert.ok(read('apps/bear/js/members.js').includes('登録済み候補 · 選択すると更新'));
+ assert.ok(read('apps/bear/css/style.css').includes('#nameDropdown.show { display: block; }'));
+ assert.ok(read('apps/bear/css/style.css').includes('max-height: min(42dvh, 320px)'));
 });
 test('gift code, gallery and forms lead navigation without changing default module',()=>{
  const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8'),css=fs.readFileSync(path.join(root,'assets/app.css'),'utf8');

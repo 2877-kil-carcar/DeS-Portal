@@ -2,7 +2,7 @@ import { db, authReady, PREVIEW } from "./firebase.js";
 import { doc, writeBatch, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { GRID_COLS, GRID_ROWS, members, setObjects, objects, setMembers, adminApproved, setAdminApproved } from "./data.js";
 import { getObjectAt } from "./grid.js";
-import * as ui from "./ui.js?v=3.25";
+import * as ui from "./ui.js?v=3.26";
 
 const grid = document.getElementById("grid");
 const wrapper = document.getElementById("gridWrapper");

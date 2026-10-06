@@ -47,6 +47,9 @@
   #membersContainer { top: 58px; padding: 10px; }
   .members-back { min-width: 72px; padding-right: 10px; padding-left: 10px; font-size: 13px; }
   #membersForm { padding: 12px; }
+  .member-name-field { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .name-input-wrap { width: 100%; }
+  #nameDropdown { max-height: min(40dvh, 280px); }
 }
 
 @media (max-width: 390px) {

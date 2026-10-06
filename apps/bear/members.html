@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>同盟員登録</title>
-  <link rel="stylesheet" href="css/style.css?v=3.25">
-  <link rel="stylesheet" href="css/mobile.css?v=3.25">
+  <link rel="stylesheet" href="css/style.css?v=3.26">
+  <link rel="stylesheet" href="css/mobile.css?v=3.26">
 </head>
 <body>
 
@@ -16,9 +16,10 @@
 
   <div id="membersContainer">
     <div id="membersForm">
-      <div style="margin-bottom: 8px;">
-        名前：<span style="position: relative; display: inline-block;">
-          <input id="name" autocomplete="off" placeholder="選択 or 新規入力" style="width: 150px;">
+      <div class="member-name-field">
+        <label for="name">名前</label>
+        <span class="name-input-wrap">
+          <input id="name" autocomplete="off" placeholder="名前を入力">
           <div id="nameDropdown"></div>
         </span>
       </div>
@@ -40,6 +41,6 @@
     <div id="memberList"></div>
   </div>
 
-  <script type="module" src="js/members.js?v=3.25"></script>
+  <script type="module" src="js/members.js?v=3.26"></script>
 <script src="../bridge.js"></script></body>
 </html>
