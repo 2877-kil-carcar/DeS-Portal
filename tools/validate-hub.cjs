@@ -65,6 +65,6 @@ test('gift code and gallery lead navigation without changing default module',()=
  assert.ok(app.includes("['redeem','gallery','bear','forms']"));
  assert.ok(app.includes("let state = C.normalizeState(saved, heroes), currentView = 'joiners'"));
  assert.ok(html.includes('brand-title">DeS<span>ポータル'));assert.ok(html.includes('<div class="nav-label">メニュー</div>'));assert.ok(fs.existsSync(path.join(root,'assets/pepper-portal.jpg')));
- assert.ok(css.includes('.brand-title{display:flex;flex-direction:column;justify-content:center;line-height:1.22;font-size:19px'));assert.ok(css.includes('.brand-title>span{font-size:16px'));assert.ok(css.includes('.brand-mark{width:70px;height:78px;flex:0 0 70px;place-items:end center;padding-bottom:7px'));assert.ok(css.includes('font-size:22px'));
+ assert.ok(css.includes('.brand{gap:15px}.brand-title{display:flex;flex-direction:column;justify-content:center;line-height:1.18;font-size:22px'));assert.ok(css.includes('.brand-title>span{font-size:18px'));assert.ok(css.includes('.brand-mark{width:70px;height:78px;flex:0 0 70px;place-items:end center;padding-bottom:7px'));assert.ok(css.includes('font-size:22px'));
 });
 console.log(groups+' hub test groups passed (static/unit only; not browser E2E)');

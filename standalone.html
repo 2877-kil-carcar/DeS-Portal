@@ -18,7 +18,7 @@
 .sidebar{overflow-y:auto}.nav-label{margin-top:30px}.sidebar-note{margin-top:18px}.nav-button{font-size:12px}.mobile-dock{display:none}.embedded-module main{max-width:none;padding:0}.embedded-module .page-heading,.embedded-module main>footer{display:none}.embedded-view{height:calc(100dvh - 70px);position:relative;background:#f3f5f8}.module-frame{display:block;border:0;width:100%;height:100%;background:#f3f5f8}.embed-loading{position:absolute;inset:0;display:grid;place-items:center;color:#657a90;font-size:13px;pointer-events:none}.topbar{position:sticky;top:0;z-index:25;backdrop-filter:blur(16px)}
 @media(max-width:760px){body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}.mobile-dock{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));position:fixed;bottom:0;left:0;right:0;background:#fffef9f5;border-top:1px solid #dce4ed;z-index:30;padding:5px 5px max(5px,env(safe-area-inset-bottom));height:calc(64px + env(safe-area-inset-bottom));backdrop-filter:blur(16px)}.mobile-dock button{display:flex;flex-direction:column;justify-content:center;align-items:center;border:0;background:transparent;color:#71849a;font-size:9px;min-height:48px;padding:4px 2px;gap:2px}.mobile-dock button>span{font-size:20px;line-height:1.2}.mobile-dock button.active{background:#e9f2fc;color:#2c70b4}.embedded-module{overflow:hidden}.embedded-view{height:calc(100dvh - 59px - 64px - env(safe-area-inset-bottom))}.sidebar{padding-bottom:max(24px,env(safe-area-inset-bottom));max-height:100dvh}.sidebar-foot{padding-top:10px}.nav-label{margin-top:24px}.nav-button{min-height:45px;margin-bottom:3px}.sidebar-note{font-size:10px;margin-top:10px;padding:14px}.sidebar-note p{font-size:10px}input,select{font-size:16px!important}.icon-button,.quiet-button{min-height:44px}.toast{bottom:calc(80px + env(safe-area-inset-bottom))}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
-.brand-title{display:flex;flex-direction:column;justify-content:center;line-height:1.22;font-size:19px;letter-spacing:.01em}.brand-title>span{font-size:16px;font-weight:500;color:#b4d0e6}.brand-mark{width:70px;height:78px;flex:0 0 70px;place-items:end center;padding-bottom:7px;background-image:linear-gradient(#10253a22,#10253a55),url('./pepper-portal.jpg');background-size:cover;background-position:center;color:#ffffffb8;text-shadow:0 1px 4px #10253a;border:1px solid #ffffff52;font-size:22px}
+.brand{gap:15px}.brand-title{display:flex;flex-direction:column;justify-content:center;line-height:1.18;font-size:22px;letter-spacing:.01em}.brand-title>span{font-size:18px;font-weight:500;color:#b4d0e6}.brand-mark{width:70px;height:78px;flex:0 0 70px;place-items:end center;padding-bottom:7px;background-image:linear-gradient(#10253a22,#10253a55),url('./pepper-portal.jpg');background-size:cover;background-position:center;color:#ffffffb8;text-shadow:0 1px 4px #10253a;border:1px solid #ffffff52;font-size:22px}
 </style>
 
 
@@ -35,7 +35,7 @@
   <div class="sidebar-foot"><span>非公式・試作版</span><b>GEN 01 — 08</b><small>DATA CHECK / 2026.10.04</small></div>
 </aside>
 <div class="workspace">
- <header class="topbar"><div class="breadcrumb"><button id="menu-toggle" class="icon-button mobile-only" aria-label="機能メニューを開く" aria-controls="sidebar" aria-expanded="false">☰</button><span>DeS PORTAL</span><span class="slash">/</span><strong id="breadcrumb-current">乗り手選定</strong></div><span class="version"><i></i> v3.15</span></header>
+ <header class="topbar"><div class="breadcrumb"><button id="menu-toggle" class="icon-button mobile-only" aria-label="機能メニューを開く" aria-controls="sidebar" aria-expanded="false">☰</button><span>DeS PORTAL</span><span class="slash">/</span><strong id="breadcrumb-current">乗り手選定</strong></div><span class="version"><i></i> v3.16</span></header>
  <main id="main" tabindex="-1">
   <div class="page-heading"><div><p class="eyebrow" id="page-eyebrow">RALLY WORKSPACE</p><h1 id="page-title">集結を、読み解く。</h1><p class="subheading" id="page-subtitle">集結主の効果を見ながら、乗り手の役割を選ぶ。</p></div><button class="quiet-button" id="reset-settings">選択をリセット</button></div>
   <section id="view-joiners" class="view">
@@ -152,7 +152,7 @@
     { id: 'games', label:'ミニゲーム', icon:'♠', path:'./apps/games/index.html', title:'ミニゲーム', eyebrow:'PLAY TOGETHER', subtitle:'みんなで楽しむカードゲーム' },
     { id: 'svs', label:'2856SvS補助ツール', icon:'⚑', path:'./apps/svs/index.html', title:'2856SvS補助ツール', eyebrow:'SVS OPERATIONS', subtitle:'参加管理・集結設定・振り分け・カウントアップ' },
     { id: 'forms', label:'申請フォーム一覧', icon:'▧', path:'./apps/forms/index.html', title:'申請フォーム一覧', eyebrow:'APPLICATION DESK', subtitle:'各種申請・スプレッドシート・端末メモ' },
-    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.15', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
+    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.16', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
   ].filter(m => !window.WOS_STANDALONE || !m.path);
   const navigationModules=window.WOS_STANDALONE?modules:[modules.find(m=>m.id==='redeem'),modules.find(m=>m.id==='gallery'),...modules.filter(m=>!['redeem','gallery'].includes(m.id))];
   const moduleFrames = new Map();
