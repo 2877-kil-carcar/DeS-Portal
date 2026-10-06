@@ -34,8 +34,8 @@ async function connectedForms(){
  return {...s,writes,opened,savedMemo,click,failSave:()=>{failSave=true;},submit:()=>s.node('link-form').handlers.submit({preventDefault(){}})};
 }
 (async()=>{
- await test('forms retain all 12 link fields and 5 memo keys',()=>{
-  assert.equal(U.fields.length,12);assert.equal(U.sections.length,5);
+ await test('forms retain 12 link fields, 6 groups and one shared memo',()=>{
+  assert.equal(U.fields.length,12);assert.equal(U.sections.length,5);assert.equal(U.groups.length,6);assert.equal(U.sharedMemoKey,'2856_forms_memo');
   assert.equal(U.sections[3].id,'heiki');assert.equal(U.sections[3].label,'兵器リーグ');
   assert.equal(U.memoKey('toride'),'2856_toride_memo');assert.ok(U.fields.includes('imin_tokubetsu_sheet'));
  });
@@ -93,14 +93,14 @@ async function connectedForms(){
  await test('forms preview is usable with denied localStorage and creates no requests',async()=>{
   const s=sandbox();s.ctx.FormUtils=U;s.ctx.localStorage={getItem(){throw Error('denied');},setItem(){throw Error('denied');}};
   vm.runInContext(read('apps/forms/app.js'),s.ctx,{filename:'forms/app.js'});
-  assert.equal(s.node('sections').children.length,5);assert.ok(s.node('status').textContent.includes('プレビュー'));
+  assert.equal(s.node('sections').children.length,6);assert.ok(s.node('status').textContent.includes('プレビュー'));
   assert.equal(s.node('head').children.length,0);
  });
  await test('forms initial load failure is visible and retryable',async()=>{
   const s=sandbox();s.ctx.FormUtils=U;s.ctx.location.search='';s.ctx.localStorage={getItem(){throw Error('denied');}};
   vm.runInContext(read('apps/forms/app.js'),s.ctx,{filename:'forms/app.js',importModuleDynamically:async()=>{throw Error('mock offline');}});
   for(let i=0;i<4;i++)await new Promise(setImmediate);
-  assert.ok(s.node('status').textContent.includes('取得できません'));assert.equal(s.node('retry').hidden,false);assert.equal(s.node('sections').children.length,5);
+  assert.ok(s.node('status').textContent.includes('取得できません'));assert.equal(s.node('retry').hidden,false);assert.equal(s.node('sections').children.length,6);
  });
  await test('forms connected edit saves only changed field and opens sanitized URL',async()=>{
   const s=await connectedForms();s.click('edit');assert.equal(s.node('modal-input').value,'https://example.invalid/original');
@@ -109,7 +109,7 @@ async function connectedForms(){
   assert.equal(s.node('link-dialog').open,false);assert.equal(s.node('modal-save').disabled,false);
   s.click('open');assert.deepEqual(s.opened[0],['https://example.invalid/new','_blank','noopener,noreferrer']);
   s.click('open','svs_sheet');assert.equal(s.opened[1][0],'https://example.invalid/sheet');
-  const memo=s.node('sections').children[0].children.find(n=>n.tagName==='TEXTAREA');
+  const memo=s.node('memo');
   assert.equal(memo.value,s.savedMemo);assert.equal(memo.innerHTML,'');
  });
  await test('forms failed save retains input, old link and usable retry controls',async()=>{

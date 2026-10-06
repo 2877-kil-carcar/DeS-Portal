@@ -25,8 +25,8 @@
     { id: 'gallery', label:'もふもふギャラリー', icon:'♧', path:'./apps/gallery/index.html', title:'もふもふギャラリー', eyebrow:'THE FLUFFY HALL', subtitle:'同盟のもふもふコレクション' },
     { id: 'games', label:'ミニゲーム', icon:'♠', path:'./apps/games/index.html', title:'ミニゲーム', eyebrow:'PLAY TOGETHER', subtitle:'みんなで楽しむカードゲーム' },
     { id: 'svs', label:'2856SvS補助ツール', icon:'⚑', path:'./apps/svs/index.html', title:'2856SvS補助ツール', eyebrow:'SVS OPERATIONS', subtitle:'参加管理・集結設定・振り分け・カウントアップ' },
-    { id: 'forms', label:'申請フォーム一覧', icon:'▧', path:'./apps/forms/index.html?v=3.21', title:'申請フォーム一覧', eyebrow:'APPLICATION DESK', subtitle:'各種申請・スプレッドシート・端末メモ' },
-    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.21', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
+    { id: 'forms', label:'申請フォーム一覧', icon:'▧', path:'./apps/forms/index.html?v=3.22', title:'申請フォーム一覧', eyebrow:'APPLICATION DESK', subtitle:'各種申請・スプレッドシート・端末メモ' },
+    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.22', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
   ].filter(m => !window.WOS_STANDALONE || !m.path);
   const navigationModules=window.WOS_STANDALONE?modules:[modules.find(m=>m.id==='redeem'),modules.find(m=>m.id==='gallery'),modules.find(m=>m.id==='forms'),...modules.filter(m=>!['redeem','gallery','forms'].includes(m.id))];
   const moduleFrames = new Map();

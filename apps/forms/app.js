@@ -32,35 +32,39 @@
     node.textContent=formatUpdatedAt(updatedAt[field]);
     node.dateTime=updatedAt[field]||'';
   }
-  function createPair(id,label){
-    const block=document.createElement('div');block.className='link-pair';
-    if(label){const heading=document.createElement('h3');heading.textContent=label;block.append(heading);}
+  function createPair(group,index){
+    const block=document.createElement('section');block.className='card';
+    const heading=document.createElement('h2');heading.textContent=String(index+1).padStart(2,'0')+' / '+group.label;block.append(heading);
     for(const [type,name] of [['form','申請フォーム'],['sheet','スプレッドシート']]){
       const item=document.createElement('div');item.className='link-item';
-      const row=document.createElement('div');row.className='link-row';
-      const open=document.createElement('button');open.className='open-link '+type;open.textContent=name+' ↗';open.dataset.field=id+'_'+type;open.dataset.action='open';
-      const edit=document.createElement('button');edit.className='edit-link';edit.textContent='編集';edit.dataset.field=id+'_'+type;edit.dataset.action='edit';edit.setAttribute('aria-label',(label||id)+' '+name+'のリンクを編集');
-      const updated=document.createElement('time');updated.className='link-updated';updated.dataset.updatedField=id+'_'+type;updated.textContent='更新日時：未記録';
-      row.append(open,edit);item.append(row,updated);block.append(item);
+      const open=document.createElement('button');open.className='open-link '+type;open.textContent=name+' ↗';open.dataset.field=group.id+'_'+type;open.dataset.action='open';
+      const meta=document.createElement('div');meta.className='link-meta';
+      const updated=document.createElement('time');updated.className='link-updated';updated.dataset.updatedField=group.id+'_'+type;updated.textContent='更新日時：未記録';
+      const edit=document.createElement('button');edit.className='edit-link';edit.textContent='編集';edit.dataset.field=group.id+'_'+type;edit.dataset.action='edit';edit.setAttribute('aria-label',group.label+' '+name+'のリンクを編集');
+      meta.append(updated,edit);item.append(open,meta);block.append(item);
     }
     return block;
   }
+  function setupMemo(){
+    const memo=$('memo'),note=$('memo-note');
+    if(preview){memo.value='';note.textContent='プレビューのメモは保存されません。';return;}
+    try{
+      const saved=localStorage.getItem(U.sharedMemoKey);
+      if(saved!==null)memo.value=saved;
+      else{
+        const legacy=U.sections.map(section=>({label:section.label,value:localStorage.getItem(U.memoKey(section.id))||''})).filter(item=>item.value.trim());
+        memo.value=legacy.map(item=>'【'+item.label+'】\n'+item.value).join('\n\n');
+        if(memo.value)localStorage.setItem(U.sharedMemoKey,memo.value);
+      }
+    }catch(_){note.textContent='端末保存が利用できません。この画面内のみ保持します。';}
+    memo.addEventListener('input',()=>{
+      try{localStorage.setItem(U.sharedMemoKey,memo.value);note.textContent='この端末に保存済み（ブラウザのデータ削除で消去）';}
+      catch(_){note.textContent='保存できませんでした。閉じる前にメモをコピーしてください。';}
+    });
+  }
   function buildUI(){
-    for(const [index,section] of U.sections.entries()){
-      const card=document.createElement('section');card.className='card';
-      const title=document.createElement('h2');title.textContent=String(index+1).padStart(2,'0')+' / '+section.label;card.append(title);
-      for(const sub of section.subs||[{id:section.id,label:''}])card.append(createPair(sub.id,sub.label));
-      const label=document.createElement('label');label.textContent='この端末のメモ';label.htmlFor='memo-'+section.id;
-      const memo=document.createElement('textarea');memo.id=label.htmlFor;memo.dataset.id=section.id;memo.rows=4;memo.placeholder='必要なことをメモ…';
-      const note=document.createElement('p');note.className='memo-note';note.id='note-'+section.id;note.textContent='ブラウザのデータを消すとメモも消えます。';
-      try{memo.value=preview?'':localStorage.getItem(U.memoKey(section.id))||'';}catch(_){note.textContent='端末保存が利用できません。この画面内のみ保持します。';}
-      memo.addEventListener('input',()=>{
-        if(preview){note.textContent='プレビューのメモは保存されません。';return;}
-        try{localStorage.setItem(U.memoKey(section.id),memo.value);note.textContent='この端末に保存済み（ブラウザのデータ削除で消去）';}
-        catch(_){note.textContent='保存できませんでした。閉じる前にメモをコピーしてください。';}
-      });
-      card.append(label,memo,note);$('sections').append(card);
-    }
+    for(const [index,group] of U.groups.entries())$('sections').append(createPair(group,index));
+    setupMemo();
     refreshButtons();
   }
   async function connect(){
@@ -98,7 +102,7 @@
     const field=btn.dataset.field;
     if(btn.dataset.action==='edit'){
       editField=field;returnFocus=btn;$('modal-input').value=links[field]||'';$('modal-error').textContent='';
-      const owner=U.sections.flatMap(s=>s.subs||[s]).find(s=>field.startsWith(s.id+'_'));
+      const owner=U.groups.find(s=>field.startsWith(s.id+'_'));
       $('modal-title').textContent=(owner?.label||'リンク')+' / '+(field.endsWith('_form')?'申請フォーム':'スプレッドシート');
       $('link-dialog').showModal();$('modal-input').focus();
     }else{

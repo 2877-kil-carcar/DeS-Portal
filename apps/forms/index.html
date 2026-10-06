@@ -4,15 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>申請フォーム一覧</title>
-<link rel="stylesheet" href="style.css?v=3.21">
+<link rel="stylesheet" href="style.css?v=3.22">
 <script src="../bridge.js" defer></script>
-<script src="core.js?v=3.21" defer></script>
-<script src="app.js?v=3.21" defer></script>
+<script src="core.js?v=3.22" defer></script>
+<script src="app.js?v=3.22" defer></script>
 </head>
 <body>
 <main>
 <header><h1>申請フォーム一覧</h1></header>
 <div class="sections" id="sections"></div>
+<section class="memo-card"><label for="memo">メモ</label><textarea id="memo" rows="5" placeholder="必要なことをメモ…"></textarea><p class="memo-note" id="memo-note">ブラウザのデータを消すとメモも消えます。</p></section>
 <div class="connection"><p id="status" role="status">共有リンクを読み込み中…</p><button id="retry" hidden>再接続</button></div>
 </main>
 <dialog id="link-dialog" aria-labelledby="modal-title">
