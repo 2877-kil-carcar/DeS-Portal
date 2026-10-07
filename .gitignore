@@ -1,3 +1,8 @@
 /.redeem-data/
 __pycache__/
 *.pyc
+node_modules/
+.wrangler/
+.dev.vars*
+.env*
+*service-account*.json

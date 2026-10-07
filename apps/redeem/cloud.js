@@ -65,5 +65,9 @@
   async function recordHistory(cdk, fid, result) {
     await historyRef.doc(historyId(cdk, fid)).set({cdk, fid: String(fid), msg: String(result.msg || ''), atText: new Date().toLocaleString('ja-JP'), updatedAt: firebase.firestore.FieldValue.serverTimestamp()});
   }
-  window.WOS_REDEEM_CLOUD = {connect, setPlayer, deletePlayer, recordHistory};
+  async function getIdToken() {
+    if (!auth.currentUser) throw Error('共有登録に接続してから実行してください。');
+    return auth.currentUser.getIdToken();
+  }
+  window.WOS_REDEEM_CLOUD = {connect, setPlayer, deletePlayer, recordHistory, getIdToken};
 })();

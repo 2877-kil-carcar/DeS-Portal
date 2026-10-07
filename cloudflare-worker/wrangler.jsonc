@@ -1,0 +1,18 @@
+{
+  "name": "des-giftcode-proxy",
+  "main": "automation-worker.mjs",
+  "compatibility_date": "2026-10-07",
+  "workers_dev": true,
+  "durable_objects": {"bindings": [{"name":"REDEEM_QUEUE","class_name":"RedeemQueue"}]},
+  "migrations": [{"tag":"gift-code-queue-v1","new_sqlite_classes":["RedeemQueue"]}],
+  "triggers": {"crons":["* * * * *"]},
+  "vars": {
+    "AUTOMATION_ENABLED": "true",
+    "DISCORD_ENABLED": "true",
+    "FIREBASE_API_KEY": "AIzaSyDpkyMsrC8_5Xif_GOQdYk1p0cuM9Aj1dY",
+    "DISCORD_GUILD_ID": "1371886406485540935",
+    "DISCORD_CHANNEL_ID": "1377263260029550742",
+    "DISCORD_AUTHOR_IDS": "",
+    "DISCORD_WEBHOOK_IDS": "1509347866823622737"
+  }
+}

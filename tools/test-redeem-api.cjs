@@ -3,6 +3,7 @@ class FakeFormData{constructor(){this.values=new Map();}append(key,value){this.v
 const requests=[];
 const fetch=async(url,options)=>{requests.push({url,options});return {ok:true,status:200,json:async()=>({err_code:40014,msg:'invalid code'})};};
 const context={window:{},TextEncoder,Int32Array,Math,Set,FormData:FakeFormData,AbortController,setTimeout,clearTimeout,fetch,Date,encodeURIComponent};
+vm.runInNewContext(fs.readFileSync('apps/redeem/protocol.js','utf8'),context,{filename:'protocol.js'});
 vm.runInNewContext(fs.readFileSync('apps/redeem/api.js','utf8'),context,{filename:'api.js'});
 const api=context.window.WOS_REDEEM_API;
 (async()=>{
