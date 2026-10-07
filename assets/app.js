@@ -13,34 +13,37 @@
   const storageKey = 'wos-toolbox.v2';
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch (_) { /* File/private mode can block persistence. */ }
-  let state = C.normalizeState(saved, heroes), currentView = 'joiners';
+  let state = C.normalizeState(saved, heroes), currentView = 'redeem';
   let toastTimer;
   const modules = [
-    { id: 'joiners', label: '乗り手選定', icon: '◈', eyebrow: 'RALLY WORKSPACE', title: '集結を、読み解く。', subtitle: '集結主の効果を見ながら、乗り手の役割を選ぶ。' },
-    { id: 'library', label: 'スキル図鑑', icon: '▤', eyebrow: 'HERO LIBRARY', title: '英雄の役割を、ひと目で。', subtitle: '第1〜8世代・SR＋SSR。説明と計算上の扱いを比較する。' },
     { id: 'battle', label: '戦闘ターン', icon: '⇄', eyebrow: 'COMBAT FIELD NOTES', title: '1ターンの、その中へ。', subtitle: '両軍が同時に動く仕組みを、ステップで確かめる。' },
     { id: 'sources', label: '出典・検証', icon: '◎', eyebrow: 'RESEARCH LOG', title: '根拠から、確かめる。', subtitle: '公式ルール・採用した本文・未確認事項を分けて記録。' },
     { id: 'bear', label:'熊罠配置', icon:'▦', path:'./apps/bear/index.html?v=3.30', title:'熊罠配置', eyebrow:'ALLIANCE LAYOUT', subtitle:'同盟の配置を確認・調整' },
     { id: 'canyon', label:'峡谷合戦', icon:'△', path:'./apps/canyon/index.html', title:'峡谷合戦', eyebrow:'CANYON CLASH', subtitle:'42レッスンの攻略ガイド' },
     { id: 'gallery', label:'もふもふギャラリー', icon:'♧', path:'./apps/gallery/index.html', title:'もふもふギャラリー', eyebrow:'THE FLUFFY HALL', subtitle:'同盟のもふもふコレクション' },
     { id: 'games', label:'ミニゲーム', icon:'♠', path:'./apps/games/index.html?v=3.30', title:'ミニゲーム', eyebrow:'PLAY TOGETHER', subtitle:'みんなで楽しむカードゲーム' },
+    { id: 'formation', label:'編成ツール', icon:'◫', path:'https://wos.henseiradar.com/', title:'編成ツール', eyebrow:'FORMATION RADAR', subtitle:'英雄・兵士の編成を確認' },
     { id: 'svs', label:'2856SvS補助ツール', icon:'⚑', path:'./apps/svs/index.html', title:'2856SvS補助ツール', eyebrow:'SVS OPERATIONS', subtitle:'参加管理・集結設定・振り分け・カウントアップ' },
     { id: 'forms', label:'申請フォーム一覧', icon:'▧', path:'./apps/forms/index.html?v=3.27', title:'申請フォーム一覧', eyebrow:'APPLICATION DESK', subtitle:'各種申請・スプレッドシート・端末メモ' },
     { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.27', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
   ].filter(m => !window.WOS_STANDALONE || !m.path);
-  const primaryNavigationIds = ['redeem', 'gallery', 'forms', 'bear', 'games'];
+  const primaryNavigationIds = ['redeem', 'gallery', 'forms', 'bear', 'games', 'formation'];
   const navigationModules=window.WOS_STANDALONE?modules:[...primaryNavigationIds.map(id=>modules.find(m=>m.id===id)),...modules.filter(m=>!primaryNavigationIds.includes(m.id))];
   const moduleFrames = new Map();
   const previewMode = new URLSearchParams(location.search).get('preview') === '1';
   let gamePath = '', navigationLock = false;
   function panelVisibility(id, active) {
-    moduleFrames.get(id)?.contentWindow?.postMessage({type:'wos:visibility',active},location.origin==='null'?'*':location.origin);
+    const frame = moduleFrames.get(id);
+    if (!frame) return;
+    const frameOrigin = new URL(frame.src, location.href).origin;
+    if (location.origin !== 'null' && frameOrigin !== location.origin) return;
+    frame.contentWindow?.postMessage({type:'wos:visibility',active},location.origin==='null'?'*':location.origin);
   }
   function mountModule(m) {
     if (!m.path || moduleFrames.has(m.id)) return;
     const panel=$('view-'+m.id), frame=document.createElement('iframe');
     frame.title=m.label;frame.className='module-frame';frame.setAttribute('referrerpolicy','same-origin');
-    const url=new URL(m.path,location.href);if(previewMode)url.searchParams.set('preview','1');frame.src=url.href;
+    const url=new URL(m.path,location.href);if(previewMode&&url.origin===location.origin)url.searchParams.set('preview','1');frame.src=url.href;
     frame.addEventListener('load',()=>{panel.querySelector('.embed-loading').hidden=true;panelVisibility(m.id,currentView===m.id);});
     moduleFrames.set(m.id,frame);panel.append(frame);
   }
@@ -144,7 +147,7 @@
   const mobileQuery = window.matchMedia('(max-width: 760px)');
   function closeMenu() { $('sidebar').classList.remove('open'); $('sidebar').inert = mobileQuery.matches; $('scrim').hidden = true; $('menu-toggle').setAttribute('aria-expanded','false'); }
   function navigate(id) {
-    const selected = modules.find(m=>m.id===id) || modules[0];
+    const selected = modules.find(m=>m.id===id) || navigationModules[0];
     if(currentView==='games'&&selected.id!=='games'&&/-game\.html$/.test(gamePath)&&!navigationLock){
       if(!confirm('対戦画面を離れます。進行中のゲームは残りますが、必要なら先にゲーム内で退室してください。別の機能へ移動しますか？')){navigationLock=true;location.hash='games';queueMicrotask(()=>navigationLock=false);return;}
     }
