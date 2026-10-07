@@ -376,8 +376,27 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .member-field { display: flex; margin-bottom: 10px; align-items: center; gap: 10px; }
 .member-field label { font-weight: 700; }
 #membersForm select { min-height: 42px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink); }
-#memberList > div:not(.name-dropdown-header) { min-height: 42px; display: flex; align-items: center; }
-#memberList .item { padding: 12px; border: 1px solid #dbe5ee; border-radius: 10px; background: #fff; color: #284a64; }
+#memberList { display: grid; gap: 8px; }
+.member-rank-group { overflow: hidden; border: 1px solid #d8e4ed; border-radius: 12px; background: #fff; }
+.member-rank-group summary {
+  display: flex;
+  min-height: 50px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  color: #284a64;
+  font-weight: 800;
+  list-style: none;
+}
+.member-rank-group summary::-webkit-details-marker { display: none; }
+.member-rank-group summary strong { margin-left: auto; color: #6b8295; font-size: 12px; }
+.member-rank-group summary::after { content: "⌄"; color: #6b8295; font-size: 18px; transform: rotate(-90deg); transition: transform .16s ease; }
+.member-rank-group[open] summary::after { transform: rotate(0); }
+.member-rank-group[open] summary { border-bottom: 1px solid #e2eaf0; background: #f7fafc; }
+.member-rank-rows { padding: 0 12px; }
+.member-list-row { display: flex; min-height: 46px; align-items: center; padding: 9px 4px; border-bottom: 1px solid #e7edf2; color: #284a64; }
+.member-list-row:last-child { border-bottom: 0; }
+.member-list-row:hover, .member-list-row:active { background: #f2f8fc; }
 
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; animation: none !important; transition: none !important; }

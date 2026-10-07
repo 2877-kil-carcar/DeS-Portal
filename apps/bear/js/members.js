@@ -200,6 +200,9 @@ if (!PREVIEW && connectionReady) onSnapshot(q, snap => {
     buildNameDropdown(nameInput.value.trim());
   }
 
+  const openRanks = new Set(
+    Array.from(list.querySelectorAll(".member-rank-group[open]"), group => group.dataset.rank)
+  );
   list.innerHTML = "";
 
   const sorted = snap.docs.sort((a, b) => {
@@ -209,45 +212,51 @@ if (!PREVIEW && connectionReady) onSnapshot(q, snap => {
     return a.data().name.localeCompare(b.data().name);
   });
 
-  const rankCounts = sorted.reduce((counts, docSnap) => {
+  const groupedMembers = sorted.reduce((groups, docSnap) => {
     const rank = docSnap.data().rank || "－";
-    counts.set(rank, (counts.get(rank) || 0) + 1);
-    return counts;
+    if (!groups.has(rank)) groups.set(rank, []);
+    groups.get(rank).push(docSnap);
+    return groups;
   }, new Map());
 
-  let currentRank = null;
+  groupedMembers.forEach((rankMembers, rank) => {
+    const group = document.createElement("details");
+    group.className = "member-rank-group";
+    group.dataset.rank = rank;
+    group.open = openRanks.has(rank);
 
-  sorted.forEach(docSnap => {
-    const d = docSnap.data();
-    const rank = d.rank || "－";
+    const summary = document.createElement("summary");
+    const rankLabel = document.createElement("span");
+    rankLabel.textContent = rank;
+    const rankCount = document.createElement("strong");
+    rankCount.textContent = `${rankMembers.length}人`;
+    summary.append(rankLabel, rankCount);
+    group.appendChild(summary);
 
-    if (rank !== currentRank) {
-      const header = document.createElement("div");
-      header.textContent = `${rank}（${rankCounts.get(rank) || 0}人）`;
-      header.style.fontWeight = "bold";
-      header.style.color = "#facc15";
-      header.style.marginTop = currentRank === null ? "4px" : "12px";
-      header.style.marginBottom = "4px";
-      list.appendChild(header);
-      currentRank = rank;
-    }
+    const rows = document.createElement("div");
+    rows.className = "member-rank-rows";
 
-    const div = document.createElement("div");
-    div.style.padding = "6px 8px";
-    div.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
-    div.style.cursor = isAdmin ? "pointer" : "default";
-    div.textContent = d.name;
+    rankMembers.forEach(docSnap => {
+      const d = docSnap.data();
+      const div = document.createElement("div");
+      div.className = "member-list-row";
+      div.style.cursor = isAdmin ? "pointer" : "default";
+      div.textContent = d.name;
 
-    if (isAdmin) {
-      div.onclick = async () => {
-        if (confirm("削除する？")) {
-          try { await deleteDoc(doc(db, "members", docSnap.id)); }
-          catch (_) { alert('削除できませんでした。通信・権限を確認してください。'); }
-        }
-      };
-    }
+      if (isAdmin) {
+        div.onclick = async () => {
+          if (confirm("削除する？")) {
+            try { await deleteDoc(doc(db, "members", docSnap.id)); }
+            catch (_) { alert('削除できませんでした。通信・権限を確認してください。'); }
+          }
+        };
+      }
 
-    list.appendChild(div);
+      rows.appendChild(div);
+    });
+
+    group.appendChild(rows);
+    list.appendChild(group);
   });
 }, () => { list.textContent='同盟員を読み込めません。通信・権限を確認してください。'; });
 
