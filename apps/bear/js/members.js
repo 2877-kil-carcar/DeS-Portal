@@ -51,6 +51,12 @@ nameDropdown.addEventListener("touchmove", (e) => {
 function buildNameDropdown(filter) {
   nameDropdown.innerHTML = "";
 
+  const rankCounts = window._docs.reduce((counts, docSnap) => {
+    const rank = docSnap.data().rank || "－";
+    counts.set(rank, (counts.get(rank) || 0) + 1);
+    return counts;
+  }, new Map());
+
   const filtered = window._docs
     .filter(d => filter === "" || d.data().name.toLowerCase().includes(filter.toLowerCase()))
     .sort((a, b) => {
@@ -77,7 +83,7 @@ function buildNameDropdown(filter) {
 
     if (rank !== currentRank) {
       const header = document.createElement("div");
-      header.textContent = rank;
+      header.textContent = `${rank}（${rankCounts.get(rank) || 0}人）`;
       header.className = "name-dropdown-header";
       nameDropdown.appendChild(header);
       currentRank = rank;
@@ -203,6 +209,12 @@ if (!PREVIEW && connectionReady) onSnapshot(q, snap => {
     return a.data().name.localeCompare(b.data().name);
   });
 
+  const rankCounts = sorted.reduce((counts, docSnap) => {
+    const rank = docSnap.data().rank || "－";
+    counts.set(rank, (counts.get(rank) || 0) + 1);
+    return counts;
+  }, new Map());
+
   let currentRank = null;
 
   sorted.forEach(docSnap => {
@@ -211,7 +223,7 @@ if (!PREVIEW && connectionReady) onSnapshot(q, snap => {
 
     if (rank !== currentRank) {
       const header = document.createElement("div");
-      header.textContent = rank;
+      header.textContent = `${rank}（${rankCounts.get(rank) || 0}人）`;
       header.style.fontWeight = "bold";
       header.style.color = "#facc15";
       header.style.marginTop = currentRank === null ? "4px" : "12px";
