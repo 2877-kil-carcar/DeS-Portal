@@ -279,20 +279,31 @@ function renderPlayers(){
   let html = `
   <h2>プレイヤー登録</h2>
 
-  <input id="playerName" placeholder="プレイヤー名" oninput="checkAddInput('playerName','addPlayerBtn')">
+  <section class="player-copy-tools" aria-label="同盟集計コピー">
+    <h3>集計コピー</h3>
+    <div class="player-copy-buttons">
+      <button onclick="copyAllianceCounts(window._allianceGroups)">参加人数</button>
+      <button onclick="copyAllianceFcCounts(window._allianceGroups)">参加FC数</button>
+      <button onclick="copyAllianceT11Counts(window._allianceGroups)">T11保有数</button>
+    </div>
+  </section>
 
-  <select id="playerGroup">
-  ${groupOptions("")}
-  </select>
-
-  <select id="playerAlliance">
-  ${allianceOptions()}
-  </select>
-
-  <button id="addPlayerBtn" onclick="addPlayer()" disabled>追加</button>
-  <button onclick="copyAllianceCounts(window._allianceGroups)">同盟参加人数コピー</button>
-  <button onclick="copyAllianceFcCounts(window._allianceGroups)">同盟参加FC数コピー</button>
-  <button onclick="copyAllianceT11Counts(window._allianceGroups)">同盟参加T11保有数コピー</button>
+  <section class="player-add-form" aria-label="プレイヤーの新規登録">
+    <label class="player-name-field">プレイヤー名
+      <input id="playerName" placeholder="プレイヤー名を入力" oninput="checkAddInput('playerName','addPlayerBtn')">
+    </label>
+    <label>グループ
+      <select id="playerGroup">
+      ${groupOptions("")}
+      </select>
+    </label>
+    <label>同盟
+      <select id="playerAlliance">
+      ${allianceOptions()}
+      </select>
+    </label>
+    <button id="addPlayerBtn" onclick="addPlayer()" disabled>追加</button>
+  </section>
   
   <hr>
 

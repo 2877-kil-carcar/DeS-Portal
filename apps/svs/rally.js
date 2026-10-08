@@ -291,7 +291,8 @@ function renderRally(){
   let html = `
   <h2>集結設定</h2>
 
-  集結主
+  <div class="rally-form-fields">
+  <label class="rally-form-field">集結主
   <select id="rallyLeader">
   `
 
@@ -327,17 +328,22 @@ function renderRally(){
   })
 
   html += `
-  </select>
+  </select></label>
 
-  行軍時間
-  <input id="marchTime" type="number" min="0">
+  <label class="rally-form-field">行軍時間
+    <span class="march-time-input"><input id="marchTime" type="number" min="0"><small>秒</small></span>
+  </label>
 
-  割合
-  <input id="rate1" class="rate-input" type="number" min="0" max="100">
-  .
-  <input id="rate2" class="rate-input" type="number" min="0" max="100">
-  .
-  <input id="rate3" class="rate-input" type="number" min="0" max="100">
+  <label class="rally-form-field">割合
+    <span class="rate-fields">
+      <input id="rate1" class="rate-input" type="number" min="0" max="100" aria-label="盾の割合">
+      <span>.</span>
+      <input id="rate2" class="rate-input" type="number" min="0" max="100" aria-label="槍の割合">
+      <span>.</span>
+      <input id="rate3" class="rate-input" type="number" min="0" max="100" aria-label="弓の割合">
+    </span>
+  </label>
+  </div>
   `
 
   html += `
