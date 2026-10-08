@@ -38,3 +38,31 @@ export async function discordMessages(env, query = '') {
   }
   return response.json();
 }
+
+function failureGroup(message = '') {
+  if (/サーバービジー|操作頻度|頻度制限/.test(message)) return 'サーバービジー';
+  if (/条件|レベル不足|登録期間|専用コード/.test(message)) return '条件未達';
+  if (/結果未確認|通信/.test(message)) return '結果未確認';
+  return 'その他';
+}
+
+export function notificationText(job) {
+  const summary=job.summary || {total:job.targets.length,success:job.targets.filter(p=>['done','skipped'].includes(p.status)).length,
+    failed:job.targets.filter(p=>p.status==='failed').length,unknown:job.targets.filter(p=>p.status==='unknown').length};
+  const unresolved=job.targets.filter(p=>['failed','unknown'].includes(p.status));
+  const groups=new Map();
+  for(const player of unresolved){const label=failureGroup(player.msg);groups.set(label,(groups.get(label)||0)+1);}
+  const headline=`⚠️ ${job.code}：${summary.total}人中${summary.success}人成功、${summary.failed+summary.unknown}人失敗`;
+  const reasons=[...groups].map(([label,count])=>`${label}：${count}人`).join('／');
+  return reasons ? `${headline}\n${reasons}` : headline;
+}
+
+export async function notifyDiscord(env, job) {
+  const channel=env.DISCORD_NOTIFY_CHANNEL_ID || env.DISCORD_CHANNEL_ID;
+  const response=await fetch(`https://discord.com/api/v10/channels/${channel}/messages`, {
+    method:'POST',headers:{Authorization:`Bot ${env.DISCORD_BOT_TOKEN}`,'Content-Type':'application/json'},
+    body:JSON.stringify({content:notificationText(job),allowed_mentions:{parse:[]}}),signal:AbortSignal.timeout(15000)
+  });
+  if(!response.ok){const error=Error(`Discord通知に失敗しました（HTTP ${response.status}）。`);error.retryAfter=Number(response.headers.get('retry-after'))||60;throw error;}
+  return response.json();
+}

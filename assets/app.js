@@ -25,11 +25,12 @@
     { id: 'formation', label:'編成ツール', icon:'◫', path:'https://wos.henseiradar.com/', title:'編成ツール', eyebrow:'FORMATION RADAR', subtitle:'英雄・兵士の編成を確認' },
     { id: 'svs', label:'2856SvS補助ツール', icon:'⚑', path:'./apps/svs/index.html', title:'2856SvS補助ツール', eyebrow:'SVS OPERATIONS', subtitle:'参加管理・集結設定・振り分け・カウントアップ' },
     { id: 'forms', label:'申請フォーム一覧', icon:'▧', path:'./apps/forms/index.html?v=3.27', title:'申請フォーム一覧', eyebrow:'APPLICATION DESK', subtitle:'各種申請・スプレッドシート・端末メモ' },
-    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.32', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
+    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.33', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
   ].filter(m => !window.WOS_STANDALONE || !m.path);
   const primaryNavigationIds = ['redeem', 'gallery', 'forms', 'bear', 'games', 'formation'];
   const navigationModules=window.WOS_STANDALONE?modules:[...primaryNavigationIds.map(id=>modules.find(m=>m.id===id)),...modules.filter(m=>!primaryNavigationIds.includes(m.id))];
   const moduleFrames = new Map();
+  let redeemAlertCount = 0;
   const previewMode = new URLSearchParams(location.search).get('preview') === '1';
   let gamePath = '', navigationLock = false;
   function panelVisibility(id, active) {
@@ -50,7 +51,11 @@
   addEventListener('message',event=>{
     if(location.origin!=='null'&&event.origin!==location.origin)return;
     const record=[...moduleFrames.entries()].find(([,frame])=>frame.contentWindow===event.source);
-    if(!record||event.data?.type!=='wos:ready')return;
+    if(!record)return;
+    if(record[0]==='redeem'&&event.data?.type==='wos:redeem-alert'){
+      redeemAlertCount=Math.max(0,Number(event.data.count)||0);renderRedeemAlert();return;
+    }
+    if(event.data?.type!=='wos:ready')return;
     if(record[0]==='games')gamePath=String(event.data.path||'');
     panelVisibility(record[0],currentView===record[0]);
   });
@@ -58,6 +63,7 @@
     try { localStorage.setItem(storageKey, JSON.stringify(state)); $('save-status').textContent = 'この端末に保存済み'; }
     catch (_) { $('save-status').textContent = 'この環境では保存できません（操作は可能）'; }
   }
+  function renderRedeemAlert(){document.querySelectorAll('[data-redeem-alert]').forEach(node=>{node.textContent=redeemAlertCount>99?'99+':String(redeemAlertCount);node.hidden=redeemAlertCount===0;});}
   function toast(message) {
     clearTimeout(toastTimer); $('toast').textContent = message; $('toast').hidden = false;
     toastTimer = setTimeout(() => { $('toast').hidden = true; }, 3400);
@@ -192,9 +198,10 @@
   }
 
   // Register new modules here; shell, routes and navigation are shared.
-  $('navigation').innerHTML=navigationModules.map((m,i)=>`<button class="nav-button" data-nav="${m.id}"><span class="nav-icon" aria-hidden="true">${m.icon}</span>${m.label}<span class="nav-num">0${i+1}</span></button>`).join('');
+  $('navigation').innerHTML=navigationModules.map((m,i)=>`<button class="nav-button" data-nav="${m.id}"><span class="nav-icon" aria-hidden="true">${m.icon}</span>${m.label}${m.id==='redeem'?'<span class="nav-alert" data-redeem-alert hidden>0</span>':''}<span class="nav-num">0${i+1}</span></button>`).join('');
   const dockIds=window.WOS_STANDALONE?['joiners','library','battle','sources']:['redeem','gallery','forms','bear'];
-  $('mobile-dock').innerHTML=dockIds.map(id=>{const m=modules.find(x=>x.id===id);return `<button data-nav="${id}" aria-pressed="false"><span aria-hidden="true">${m.icon}</span>${id==='gallery'?'ギャラリー':m.label}</button>`;}).join('')+'<button id="dock-menu"><span aria-hidden="true">☰</span>一覧</button>';
+  $('mobile-dock').innerHTML=dockIds.map(id=>{const m=modules.find(x=>x.id===id);return `<button data-nav="${id}" aria-pressed="false"><span aria-hidden="true">${m.icon}</span>${id==='gallery'?'ギャラリー':m.label}${id==='redeem'?'<span class="nav-alert" data-redeem-alert hidden>0</span>':''}</button>`;}).join('')+'<button id="dock-menu"><span aria-hidden="true">☰</span>一覧</button>';
+  renderRedeemAlert();
   const generations=Array.from({length:8},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('');
   $('generation').innerHTML=Array.from({length:8},(_,i)=>`<option value="${i+1}">Gen ${i+1}</option>`).join('');
   $('library-generation').innerHTML=generations;$('library-generation').value=state.generation;

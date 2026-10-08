@@ -9,20 +9,26 @@
   const jobs=globalThis.WOS_REDEEM_JOBS;
   let serverBatch=false,jobTimer=null,selectedCode='',currentJob=null;
   const statusNames={pending:'待機中',processing:'交換中',completed:'完了',failed:'要確認',cancelled:'中止'};
+  const summaryOf=job=>job?.summary||{total:job?.targets?.length||0,success:(job?.targets||[]).filter(p=>['done','skipped'].includes(p.status)).length,failed:(job?.targets||[]).filter(p=>p.status==='failed').length,unknown:(job?.targets||[]).filter(p=>p.status==='unknown').length};
+  function notifyShell(count){if(globalThis.parent&&globalThis.parent!==globalThis.window)globalThis.parent.postMessage({type:'wos:redeem-alert',count},location.origin==='null'?'*':location.origin);}
   function showJob(job) {
     currentJob=job;
     const retryButton=$('resumeBtn');
-    retryButton.hidden=!job||['pending','processing'].includes(job.status);
     if(!job)return;
+    const summary=summaryOf(job),unresolved=summary.failed+summary.unknown;
+    retryButton.hidden=['pending','processing'].includes(job.status)||unresolved===0;
+    retryButton.textContent=`失敗した${unresolved}人だけ再実行`;
     selectedCode=job.code;
     running=['pending','processing'].includes(job.status);busy=running;stop=Boolean(job.stop_requested);
     results.clear();
     for(const p of job.targets)results.set(p.fid,{cls:['done','skipped'].includes(p.status)?'ok':['failed','unknown'].includes(p.status)?'ng':'muted',msg:p.msg||({pending:'待機中',sending:'交換中…',recording:'交換結果を保存中…'}[p.status]||'')});
     const finished=job.targets.filter(p=>['done','skipped','failed','unknown'].includes(p.status)).length;
-    const success=job.targets.filter(p=>['done','skipped'].includes(p.status)).length;
-    const failed=job.targets.filter(p=>['failed','unknown'].includes(p.status)).length;
     $('batch-progress').max=Math.max(1,job.targets.length);$('batch-progress').value=finished;
-    $('progress').textContent=`${statusNames[job.status]||job.status}：${finished}/${job.targets.length}人（成功・記録済 ${success} / 要確認 ${failed}）`+(job.error?' '+job.error:'');
+    $('progress').textContent=`${statusNames[job.status]||job.status}：${finished}/${job.targets.length}人（成功 ${summary.success} / 失敗 ${summary.failed} / 未確認 ${summary.unknown}）`+(job.error?' '+job.error:'');
+    const final=!['pending','processing'].includes(job.status),failures=job.targets.filter(p=>['failed','unknown'].includes(p.status));
+    $('job-summary').hidden=!final;
+    $('job-summary-counts').textContent=final?`${job.code}：成功${summary.success}／失敗${summary.failed}／未確認${summary.unknown}`:'';
+    $('job-failures').innerHTML=failures.length?failures.map(p=>`<div class="failure-row"><strong>${esc(p.name||p.fid||'名前なし')}</strong><span>${esc(p.msg||'理由を確認できません')}</span></div>`).join(''):'<p class="empty compact">未解決の失敗はありません。</p>';
     render();
   }
   async function refreshJobs() {
@@ -30,10 +36,11 @@
     try {
       const response=await jobs.list();
       const latest=response.jobs||[];
+      notifyShell(Number.isFinite(Number(response.unresolved))?Number(response.unresolved):latest.reduce((count,job)=>count+(['pending','processing'].includes(job.status)?0:summaryOf(job).failed+summaryOf(job).unknown),0));
       $('jobs-panel').hidden=false;
       const monitor=response.discord||{};
       $('discord-status').textContent=!monitor.enabled?'自動取得：設定待ち':monitor.status==='failed'?'自動取得：接続を確認してください。 '+(monitor.message||''):monitor.checked_at?'自動取得：最終確認 '+new Date(monitor.checked_at).toLocaleString('ja-JP'):'自動取得：初回接続待ち';
-      $('jobs-list').innerHTML=latest.length?latest.map(job=>`<button class="secondary" data-job="${esc(job.code)}">${esc(job.code)} · ${esc(statusNames[job.status]||job.status)}</button>`).join(' '):'<p class="empty">一括交換の記録はまだありません。</p>';
+      $('jobs-list').innerHTML=latest.length?latest.map(job=>{const unresolved=summaryOf(job).failed+summaryOf(job).unknown;return `<button class="secondary" data-job="${esc(job.code)}">${esc(job.code)} · ${esc(statusNames[job.status]||job.status)}${unresolved?` · 要確認 ${unresolved}`:''}</button>`;}).join(' '):'<p class="empty">一括交換の記録はまだありません。</p>';
       const current=latest.find(j=>j.code===selectedCode);
       if(current)showJob(current);
       else if(selectedCode){const detail=await jobs.get(selectedCode);if(detail.job)showJob(detail.job);}
@@ -45,7 +52,8 @@
     if(busy||!connected||preview)return;
     const code=$('cdk').value.trim();if(!code){$('cdk').focus();return;}
     const unknown=retry&&currentJob?.targets.some(p=>p.status==='unknown');
-    const message=retry?'未完了分と新規登録分を再実行しますか？'+(unknown?'\n結果未確認分があります。ゲーム内の受取状況を確認してから進めてください。':''):`コード「${code}」の一括交換を開始しますか？\n登録済み全員を対象に、記録済みのプレイヤーはスキップします。`;
+    const unresolved=currentJob?summaryOf(currentJob).failed+summaryOf(currentJob).unknown:0;
+    const message=retry?`失敗した${unresolved}人だけ再実行しますか？`+(unknown?'\n結果未確認分があります。ゲーム内の受取状況を確認してから進めてください。':''):`コード「${code}」の一括交換を開始しますか？\n登録済み全員を対象に、記録済みのプレイヤーはスキップします。`;
     if(!confirm(message))return;
     busy=true;render();
     try{const response=await jobs.start(code,retry,Boolean(unknown));selectedCode=code;showJob(response.job);await refreshJobs();}

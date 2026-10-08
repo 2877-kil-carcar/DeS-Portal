@@ -3,23 +3,24 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {RedeemQueue,normalizeCode} from '../cloudflare-worker/batch-queue.mjs';
 import worker from '../cloudflare-worker/automation-worker.mjs';
-import {extractCodes,trustedMessage} from '../cloudflare-worker/discord.mjs';
+import {extractCodes,trustedMessage,notificationText} from '../cloudflare-worker/discord.mjs';
 import {verifyFirebaseToken,secretMatches,loadTargets,writeHistory} from '../cloudflare-worker/services.mjs';
 
 function fixture(overrides={}) {
   const db=new DatabaseSync(':memory:');let alarm=null;
   const ctx={storage:{sql:{exec(query,...args){return db.prepare(query).all(...args);}},
     getAlarm:async()=>alarm,setAlarm:async value=>{alarm=value;},deleteAlarm:async()=>{alarm=null;}}};
-  const exchanges=[],history=[];
+  const exchanges=[],history=[],notifications=[];
   const players=[{fid:'123',kid:'2856',name:'A',status:'pending',attempts:0},{fid:'456',kid:'2856',name:'B',status:'pending',attempts:0}];
   const queue=new RedeemQueue(ctx,{}, {
     loadTargets:async()=>structuredClone(players),
     redeemPlayer:async(_env,code,p)=>{exchanges.push([code,p.fid]);return {done:true,msg:'交換成功',retry:false};},
-    writeHistory:async(_env,code,p,result)=>history.push([code,p.fid,result]),...overrides
+    writeHistory:async(_env,code,p,result)=>history.push([code,p.fid,result]),
+    notifyDiscord:async(_env,job)=>notifications.push(notificationText(job)),...overrides
   });
   async function tick(){const row=queue.rows("SELECT code FROM gift_codes WHERE status IN ('pending','processing') LIMIT 1")[0];if(row){const job=queue.get(row.code);job.next_at=0;queue.save(job);}await queue.alarm();}
   async function drain(){for(let i=0;i<20;i++){if(!queue.rows("SELECT code FROM gift_codes WHERE status IN ('pending','processing') LIMIT 1").length)return;await tick();}throw Error('queue did not finish');}
-  return {queue,ctx,db,exchanges,history,players,tick,drain,alarm:()=>alarm};
+  return {queue,ctx,db,exchanges,history,notifications,players,tick,drain,alarm:()=>alarm};
 }
 
 assert.equal(normalizeCode(' AbC_123 '),'AbC_123');
@@ -53,6 +54,20 @@ assert.equal(trustedMessage({...post,webhook_id:'foreign'},{DISCORD_CHANNEL_ID:'
   let count=0;
   const f=fixture({redeemPlayer:async()=>{count++;return {done:false,retry:true,msg:'頻度制限'};}});
   await f.queue.submit('RATE123',{type:'discord'});await f.drain();assert.equal(count,6);assert.equal(f.queue.get('RATE123').status,'failed');
+  const summary=f.queue.get('RATE123').summary;assert.deepEqual(summary,{total:2,success:0,failed:2,unknown:0});
+  await f.tick();assert.equal(f.notifications.length,1);assert.equal(f.notifications[0],'⚠️ RATE123：2人中0人成功、2人失敗\nサーバービジー：2人');
+}
+{
+  let fail=true;
+  const f=fixture({redeemPlayer:async(_env,code,p)=>{f.exchanges.push([code,p.fid]);return p.fid==='456'&&fail?{done:false,retry:false,msg:'条件未達：レベル不足'}:{done:true,retry:false,msg:'交換成功'};}});
+  await f.queue.submit('PARTIAL123',{type:'manual'});await f.drain();
+  let job=f.queue.get('PARTIAL123');assert.deepEqual(job.summary,{total:2,success:1,failed:1,unknown:0});
+  assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,1);
+  assert.equal(job.targets.find(p=>p.fid==='456').name,'B');await f.tick();
+  assert.equal(f.notifications[0],'⚠️ PARTIAL123：2人中1人成功、1人失敗\n条件未達：1人');
+  fail=false;await f.queue.submit('PARTIAL123',{type:'manual'},true);await f.drain();job=f.queue.get('PARTIAL123');
+  assert.deepEqual(job.summary,{total:2,success:2,failed:0,unknown:0});
+  assert.deepEqual(f.exchanges,[['PARTIAL123','123'],['PARTIAL123','456'],['PARTIAL123','456']]);
 }
 {
   let count=0;

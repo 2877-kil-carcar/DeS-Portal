@@ -20,12 +20,14 @@ async function scenario(unavailable=false){
   if(unavailable){assert.equal(node('startBtn').disabled,true);assert.equal(calls.length,0);return;}
   assert.equal(node('startBtn').disabled,false);node('cdk').value='ABC123';await node('startBtn').handlers.click();
   assert.deepEqual(calls[0],['start','ABC123',false,false]);assert.equal(node('stopBtn').disabled,false);
-  await node('stopBtn').handlers.click();assert.deepEqual(calls[1],['cancel','ABC123']);assert.equal(node('resumeBtn').hidden,false);
-  await node('resumeBtn').handlers.click();assert.deepEqual(calls[2],['start','ABC123',true,false]);
+  await node('stopBtn').handlers.click();assert.deepEqual(calls[1],['cancel','ABC123']);assert.equal(node('resumeBtn').hidden,true);
+  current={...current,status:'failed',summary:{total:1,success:0,failed:1,unknown:0},targets:[{fid:'123',name:'sample',status:'failed',msg:'サーバービジー'}]};
+  await [...timers.values()].find(t=>t.ms===8000).fn();assert.equal(node('resumeBtn').hidden,false);assert.equal(node('resumeBtn').textContent,'失敗した1人だけ再実行');
+  assert.ok(node('job-summary-counts').textContent.includes('成功0／失敗1／未確認0'));assert.ok(node('job-failures').innerHTML.includes('sample'));await node('resumeBtn').handlers.click();assert.deepEqual(calls[2],['start','ABC123',true,false]);
   current={...current,status:'failed',targets:[{fid:'123',status:'unknown',msg:'結果未確認'}]};
   await [...timers.values()].find(t=>t.ms===8000).fn();
   assert.ok(node('list').innerHTML.includes('結果未確認'));await node('resumeBtn').handlers.click();assert.deepEqual(calls[3],['start','ABC123',true,true]);
   current={...current,status:'completed',targets:[{fid:'123',status:'done',msg:'成功'}]};
-  await [...timers.values()].find(t=>t.ms===8000).fn();assert.equal(node('stopBtn').disabled,true);assert.ok(node('progress').textContent.includes('成功・記録済 1'));
+  await [...timers.values()].find(t=>t.ms===8000).fn();assert.equal(node('stopBtn').disabled,true);assert.ok(node('progress').textContent.includes('成功 1 / 失敗 0 / 未確認 0'));
 }
 (async()=>{await scenario();await scenario(true);console.log('PASS shared server UI: submit, live results, stop, retry, uncertain-result confirmation, fail-closed on unavailable server');})().catch(error=>{console.error(error);process.exitCode=1;});
