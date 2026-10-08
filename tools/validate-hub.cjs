@@ -93,9 +93,10 @@ test('bear member UI omits furnace data and uses the expanded mobile sheet',()=>
 });
 test('gift code, gallery and forms lead navigation without changing default module',()=>{
  const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8'),css=fs.readFileSync(path.join(root,'assets/app.css'),'utf8');
- assert.ok(app.includes("navigationModules=window.WOS_STANDALONE?modules:[modules.find(m=>m.id==='redeem'),modules.find(m=>m.id==='gallery'),modules.find(m=>m.id==='forms')"));
+ assert.ok(app.includes("const primaryNavigationIds = ['redeem', 'gallery', 'forms', 'bear', 'games', 'formation', 'svs']"));
+ assert.ok(app.includes('primaryNavigationIds.map(id=>modules.find(m=>m.id===id))'));
  assert.ok(app.includes("['redeem','gallery','forms','bear']"));
- assert.ok(app.includes("let state = C.normalizeState(saved, heroes), currentView = 'joiners'"));
+ assert.ok(app.includes("let state = C.normalizeState(saved, heroes), currentView = 'redeem'"));
  assert.ok(html.includes('brand-name">DeS</span><span class="brand-row"><span class="brand-mark"'));assert.ok(html.includes('brand-title">ポータル'));assert.ok(html.includes('<div class="nav-label">メニュー</div>'));assert.ok(fs.existsSync(path.join(root,'assets/pepper-portal.jpg')));
  assert.ok(css.includes('.brand{width:100%;padding:0 3px;gap:9px;flex-direction:column'));assert.ok(css.includes('.brand-name{display:block;width:100%;text-align:center'));assert.ok(css.includes('font-size:82px'));assert.ok(css.includes('.brand-row{display:flex;align-items:center;gap:9px'));assert.ok(css.includes('.brand-title{display:block;line-height:1.15;font-size:26px'));assert.ok(css.includes('.brand-mark{width:70px;height:78px;flex:0 0 70px'));assert.ok(css.includes('.brand-mark::before'));
 });

@@ -78,6 +78,7 @@ function renderHeroes(){
   <table>
   <tr>
   <th>英雄</th>
+  <th>世代</th>
   <th></th>
   </tr>
   `
@@ -86,6 +87,7 @@ function renderHeroes(){
     html += `
     <tr>
     <td>${escapeHtml(h.name)}</td>
+    <td>${h.generation ? `S${h.generation}` : '追加登録'}</td>
     <td><button onclick="deleteHero('${h.id}')">削除</button></td>
     </tr>
     `

@@ -87,6 +87,7 @@ async function connectedForms(){
  await test('SvS preview never loads SDK or performs writes, but calculations work',async()=>{
   const s=svs();s.run('hub-runtime.js');s.ctx.showTab=()=>{};s.run('boot.js');
   assert.equal(s.node('head').children.length,0);assert.ok(s.node('syncStatus').textContent.includes('プレビュー'));
+  assert.deepEqual(JSON.parse(JSON.stringify(s.ctx.getState('heroes'))),[{id:'sample-hero',name:'エイダン',generation:17}]);
   assert.equal(s.ctx.getState('players').length,2);await s.ctx.addPlayer();assert.ok(s.alerts.at(-1).includes('プレビュー'));assert.equal(s.batches.length,0);
   s.ctx.assign();assert.ok(s.ctx.copyData['sample-lead'].includes('サンプル参加者'));
  });
@@ -132,6 +133,11 @@ async function connectedForms(){
   const app=read('assets/app.js'),html=read('index.html'),svsHtml=read('apps/svs/index.html');
   for(const id of ['svs','forms']){assert.ok(app.includes("id: '"+id+"'"));assert.ok(html.includes('id="view-'+id+'"'));}
   for(const id of ['heroes','groups','alliances','players','playerHeroes','rally','result','countupTab','userMgmt','logTab'])assert.ok(svsHtml.includes('id="'+id+'"'));
+  assert.ok(app.includes("'games', 'formation', 'svs'"));
+  assert.ok(html.includes('GEN 01 — 17'));
+  assert.equal((svsHtml.match(/id="syncStatus"/g)||[]).length,1);
+  assert.ok(svsHtml.indexOf('id="syncStatus"')>svsHtml.indexOf('id="countupTab"'));
+  assert.ok(read('apps/svs/heroes.js').includes('<th>世代</th>'));
  });
  console.log(count+' SvS/forms offline test groups passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});

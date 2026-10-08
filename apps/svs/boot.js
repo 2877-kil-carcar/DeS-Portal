@@ -61,11 +61,11 @@ function startRealtimeSync(){
 async function bootSvs(){
   if(booting)return;
   if(window.SVS_PREVIEW){
-    setState('heroes',[{id:'sample-hero',name:'ジェシー'}]);
+    setState('heroes',[{id:'sample-hero',name:'エイダン',generation:17}]);
     setState('groups',[{id:'sample-group',name:'サンプル班'}]);
     setState('alliances',[{id:'sample-alliance',name:'SAMPLE'}]);
-    setState('players',[{id:'sample-lead',name:'サンプル集結主',alliance:'SAMPLE',group:'サンプル班',heroes:[],active:true,joinTime:'21:00',t11:[]},{id:'sample-joiner',name:'サンプル参加者',alliance:'SAMPLE',group:'サンプル班',heroes:['ジェシー'],active:true,joinTime:'21:00',t11:[]}]);
-    setState('rallies',[{id:'sample-rally',leaderId:'sample-lead',rate:'60.20.20',marchTime:30,heroes:[{hero:'ジェシー',need:1}],active:true}]);
+    setState('players',[{id:'sample-lead',name:'サンプル集結主',alliance:'SAMPLE',group:'サンプル班',heroes:[],active:true,joinTime:'21:00',t11:[]},{id:'sample-joiner',name:'サンプル参加者',alliance:'SAMPLE',group:'サンプル班',heroes:['エイダン'],active:true,joinTime:'21:00',t11:[]}]);
+    setState('rallies',[{id:'sample-rally',leaderId:'sample-lead',rate:'60.20.20',marchTime:30,heroes:[{hero:'エイダン',need:1}],active:true}]);
     setSyncStatus('プレビュー：サンプルのみ。共有DB・認証・メールへ接続しません。','ready');return;
   }
   const generation=++bootGeneration;

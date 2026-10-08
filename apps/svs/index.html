@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>2856SvS補助ツール</title>
 <link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="hub.css">
+<link rel="stylesheet" href="hub.css?v=3.34">
+<style>.sync-footer{display:flex;align-items:center;gap:10px;margin-top:28px;padding-top:18px;border-top:1px solid var(--line)}.sync-footer .sync-status{flex:1}@media(max-width:600px){.sync-footer{align-items:stretch;flex-direction:column}.sync-footer button{width:100%}}</style>
 <script src="../bridge.js" defer></script>
 <script src="safe-ui.js"></script>
 </head>
@@ -49,7 +50,6 @@
   <button onclick="showLoginPopup('admin')">管理者ログイン</button>
   <span id="currentUserLabel" style="font-size:13px;color:#aaa;"></span>
 </div>
-<div id="syncStatus" class="sync-status" role="status">接続準備中…</div><button id="retrySync" hidden>再接続</button>
 <p class="tool-help">参加者の管理から集結の振り分けまで。表は左右にスワイプできます。</p>
 <div class="tabs" role="navigation" aria-label="SvS機能">
 <button class="tab-btn" onclick="showTab('heroes')">英雄</button>
@@ -123,7 +123,7 @@ function showTab(tabId){
 <script src="auth.js"></script>
 <script src="users.js"></script>
 <script src="log.js"></script>
-<script src="heroes.js"></script>
+<script src="heroes.js?v=3.34"></script>
 <script src="groups.js"></script>
 <script src="players.js"></script>
 <script src="alliances.js"></script>
@@ -139,7 +139,9 @@ function showTab(tabId){
 <!-- ★ディスティニー用グローバルネオン -->
 <div id="destiny-global-overlay"></div>
 
+<div class="sync-footer"><div id="syncStatus" class="sync-status" role="status">接続準備中…</div><button id="retrySync" hidden>再接続</button></div>
+
 <script src="hub-runtime.js"></script>
-<script src="boot.js"></script>
+<script src="boot.js?v=3.34"></script>
 </body>
 </html>
