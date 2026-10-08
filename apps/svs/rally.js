@@ -381,7 +381,9 @@ function renderRally(){
 
   Object.keys(rallyGroups).sort((a,b)=>a.localeCompare(b)).forEach(alliance=>{
 
-    html += `<h3>${escapeHtml(alliance)}</h3>`
+    const activeCount = rallyGroups[alliance].filter(rally=>rally.active).length
+    html += `<details class="svs-fold alliance-fold rally-alliance-fold">
+    <summary><span>${escapeHtml(alliance)}</span><small>${rallyGroups[alliance].length}設定・使用中${activeCount}</small></summary>`
 
     html += `
     <div class="table-wrap">
@@ -390,7 +392,7 @@ function renderRally(){
     <th>集結主</th>
     <th>使用</th>
     <th>割合</th>
-    <th>行軍</th>
+    <th>行軍時間</th>
     <th>英雄</th>
     <th>人数</th>
     <th></th>
@@ -477,7 +479,7 @@ function renderRally(){
 
     })
 
-    html += `</table></div>`
+    html += `</table></div></details>`
   })
 
   document.getElementById("rally").innerHTML = html

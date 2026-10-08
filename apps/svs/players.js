@@ -330,8 +330,10 @@ function renderPlayers(){
   Object.keys(groups).forEach(alliance=>{
 
     const count = groups[alliance].length
+    const activeCount = groups[alliance].filter(player=>player.active !== false).length
 
-    html += `<h3>${escapeHtml(alliance)}　計${count}人</h3>`
+    html += `<details class="svs-fold alliance-fold">
+    <summary><span>${escapeHtml(alliance)}</span><small>計${count}人・参加${activeCount}人</small></summary>`
 
     html += `
     <div class="table-wrap">
@@ -422,7 +424,7 @@ function renderPlayers(){
       `
     })
 
-    html += `</table></div>`
+    html += `</table></div></details>`
   })
 
   document.getElementById("players").innerHTML = html

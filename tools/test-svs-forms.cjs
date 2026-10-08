@@ -52,6 +52,17 @@ async function connectedForms(){
   s.ctx.setState('players',[{id:'p',name:'テスト',alliance:'__proto__',heroes:[]}]);
   assert.ok(s.node('players').innerHTML.includes('__proto__'));assert.ok(s.node('playerHeroes').innerHTML.includes('所持英雄登録'));
  });
+ await test('SvS management views group heroes, players and rallies into compact folds',()=>{
+  const s=svs();
+  s.ctx.setState('heroes',[{id:'g2',name:'第二英雄',generation:2},{id:'g1',name:'第一英雄',generation:1}]);
+  s.ctx.setState('players',[{id:'a',name:'甲',alliance:'A',heroes:['第一英雄'],active:true},{id:'b',name:'乙',alliance:'B',heroes:['第二英雄'],active:true}]);
+  s.ctx.setState('rallies',[{id:'r',leaderId:'a',active:true,rate:'60.20.20',marchTime:30,heroes:[{hero:'第一英雄',need:1}]}]);
+  const heroHtml=s.node('heroes').innerHTML,playerHtml=s.node('players').innerHTML,ownedHtml=s.node('playerHeroes').innerHTML,rallyHtml=s.node('rally').innerHTML;
+  assert.ok(heroHtml.indexOf('第1世代')<heroHtml.indexOf('第2世代'));assert.ok(heroHtml.includes('hero-generation-fold'));
+  assert.equal((playerHtml.match(/alliance-fold/g)||[]).length,2);
+  assert.ok(ownedHtml.includes('ownership-generation-fold'));assert.ok(ownedHtml.includes('ownership-grid'));assert.ok(s.node('heroList').innerHTML.includes('hero-check-generation'));
+  assert.ok(rallyHtml.includes('rally-alliance-fold'));assert.ok(rallyHtml.includes('<th>行軍時間</th>'));assert.ok(!rallyHtml.includes('<th>行軍</th>'));
+ });
  await test('countup handles quotes in group names without executable injection',()=>{
   const s=svs(),group=`O'Reilly "; alert(1); //`;
   s.ctx.setState('groups',[{id:'g',name:group}]);s.node('countupGroupSelect').value=group;s.ctx.addGroupSection();s.ctx.addCountupRow(group);
@@ -137,7 +148,7 @@ async function connectedForms(){
   assert.ok(html.includes('GEN 01 — 17'));
   assert.equal((svsHtml.match(/id="syncStatus"/g)||[]).length,1);
   assert.ok(svsHtml.indexOf('id="syncStatus"')>svsHtml.indexOf('id="countupTab"'));
-  assert.ok(read('apps/svs/heroes.js').includes('<th>世代</th>'));
+  assert.ok(read('apps/svs/heroes.js').includes('hero-generation-fold'));
  });
  console.log(count+' SvS/forms offline test groups passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});
