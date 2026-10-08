@@ -48,7 +48,7 @@ assert.equal(trustedMessage({...post,webhook_id:'foreign'},{DISCORD_CHANNEL_ID:'
   const f=fixture();f.players[0].status='skipped';await f.queue.submit('CODE123',{type:'manual'});await f.drain();
   assert.deepEqual(f.exchanges,[['CODE123','456']]);
   f.players.push({fid:'789',kid:'2856',name:'C',status:'pending',attempts:0});
-  await f.queue.submit('CODE123',{type:'manual'},true);await f.drain();assert.deepEqual(f.exchanges,[['CODE123','456'],['CODE123','789']]);
+  await f.queue.submit('CODE123',{type:'manual'},true);await f.drain();assert.deepEqual(f.exchanges,[['CODE123','456']]);
 }
 {
   let count=0;
@@ -65,7 +65,9 @@ assert.equal(trustedMessage({...post,webhook_id:'foreign'},{DISCORD_CHANNEL_ID:'
   assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,1);
   assert.equal(job.targets.find(p=>p.fid==='456').name,'B');await f.tick();
   assert.equal(f.notifications[0],'⚠️ PARTIAL123：2人中1人成功、1人失敗\n条件未達：1人');
-  fail=false;await f.queue.submit('PARTIAL123',{type:'manual'},true);await f.drain();job=f.queue.get('PARTIAL123');
+  fail=false;await f.queue.submit('PARTIAL123',{type:'manual'},true);
+  assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,1);
+  await f.drain();job=f.queue.get('PARTIAL123');
   assert.deepEqual(job.summary,{total:2,success:2,failed:0,unknown:0});
   assert.deepEqual(f.exchanges,[['PARTIAL123','123'],['PARTIAL123','456'],['PARTIAL123','456']]);
 }

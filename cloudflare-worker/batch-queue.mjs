@@ -62,7 +62,8 @@ export class RedeemQueue {
       if (job.targets.some(p => p.status === 'unknown') && !acknowledgeUnknown) throw Error('結果未確認のプレイヤーがいます。ゲーム内確認後に再実行してください。');
       job.targets = job.targets.map(p => ['failed','unknown','pending'].includes(p.status) ? {...p,status:'pending',attempts:0,msg:''} : p);
       job.status = 'pending'; job.finished_at = null; job.started_at = null;
-      job.initialized = false; job.errors = 0; job.error = ''; job.next_at = 0; job.attempt++;
+      // Retry exactly the unresolved players from this run; do not add players registered later.
+      job.initialized = true; job.errors = 0; job.error = ''; job.next_at = 0; job.attempt++;
       job.notification = null;
       this.sql.exec('UPDATE gift_codes SET stop_requested=0 WHERE code=?',code);
       this.save(job);
@@ -87,8 +88,9 @@ export class RedeemQueue {
         const code = url.searchParams.get('code');
         if (code) return Response.json({job:this.get(normalizeCode(code))});
         const jobs = this.rows('SELECT code FROM gift_codes ORDER BY detected_at DESC LIMIT 20').map(r => this.get(r.code));
-        const unresolved=this.rows("SELECT code FROM gift_codes WHERE status='failed'").map(r=>this.get(r.code))
-          .reduce((count,value)=>count+(value.summary?.failed||0)+(value.summary?.unknown||0),0);
+        const unresolved=this.rows("SELECT code FROM gift_codes WHERE status IN ('failed','pending','processing')").map(r=>this.get(r.code))
+          .reduce((count,value)=>count+(value.status==='failed'?(value.summary?.failed||0)+(value.summary?.unknown||0):
+            value.attempt>1?value.targets.filter(player=>!['done','skipped'].includes(player.status)).length:0),0);
         return Response.json({jobs,unresolved,discord:{enabled:this.env.DISCORD_ENABLED==='true',...JSON.parse(this.meta('discord_status') || '{}')}});
       }
       if (url.pathname === '/cancel') {
