@@ -17,5 +17,5 @@ assert.equal(redeem.includes("username:'isozaki'"), false);
 assert.ok(svsAuth.includes('window.DES_ADMIN_CREDENTIALS || null'));
 assert.ok(redeem.includes('globalThis.DES_ADMIN_CREDENTIALS||null'));
 assert.ok(svsHtml.indexOf('../../assets/admin-auth.js?v=3.38') < svsHtml.indexOf('auth.js?v=3.38'));
-assert.ok(redeemHtml.indexOf('../../assets/admin-auth.js?v=3.38') < redeemHtml.indexOf('./redeem.js?v=3.38'));
+assert.ok(redeemHtml.indexOf('../../assets/admin-auth.js?v=3.39') < redeemHtml.indexOf('./redeem.js?v=3.39'));
 console.log('PASS shared administrator credentials: one immutable source, both apps fail closed');

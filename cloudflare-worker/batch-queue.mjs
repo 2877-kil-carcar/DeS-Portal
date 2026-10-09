@@ -57,7 +57,7 @@ export class RedeemQueue {
   }
   async submit(code, source, retry = false, acknowledgeUnknown = false) {
     code = normalizeCode(code);
-    let job = this.get(code), duplicate = Boolean(job);
+    let job = this.get(code), duplicate = Boolean(job), added = 0;
     if (job && retry && terminal.has(job.status)) {
       if (job.targets.some(p => p.status === 'unknown') && !acknowledgeUnknown) throw Error('結果未確認のプレイヤーがいます。ゲーム内確認後に再実行してください。');
       job.targets = job.targets.map(p => ['failed','unknown','pending'].includes(p.status) ? {...p,status:'pending',attempts:0,msg:''} : p);
@@ -67,6 +67,21 @@ export class RedeemQueue {
       job.notification = null;
       this.sql.exec('UPDATE gift_codes SET stop_requested=0 WHERE code=?',code);
       this.save(job);
+    } else if (job && !retry && job.status === 'completed' && source?.type === 'manual') {
+      const known = new Set(job.targets.map(player => player.fid));
+      const incoming = await this.services.loadTargets(this.env,code);
+      const newlyRegistered = incoming.filter(player => !known.has(player.fid));
+      added = newlyRegistered.filter(player => player.status === 'pending').length;
+      if (added > 0) {
+        const count = this.rows("SELECT COUNT(*) AS n FROM gift_codes WHERE status IN ('pending','processing')")[0].n;
+        if (count >= 20) throw Error('交換待ちが多いため、完了を待ってください。');
+        job.targets.push(...newlyRegistered);
+        job.status = 'pending'; job.finished_at = null; job.started_at = null;
+        job.initialized = true; job.errors = 0; job.error = ''; job.next_at = 0; job.attempt++;
+        job.notification = null;
+        this.sql.exec('UPDATE gift_codes SET stop_requested=0 WHERE code=?',code);
+        this.save(job);
+      }
     } else if (!job) {
       const count = this.rows("SELECT COUNT(*) AS n FROM gift_codes WHERE status IN ('pending','processing')")[0].n;
       if (count >= 20) throw Error('交換待ちが多いため、完了を待ってください。');
@@ -75,7 +90,7 @@ export class RedeemQueue {
         code,'pending',now,now,JSON.stringify({source,targets:[],initialized:false,errors:0,error:'',next_at:0,attempt:1,summary:summarize([]),notification:null}));
     }
     await this.wake();
-    return {duplicate, job:this.get(code)};
+    return {duplicate, added, job:this.get(code)};
   }
   async fetch(request) {
     const url = new URL(request.url);

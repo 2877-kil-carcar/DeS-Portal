@@ -98,7 +98,7 @@
   async function verifiedSave(player){const checked=await directApi.checkPlayer(player.fid,player.kid);if(!checked.ok)throw Error(checked.msg||'プレイヤーを確認できません。');await cloud.setPlayer(player);}
   $('list').addEventListener('click',event=>{const button=event.target.closest('button[data-action]');if(!button)return;if(!isAdmin){renderAdmin('管理者ログイン後に操作してください。');$('adminPanel').open=true;return;}const player=state.players.find(value=>value.fid===button.dataset.id);if(!player)return;change(async()=>{
     if(button.dataset.action==='delete'){if(confirm(`${player.name||player.fid} を共有登録から削除しますか？`))await cloud.deletePlayer(player.fid);}
-    if(button.dataset.action==='rename'){const name=prompt('メモ名',player.name||'');if(name!==null)await cloud.setPlayer({...player,name});}
+    if(button.dataset.action==='rename'){const name=prompt('プレイヤー名',player.name||'');if(name!==null)await cloud.setPlayer({...player,name});}
     if(button.dataset.action==='kingdom'){const kid=prompt('王国（公式交換APIでIDを確認します）',player.kid||state.kingdom);if(kid===null)return;if(!/^\d+$/.test(kid.trim()))throw Error('王国は数字で入力してください。');await verifiedSave({...player,kid:kid.trim()});}
   });});
   $('addBtn').addEventListener('click',()=>change(async()=>{

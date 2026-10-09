@@ -4,6 +4,7 @@ const code=fs.readFileSync(path.resolve(__dirname,'../apps/redeem/redeem.js'),'u
 const html=fs.readFileSync(path.resolve(__dirname,'../apps/redeem/index.html'),'utf8');
 assert.ok(html.indexOf('class="connection"')>html.indexOf('id="list"'),'connection status and retry belong at the bottom');
 assert.ok(!html.includes('ALLIANCE REWARDS'));assert.ok(html.includes('01 / CODE'));assert.ok(html.includes('<input id="newFid"'));assert.ok(!html.includes('<textarea id="newFid"'));
+assert.ok(html.includes('<label>プレイヤー名<input id="newName"'));assert.ok(!html.includes('<label>メモ名<input id="newName"'));
 assert.ok(html.includes('id="adminPanel"'));assert.ok(html.includes('名前・王国の変更と削除は管理者のみ操作できます。'));
 async function scenario(mode){
  const nodes=new Map(),cloudCalls=[],apiCalls=[];

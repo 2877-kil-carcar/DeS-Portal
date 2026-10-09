@@ -45,6 +45,17 @@ assert.equal(trustedMessage({...post,webhook_id:'foreign'},{DISCORD_CHANNEL_ID:'
   await f.queue.submit('OTHER123',{type:'manual'});await f.drain();assert.equal(f.exchanges.length,4);
 }
 {
+  const f=fixture();
+  await f.queue.submit('LATEUSER123',{type:'discord'});await f.drain();
+  assert.equal(f.exchanges.length,2);assert.deepEqual(f.queue.get('LATEUSER123').summary,{total:2,success:2,failed:0,unknown:0});
+  f.players.push({fid:'789',kid:'2856',name:'C',status:'pending',attempts:0});
+  const receipt=await f.queue.submit('LATEUSER123',{type:'manual'});
+  assert.equal(receipt.duplicate,true);assert.equal(receipt.added,1);assert.equal(receipt.job.status,'pending');
+  await f.drain();assert.deepEqual(f.exchanges,[['LATEUSER123','123'],['LATEUSER123','456'],['LATEUSER123','789']]);
+  assert.deepEqual(f.queue.get('LATEUSER123').summary,{total:3,success:3,failed:0,unknown:0});
+  const unchanged=await f.queue.submit('LATEUSER123',{type:'manual'});assert.equal(unchanged.added,0);await f.drain();assert.equal(f.exchanges.length,3);
+}
+{
   const f=fixture();f.players[0].status='skipped';await f.queue.submit('CODE123',{type:'manual'});await f.drain();
   assert.deepEqual(f.exchanges,[['CODE123','456']]);
   f.players.push({fid:'789',kid:'2856',name:'C',status:'pending',attempts:0});
