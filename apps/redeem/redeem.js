@@ -4,7 +4,7 @@
   const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const cloud=globalThis.WOS_REDEEM_CLOUD,directApi=globalThis.WOS_REDEEM_API;
-  const ADMIN={username:'isozaki',password:'3732'};
+  const ADMIN=globalThis.DES_ADMIN_CREDENTIALS||null;
   let state={kingdom:'2856',players:[],history:{}},connected=false,busy=false,running=false,stop=false;
   let isAdmin=false;
   const results=new Map();
@@ -70,6 +70,7 @@
   }
   function loginAdmin(){
     const username=$('adminUsername').value.trim(),password=$('adminPassword').value;
+    if(!ADMIN){renderAdmin('管理者設定を読み込めません。画面を再読み込みしてください。');return;}
     if(username!==ADMIN.username||password!==ADMIN.password){renderAdmin('ユーザー名またはパスワードが違います。');return;}
     isAdmin=true;$('adminPassword').value='';$('adminPanel').open=false;renderAdmin();render();
   }

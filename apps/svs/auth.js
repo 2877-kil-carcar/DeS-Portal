@@ -1,7 +1,7 @@
 // ===========================
 // スーパー管理者（固定）
 // ===========================
-const SUPER_ADMIN = { username: "isozaki", password: "3732" }
+const SUPER_ADMIN = window.DES_ADMIN_CREDENTIALS || null
 
 window.currentUser = null
 
@@ -17,6 +17,11 @@ async function attemptRegister(){
 
   if(!username || !password){
     alert("ユーザー名とパスワードを入力してください")
+    return
+  }
+
+  if(!SUPER_ADMIN){
+    alert("管理者設定を読み込めません。画面を再読み込みしてください")
     return
   }
 
@@ -68,6 +73,11 @@ async function attemptAdminLogin(){
 
   if(!username || !password){
     alert("ユーザー名とパスワードを入力してください")
+    return
+  }
+
+  if(!SUPER_ADMIN){
+    alert("管理者設定を読み込めません。画面を再読み込みしてください")
     return
   }
 
