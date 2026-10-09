@@ -4,7 +4,9 @@
   const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const cloud=globalThis.WOS_REDEEM_CLOUD,directApi=globalThis.WOS_REDEEM_API;
+  const ADMIN={username:'isozaki',password:'3732'};
   let state={kingdom:'2856',players:[],history:{}},connected=false,busy=false,running=false,stop=false;
+  let isAdmin=false;
   const results=new Map();
   const jobs=globalThis.WOS_REDEEM_JOBS;
   let serverBatch=false,jobTimer=null,selectedCode='',currentJob=null;
@@ -61,6 +63,17 @@
     finally{busy=running;render();}
   }
   function status(title,message,kind=''){$('connection-title').textContent=title;$('connection-message').textContent=message;document.querySelector('.connection').className='connection '+kind;}
+  function renderAdmin(message=''){
+    $('adminLoginFields').hidden=isAdmin;$('adminSession').hidden=!isAdmin;
+    $('adminSummary').textContent=isAdmin?'管理者ログイン中：isozaki':'管理者ログイン';
+    $('adminMessage').textContent=message||(isAdmin?'名前・王国の変更と削除ができます。':'名前・王国の変更と削除は管理者のみ操作できます。');
+  }
+  function loginAdmin(){
+    const username=$('adminUsername').value.trim(),password=$('adminPassword').value;
+    if(username!==ADMIN.username||password!==ADMIN.password){renderAdmin('ユーザー名またはパスワードが違います。');return;}
+    isAdmin=true;$('adminPassword').value='';$('adminPanel').open=false;renderAdmin();render();
+  }
+  function logoutAdmin(){isAdmin=false;$('adminUsername').value='';$('adminPassword').value='';renderAdmin();render();}
   function controls(){$('startBtn').disabled=!connected||!directApi||busy||preview;for(const id of ['addBtn','newFid','newKid','newName'])$(id).disabled=!connected||busy||preview;$('retry').disabled=busy||preview;$('cdk').disabled=running;$('stopBtn').disabled=!running||stop;}
   function renderRecent(){
     const recent=Object.entries(state.history||{}).map(([cdk,records])=>{
@@ -72,7 +85,7 @@
   function render(){
     $('count').textContent=state.players.length+'人';
     const query=$('search').value.trim().toLowerCase(),done=state.history[$('cdk').value.trim()]||{},players=state.players.filter(player=>[player.name,player.fid,player.kid].join(' ').toLowerCase().includes(query));
-    $('list').innerHTML=players.map(player=>{const result=results.get(player.fid)||(done[player.fid]?{cls:'muted',msg:'記録済：'+done[player.fid].msg}:null),disabled=busy||!connected?'disabled':'';return `<article class="player"><h3>${esc(player.name||'名前なし')}</h3><div class="player-meta">ID ${esc(player.fid)} · 王国 ${esc(player.kid||state.kingdom)}</div><p class="player-result ${result?.cls||'muted'}">${esc(result?.msg||'未実行')}</p><div class="player-actions"><button class="secondary" data-action="rename" data-id="${esc(player.fid)}" ${disabled}>名前編集</button><button class="secondary" data-action="kingdom" data-id="${esc(player.fid)}" ${disabled}>王国変更</button><button class="secondary danger" data-action="delete" data-id="${esc(player.fid)}" ${disabled}>削除</button></div></article>`;}).join('')||'<p class="empty">'+(state.players.length?'検索に一致するプレイヤーがいません。':'登録プレイヤーがいません。')+'</p>';renderRecent();controls();
+    $('list').innerHTML=players.map(player=>{const result=results.get(player.fid)||(done[player.fid]?{cls:'muted',msg:'記録済：'+done[player.fid].msg}:null),disabled=busy||!connected?'disabled':'',actions=isAdmin?`<div class="player-actions"><button class="secondary" data-action="rename" data-id="${esc(player.fid)}" ${disabled}>名前編集</button><button class="secondary" data-action="kingdom" data-id="${esc(player.fid)}" ${disabled}>王国変更</button><button class="secondary danger" data-action="delete" data-id="${esc(player.fid)}" ${disabled}>削除</button></div>`:'';return `<article class="player"><h3>${esc(player.name||'名前なし')}</h3><div class="player-meta">ID ${esc(player.fid)} · 王国 ${esc(player.kid||state.kingdom)}</div><p class="player-result ${result?.cls||'muted'}">${esc(result?.msg||'未実行')}</p>${actions}</article>`;}).join('')||'<p class="empty">'+(state.players.length?'検索に一致するプレイヤーがいません。':'登録プレイヤーがいません。')+'</p>';renderRecent();controls();
   }
   async function connect(){
     if(preview){status('表示確認モード','サンプルのみ表示しています。Firebase・交換APIへの通信は行いません。');state.players=[{fid:'00000001',kid:'0000',name:'サンプルプレイヤー'}];render();return;}
@@ -82,7 +95,7 @@
   }
   async function change(operation){if(busy||!connected||preview)return;busy=true;render();try{await operation();}catch(error){status('処理を完了できませんでした',error.message,'error');}finally{busy=false;render();}}
   async function verifiedSave(player){const checked=await directApi.checkPlayer(player.fid,player.kid);if(!checked.ok)throw Error(checked.msg||'プレイヤーを確認できません。');await cloud.setPlayer(player);}
-  $('list').addEventListener('click',event=>{const button=event.target.closest('button[data-action]');if(!button)return;const player=state.players.find(value=>value.fid===button.dataset.id);if(!player)return;change(async()=>{
+  $('list').addEventListener('click',event=>{const button=event.target.closest('button[data-action]');if(!button)return;if(!isAdmin){renderAdmin('管理者ログイン後に操作してください。');$('adminPanel').open=true;return;}const player=state.players.find(value=>value.fid===button.dataset.id);if(!player)return;change(async()=>{
     if(button.dataset.action==='delete'){if(confirm(`${player.name||player.fid} を共有登録から削除しますか？`))await cloud.deletePlayer(player.fid);}
     if(button.dataset.action==='rename'){const name=prompt('メモ名',player.name||'');if(name!==null)await cloud.setPlayer({...player,name});}
     if(button.dataset.action==='kingdom'){const kid=prompt('王国（公式交換APIでIDを確認します）',player.kid||state.kingdom);if(kid===null)return;if(!/^\d+$/.test(kid.trim()))throw Error('王国は数字で入力してください。');await verifiedSave({...player,kid:kid.trim()});}
@@ -102,6 +115,7 @@
     finally{running=false;busy=false;render();$('progress').textContent=`${stop?'中止':'完了'}：成功・記録済 ${success} / 失敗 ${failed}`+(aborted?'（通信結果未確認あり）':'');}
   });
   $('resumeBtn').addEventListener('click',()=>startServer(true));
+  $('adminLoginBtn').addEventListener('click',loginAdmin);$('adminPassword').addEventListener('keydown',event=>{if(event.key==='Enter')loginAdmin();});$('adminLogoutBtn').addEventListener('click',logoutAdmin);renderAdmin();
   $('jobs-list').addEventListener('click',event=>{const button=event.target.closest('[data-job]');if(!button)return;selectedCode=button.dataset.job;$('cdk').value=selectedCode;refreshJobs();});
   $('stopBtn').addEventListener('click',async()=>{if(serverBatch){try{await jobs.cancel(selectedCode);await refreshJobs();}catch(error){status('中止を受け付けられませんでした',error.message,'error');}return;}stop=true;controls();$('progress').textContent='中止を受け付けました。送信中の1件があれば完了を待ちます。';});$('cdk').addEventListener('input',()=>{selectedCode='';currentJob=null;$('resumeBtn').hidden=true;results.clear();render();});$('search').addEventListener('input',render);$('retry').addEventListener('click',connect);addEventListener('beforeunload',event=>{if(running&&!serverBatch){event.preventDefault();event.returnValue='';}});connect();
 })();

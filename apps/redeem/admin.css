@@ -1,0 +1,47 @@
+.admin-panel {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding: 10px 0;
+}
+
+.admin-panel summary,
+.add-panel summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--ink);
+  padding: 6px 0;
+}
+
+.admin-login {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: end;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.admin-login label {
+  margin: 0;
+}
+
+.admin-session {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+}
+
+.admin-panel .caption {
+  margin-bottom: 0;
+}
+
+@media (max-width: 600px) {
+  .admin-login {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-login button {
+    width: 100%;
+  }
+}
