@@ -33,6 +33,11 @@ assert.deepEqual(extractCodes({...post,content:'',embeds:[{title:'New Whiteout S
 assert.equal(trustedMessage(post,{DISCORD_CHANNEL_ID:'channel',DISCORD_AUTHOR_IDS:'official'}),true);
 assert.equal(trustedMessage({...post,author:{id:'imposter'}},{DISCORD_CHANNEL_ID:'channel',DISCORD_AUTHOR_IDS:'official'}),false);
 assert.equal(trustedMessage({...post,webhook_id:'foreign'},{DISCORD_CHANNEL_ID:'channel',DISCORD_AUTHOR_IDS:'official'}),false);
+assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40007}).code_state,'expired');
+assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40014}).code_state,'invalid');
+assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40008}).done,true);
+assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40004}).failure_kind,'busy');
+assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40017}).failure_kind,'condition');
 
 {
   const f=fixture();
@@ -47,45 +52,58 @@ assert.equal(trustedMessage({...post,webhook_id:'foreign'},{DISCORD_CHANNEL_ID:'
 {
   const f=fixture();
   await f.queue.submit('LATEUSER123',{type:'discord'});await f.drain();
-  assert.equal(f.exchanges.length,2);assert.deepEqual(f.queue.get('LATEUSER123').summary,{total:2,success:2,failed:0,unknown:0});
+  assert.equal(f.exchanges.length,2);assert.deepEqual(f.queue.get('LATEUSER123').summary,{total:2,success:2,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0});
   f.players.push({fid:'789',kid:'2856',name:'C',status:'pending',attempts:0});
   const receipt=await f.queue.submit('LATEUSER123',{type:'manual'});
   assert.equal(receipt.duplicate,true);assert.equal(receipt.added,1);assert.equal(receipt.job.status,'pending');
   await f.drain();assert.deepEqual(f.exchanges,[['LATEUSER123','123'],['LATEUSER123','456'],['LATEUSER123','789']]);
-  assert.deepEqual(f.queue.get('LATEUSER123').summary,{total:3,success:3,failed:0,unknown:0});
+  assert.deepEqual(f.queue.get('LATEUSER123').summary,{total:3,success:3,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0});
   const unchanged=await f.queue.submit('LATEUSER123',{type:'manual'});assert.equal(unchanged.added,0);await f.drain();assert.equal(f.exchanges.length,3);
 }
 {
   const f=fixture();f.players[0].status='skipped';await f.queue.submit('CODE123',{type:'manual'});await f.drain();
   assert.deepEqual(f.exchanges,[['CODE123','456']]);
   f.players.push({fid:'789',kid:'2856',name:'C',status:'pending',attempts:0});
-  await f.queue.submit('CODE123',{type:'manual'},true);await f.drain();assert.deepEqual(f.exchanges,[['CODE123','456']]);
+  await assert.rejects(f.queue.submit('CODE123',{type:'manual'},true),/再実行できません/);assert.deepEqual(f.exchanges,[['CODE123','456']]);
 }
 {
   let count=0;
   const f=fixture({redeemPlayer:async()=>{count++;return {done:false,retry:true,msg:'頻度制限'};}});
   await f.queue.submit('RATE123',{type:'discord'});await f.drain();assert.equal(count,6);assert.equal(f.queue.get('RATE123').status,'failed');
-  const summary=f.queue.get('RATE123').summary;assert.deepEqual(summary,{total:2,success:0,failed:2,unknown:0});
+  const summary=f.queue.get('RATE123').summary;assert.deepEqual(summary,{total:2,success:0,failed:2,unknown:0,expired:0,invalid:0,unprocessed:0});
   await f.tick();assert.equal(f.notifications.length,1);assert.equal(f.notifications[0],'⚠️ RATE123：2人中0人成功、2人失敗\nサーバービジー：2人');
+  await f.queue.submit('RATE123',{type:'manual'},true);await f.drain();await f.tick();assert.equal(f.notifications.length,1);
 }
 {
   let fail=true;
   const f=fixture({redeemPlayer:async(_env,code,p)=>{f.exchanges.push([code,p.fid]);return p.fid==='456'&&fail?{done:false,retry:false,msg:'条件未達：レベル不足'}:{done:true,retry:false,msg:'交換成功'};}});
   await f.queue.submit('PARTIAL123',{type:'manual'});await f.drain();
-  let job=f.queue.get('PARTIAL123');assert.deepEqual(job.summary,{total:2,success:1,failed:1,unknown:0});
+  let job=f.queue.get('PARTIAL123');assert.deepEqual(job.summary,{total:2,success:1,failed:1,unknown:0,expired:0,invalid:0,unprocessed:0});
   assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,1);
   assert.equal(job.targets.find(p=>p.fid==='456').name,'B');await f.tick();
-  assert.equal(f.notifications[0],'⚠️ PARTIAL123：2人中1人成功、1人失敗\n条件未達：1人');
+  assert.equal(f.notifications.length,0);assert.equal(f.queue.get('PARTIAL123').notification,null);
   fail=false;await f.queue.submit('PARTIAL123',{type:'manual'},true);
   assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,1);
   await f.drain();job=f.queue.get('PARTIAL123');
-  assert.deepEqual(job.summary,{total:2,success:2,failed:0,unknown:0});
+  assert.deepEqual(job.summary,{total:2,success:2,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0});
   assert.deepEqual(f.exchanges,[['PARTIAL123','123'],['PARTIAL123','456'],['PARTIAL123','456']]);
 }
 {
   let count=0;
-  const f=fixture({redeemPlayer:async()=>{count++;return {done:false,bad_cdk:true,msg:'期限切れ'};}});
-  await f.queue.submit('BAD123',{type:'discord'});await f.drain();assert.equal(count,1);assert.equal(f.queue.get('BAD123').status,'failed');
+  const f=fixture({redeemPlayer:async()=>{count++;return {done:false,bad_cdk:true,code_state:'expired',msg:'交換期限切れ'};}});
+  await f.queue.submit('BAD123',{type:'discord'});await f.drain();assert.equal(count,1);
+  const job=f.queue.get('BAD123');assert.equal(job.status,'expired');
+  assert.deepEqual(job.summary,{total:2,success:0,failed:0,unknown:0,expired:1,invalid:0,unprocessed:1});
+  assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,0);
+  await f.tick();assert.equal(f.notifications[0],'🎁 BAD123：交換受付終了\n成功0人／期限切れ確認1人／未実行1人');
+  await assert.rejects(f.queue.submit('BAD123',{type:'manual'},true),/期限切れ/);
+}
+{
+  const f=fixture({redeemPlayer:async()=>({done:false,bad_cdk:true,code_state:'invalid',msg:'交換コードが存在しません'})});
+  await f.queue.submit('INVALID123',{type:'manual'});await f.drain();
+  const job=f.queue.get('INVALID123');assert.equal(job.status,'invalid');
+  assert.deepEqual(job.summary,{total:2,success:0,failed:0,unknown:0,expired:0,invalid:1,unprocessed:1});
+  await f.tick();assert.equal(f.notifications.length,0);assert.equal(job.notification,null);
 }
 {
   const f=fixture({redeemPlayer:async()=>{throw Error('timeout');}});

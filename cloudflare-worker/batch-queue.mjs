@@ -6,11 +6,16 @@ export function normalizeCode(input) {
   if (!/^[A-Za-z0-9_-]{3,64}$/.test(code)) throw Error('コードは3〜64文字の英数字・ハイフン・アンダースコアで入力してください。');
   return code; // Case is significant to the existing API/history; never uppercase.
 }
-const terminal = new Set(['completed', 'failed', 'cancelled']);
-const finishedPlayer = new Set(['done', 'skipped', 'failed', 'unknown']);
+const terminal = new Set(['completed', 'failed', 'cancelled', 'expired', 'invalid']);
+const retriableJob = new Set(['failed', 'cancelled']);
+const finishedPlayer = new Set(['done', 'skipped', 'failed', 'unknown', 'expired', 'invalid', 'closed']);
 const summarize = (targets, final = false) => ({total:targets.length,success:targets.filter(p=>['done','skipped'].includes(p.status)).length,
   failed:targets.filter(p=>p.status==='failed').length,
-  unknown:targets.filter(p=>p.status==='unknown'||(final&&!['done','skipped','failed'].includes(p.status))).length});
+  unknown:targets.filter(p=>p.status==='unknown'||(final&&!finishedPlayer.has(p.status))).length,
+  expired:targets.filter(p=>p.status==='expired').length,
+  invalid:targets.filter(p=>p.status==='invalid').length,
+  unprocessed:targets.filter(p=>p.status==='closed').length});
+const shouldNotify = job => ['discord','integration'].includes(job.source?.type);
 
 export class RedeemQueue {
   constructor(ctx, env, adapters = {...services,notifyDiscord}) {
@@ -36,7 +41,8 @@ export class RedeemQueue {
     const {targets, source, initialized, errors, error, next_at, attempt} = job;
     let {notification} = job;
     const summary=summarize(targets||[],terminal.has(job.status));job.summary=summary;
-    if(job.status==='failed'&&summary.failed+summary.unknown>0&&!notification){
+    if(!shouldNotify(job)){notification=null;job.notification=null;}
+    if(shouldNotify(job)&&((job.status==='failed'&&summary.failed+summary.unknown>0)||['expired','invalid'].includes(job.status))&&!notification){
       notification={status:'pending',attempts:0,next_at:Date.now(),sent_at:null,last_error:''};
       job.notification=notification;
     }
@@ -48,8 +54,8 @@ export class RedeemQueue {
   setMeta(key, value) { this.sql.exec('INSERT INTO metadata(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',key,value); }
   async wake(delay = 1000) {
     const active = this.rows("SELECT code FROM gift_codes WHERE status IN ('pending','processing') LIMIT 1");
-    const notify = this.rows("SELECT code FROM gift_codes WHERE status IN ('completed','failed','cancelled') ORDER BY updated_at DESC LIMIT 30")
-      .map(row=>this.get(row.code)).find(job=>['pending','failed'].includes(job.notification?.status)&&job.notification.attempts<5);
+    const notify = this.rows("SELECT code FROM gift_codes WHERE status IN ('completed','failed','cancelled','expired','invalid') ORDER BY updated_at DESC LIMIT 30")
+      .map(row=>this.get(row.code)).find(job=>shouldNotify(job)&&['pending','failed'].includes(job.notification?.status)&&job.notification.attempts<5);
     if (!active.length && !notify) return;
     if(!active.length&&notify)delay=Math.max(delay,notify.notification.next_at-Date.now());
     const alarm = await this.ctx.storage.getAlarm();
@@ -58,12 +64,14 @@ export class RedeemQueue {
   async submit(code, source, retry = false, acknowledgeUnknown = false) {
     code = normalizeCode(code);
     let job = this.get(code), duplicate = Boolean(job), added = 0;
-    if (job && retry && terminal.has(job.status)) {
+    if (job && retry && !retriableJob.has(job.status)) throw Error(job.status==='expired'?'このコードは交換期限切れです。':job.status==='invalid'?'無効なコードのため再実行できません。':'この処理は再実行できません。');
+    if (job && retry && retriableJob.has(job.status)) {
       if (job.targets.some(p => p.status === 'unknown') && !acknowledgeUnknown) throw Error('結果未確認のプレイヤーがいます。ゲーム内確認後に再実行してください。');
       job.targets = job.targets.map(p => ['failed','unknown','pending'].includes(p.status) ? {...p,status:'pending',attempts:0,msg:''} : p);
       job.status = 'pending'; job.finished_at = null; job.started_at = null;
       // Retry exactly the unresolved players from this run; do not add players registered later.
       job.initialized = true; job.errors = 0; job.error = ''; job.next_at = 0; job.attempt++;
+      job.source = source;
       job.notification = null;
       this.sql.exec('UPDATE gift_codes SET stop_requested=0 WHERE code=?',code);
       this.save(job);
@@ -78,6 +86,7 @@ export class RedeemQueue {
         job.targets.push(...newlyRegistered);
         job.status = 'pending'; job.finished_at = null; job.started_at = null;
         job.initialized = true; job.errors = 0; job.error = ''; job.next_at = 0; job.attempt++;
+        job.source = source;
         job.notification = null;
         this.sql.exec('UPDATE gift_codes SET stop_requested=0 WHERE code=?',code);
         this.save(job);
@@ -132,8 +141,8 @@ export class RedeemQueue {
       let notificationOnly=false;
       if(row)job=this.get(row.code);
       else {
-        job=this.rows("SELECT code FROM gift_codes WHERE status IN ('completed','failed','cancelled') ORDER BY updated_at DESC LIMIT 30")
-          .map(value=>this.get(value.code)).find(value=>['pending','failed'].includes(value.notification?.status)&&value.notification.attempts<5&&value.notification.next_at<=Date.now());
+        job=this.rows("SELECT code FROM gift_codes WHERE status IN ('completed','failed','cancelled','expired','invalid') ORDER BY updated_at DESC LIMIT 30")
+          .map(value=>this.get(value.code)).find(value=>shouldNotify(value)&&['pending','failed'].includes(value.notification?.status)&&value.notification.attempts<5&&value.notification.next_at<=Date.now());
         notificationOnly=Boolean(job);
       }
       if (!job) return;
@@ -182,7 +191,13 @@ export class RedeemQueue {
           } else if (result.retry && player.attempts < 3) {
             player.status='pending'; job.next_at=Date.now()+5000;
           } else player.status='failed';
-          if (result.bad_cdk) {
+          if (result.code_state==='expired'||result.code_state==='invalid') {
+            player.status=result.code_state;
+            const label=result.code_state==='expired'?'期限切れ':'無効なコード';
+            for(const pending of job.targets.filter(value=>value.status==='pending')){pending.status='closed';pending.msg=`${label}のため未実行`;}
+            job.status=result.code_state;job.error=result.msg;job.finished_at=Date.now();job.notification=null;
+          } else if (result.bad_cdk) {
+            // Unknown future provider responses remain visible as a code-level failure.
             for(const pending of job.targets.filter(value=>value.status==='pending')){pending.status='failed';pending.msg=result.msg;}
             job.status='failed';job.error=result.msg;job.finished_at=Date.now();
           }
@@ -193,7 +208,7 @@ export class RedeemQueue {
         job.status = job.targets.length && !job.targets.some(p => ['failed','unknown'].includes(p.status)) ? 'completed' : 'failed';
         job.error = job.targets.length ? '' : '登録プレイヤーがいません。';
         job.summary=summarize(job.targets);
-        if(job.summary.failed+job.summary.unknown>0)job.notification={status:'pending',attempts:0,next_at:Date.now(),sent_at:null,last_error:''};
+        if(job.summary.failed+job.summary.unknown>0&&shouldNotify(job))job.notification={status:'pending',attempts:0,next_at:Date.now(),sent_at:null,last_error:''};
         job.finished_at=Date.now(); this.save(job);
       }
     } catch (error) {

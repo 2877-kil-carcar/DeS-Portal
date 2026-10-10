@@ -4,6 +4,7 @@
   const SALT='tB87#kPtkxqOS2';
   const messages={20000:'交換成功',40004:'サーバービジー。しばらく待って再試行',40005:'交換回数上限に達しています',40006:'大溶鉱炉レベル不足',40007:'交換期限切れ',40008:'受取済み',40011:'同タイプのコードは一度しか使えません',40012:'アカウント登録期間が条件外',40014:'交換コードが存在しません（大文字小文字を確認）',40015:'交換コードが正しくありません',40016:'サーバー混雑中。報酬は後ほど送付',40017:'交換条件を満たしていません',40018:'領主バトラー利用中アカウント専用コード',40019:'操作頻度制限オーバー',40020:'IDまたは王国が正しくありません'};
   const doneCodes=new Set([20000,40008,40011,40016]),retryCodes=new Set([40004,40019]),badCodeCodes=new Set([40007,40014,40015]);
+  const conditionCodes=new Set([40006,40012,40017,40018]);
   const shifts=[7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21];
   const constants=Array.from({length:64},(_,index)=>(Math.floor(Math.abs(Math.sin(index+1))*0x100000000)|0));
   const add=(a,b)=>(a+b)|0,rotate=(value,bits)=>(value<<bits)|(value>>>(32-bits));
@@ -20,7 +21,10 @@
     const code = Number(value.err_code);
     let msg = messages[code] || value.msg || '不明なエラー';
     if (code === 40006 && value.data?.tips) msg += `（Lv.${value.data.tips} 以上）`;
-    return {err_code: Number.isFinite(code) ? code : null, msg, done:doneCodes.has(code), retry:retryCodes.has(code), bad_cdk:badCodeCodes.has(code)};
+    const code_state=code===40007?'expired':[40014,40015].includes(code)?'invalid':null;
+    const failure_kind=retryCodes.has(code)?'busy':conditionCodes.has(code)?'condition':null;
+    return {err_code: Number.isFinite(code) ? code : null, msg, done:doneCodes.has(code), retry:retryCodes.has(code),
+      bad_cdk:badCodeCodes.has(code), code_state, failure_kind};
   }
   globalThis.WOS_REDEEM_PROTOCOL = {md5, signed, interpret};
 })();

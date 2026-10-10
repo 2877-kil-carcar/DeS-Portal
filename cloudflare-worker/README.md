@@ -6,7 +6,7 @@ Cloudflare上のWorker名：`des-giftcode-proxy`
 
 ## Discord自動交換の追加（実装済み・本番未有効化）
 
-2026-10-07。v3.33で最終集計・失敗者再実行・未解決バッジ・Discord失敗通知を追加しました。
+2026-10-10。最終集計・失敗者再実行・未解決バッジ・Discord失敗通知に加え、期限切れ・無効コードをプレイヤー失敗と分離しています。Discord通知はDiscord検知または外部自動連携で開始した処理だけに送り、画面からの手動交換・手動再実行では送信しません。
 手動の一括交換ボタンは残ります。新方式が有効な場合、手動とDiscordは同じ `RedeemQueue` を使います。
 
 ### 調査結果
@@ -57,7 +57,7 @@ Botによる約1分間隔の公式REST API読込 → コード抽出 → 共通�
 
 - `gift_codes.code` がPRIMARY KEY。前後空白を除去しますが大文字小文字は変更しません。
 - detected_at / started_at / finished_at / updated_at / status、投稿元、プレイヤー別状態・試行回数・結果を永続保存。
-- pending → processing → completed / failed。中止時はcancelled。
+- pending → processing → completed / failed。期限切れはexpired、無効コードはinvalid、中止時はcancelled。
 - 同じコードの同時受付・Discord再投稿は1つのジョブへまとめます。違うコードも全体で順番に交換します。
 - 登録済み成功履歴をスキップ。API混雑・頻度制限は最大3回。無効・期限切れコードは後続を停止。
 - Durable Object Alarmで1人ずつ実行。例外時も次回を予約し、Cronでも再開予約を補助。

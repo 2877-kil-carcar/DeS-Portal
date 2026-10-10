@@ -29,5 +29,7 @@ async function scenario(unavailable=false){
   assert.ok(node('list').innerHTML.includes('結果未確認'));await node('resumeBtn').handlers.click();assert.deepEqual(calls[3],['start','ABC123',true,true]);
   current={...current,status:'completed',targets:[{fid:'123',status:'done',msg:'成功'}]};
   await [...timers.values()].find(t=>t.ms===8000).fn();assert.equal(node('stopBtn').disabled,true);assert.ok(node('progress').textContent.includes('成功 1 / 失敗 0 / 未確認 0'));
+  current={...current,status:'expired',summary:{total:2,success:0,failed:0,unknown:0,expired:1,invalid:0,unprocessed:1},targets:[{fid:'123',status:'expired',msg:'交換期限切れ'},{fid:'456',status:'closed',msg:'期限切れのため未実行'}]};
+  await [...timers.values()].find(t=>t.ms===8000).fn();assert.equal(node('resumeBtn').hidden,true);assert.ok(node('progress').textContent.includes('受付終了'));assert.ok(node('job-summary-counts').textContent.includes('期限切れ確認1／未実行1'));
 }
 (async()=>{await scenario();await scenario(true);console.log('PASS shared server UI: submit, live results, stop, retry, uncertain-result confirmation, fail-closed on unavailable server');})().catch(error=>{console.error(error);process.exitCode=1;});

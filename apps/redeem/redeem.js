@@ -10,8 +10,8 @@
   const results=new Map();
   const jobs=globalThis.WOS_REDEEM_JOBS;
   let serverBatch=false,jobTimer=null,selectedCode='',currentJob=null;
-  const statusNames={pending:'待機中',processing:'交換中',completed:'完了',failed:'要確認',cancelled:'中止'};
-  const summaryOf=job=>job?.summary||{total:job?.targets?.length||0,success:(job?.targets||[]).filter(p=>['done','skipped'].includes(p.status)).length,failed:(job?.targets||[]).filter(p=>p.status==='failed').length,unknown:(job?.targets||[]).filter(p=>p.status==='unknown').length};
+  const statusNames={pending:'待機中',processing:'交換中',completed:'完了',failed:'要確認',cancelled:'中止',expired:'受付終了',invalid:'無効なコード'};
+  const summaryOf=job=>job?.summary||{total:job?.targets?.length||0,success:(job?.targets||[]).filter(p=>['done','skipped'].includes(p.status)).length,failed:(job?.targets||[]).filter(p=>p.status==='failed').length,unknown:(job?.targets||[]).filter(p=>p.status==='unknown').length,expired:(job?.targets||[]).filter(p=>p.status==='expired').length,invalid:(job?.targets||[]).filter(p=>p.status==='invalid').length,unprocessed:(job?.targets||[]).filter(p=>p.status==='closed').length};
   function notifyShell(count){if(globalThis.parent&&globalThis.parent!==globalThis.window)globalThis.parent.postMessage({type:'wos:redeem-alert',count},location.origin==='null'?'*':location.origin);}
   function showJob(job) {
     currentJob=job;
@@ -23,13 +23,14 @@
     selectedCode=job.code;
     running=['pending','processing'].includes(job.status);busy=running;stop=Boolean(job.stop_requested);
     results.clear();
-    for(const p of job.targets)results.set(p.fid,{cls:['done','skipped'].includes(p.status)?'ok':['failed','unknown'].includes(p.status)?'ng':'muted',msg:p.msg||({pending:'待機中',sending:'交換中…',recording:'交換結果を保存中…'}[p.status]||'')});
-    const finished=job.targets.filter(p=>['done','skipped','failed','unknown'].includes(p.status)).length;
+    for(const p of job.targets)results.set(p.fid,{cls:['done','skipped'].includes(p.status)?'ok':['failed','unknown'].includes(p.status)?'ng':['expired','invalid'].includes(p.status)?'warn':'muted',msg:p.msg||({pending:'待機中',sending:'交換中…',recording:'交換結果を保存中…',closed:'未実行'}[p.status]||'')});
+    const finished=job.targets.filter(p=>['done','skipped','failed','unknown','expired','invalid','closed'].includes(p.status)).length;
     $('batch-progress').max=Math.max(1,job.targets.length);$('batch-progress').value=finished;
-    $('progress').textContent=`${statusNames[job.status]||job.status}：${finished}/${job.targets.length}人（成功 ${summary.success} / 失敗 ${summary.failed} / 未確認 ${summary.unknown}）`+(job.error?' '+job.error:'');
+    const closed=job.status==='expired'?` / 期限切れ ${summary.expired||0} / 未実行 ${summary.unprocessed||0}`:job.status==='invalid'?` / 無効 ${summary.invalid||0} / 未実行 ${summary.unprocessed||0}`:'';
+    $('progress').textContent=`${statusNames[job.status]||job.status}：${finished}/${job.targets.length}人（成功 ${summary.success} / 失敗 ${summary.failed} / 未確認 ${summary.unknown}${closed}）`+(job.error?' '+job.error:'');
     const final=!['pending','processing'].includes(job.status),failures=job.targets.filter(p=>['failed','unknown'].includes(p.status));
     $('job-summary').hidden=!final;
-    $('job-summary-counts').textContent=final?`${job.code}：成功${summary.success}／失敗${summary.failed}／未確認${summary.unknown}`:'';
+    $('job-summary-counts').textContent=final?(job.status==='expired'?`${job.code}：成功${summary.success}／期限切れ確認${summary.expired||0}／未実行${summary.unprocessed||0}`:job.status==='invalid'?`${job.code}：成功${summary.success}／無効なコード／未実行${summary.unprocessed||0}`:`${job.code}：成功${summary.success}／失敗${summary.failed}／未確認${summary.unknown}`):'';
     $('job-failures').innerHTML=failures.length?failures.map(p=>`<div class="failure-row"><strong>${esc(p.name||p.fid||'名前なし')}</strong><span>${esc(p.msg||'理由を確認できません')}</span></div>`).join(''):'<p class="empty compact">未解決の失敗はありません。</p>';
     render();
   }

@@ -49,6 +49,8 @@ function failureGroup(message = '') {
 export function notificationText(job) {
   const summary=job.summary || {total:job.targets.length,success:job.targets.filter(p=>['done','skipped'].includes(p.status)).length,
     failed:job.targets.filter(p=>p.status==='failed').length,unknown:job.targets.filter(p=>p.status==='unknown').length};
+  if(job.status==='expired')return `🎁 ${job.code}：交換受付終了\n成功${summary.success}人／期限切れ確認${summary.expired||0}人／未実行${summary.unprocessed||0}人`;
+  if(job.status==='invalid')return `⚠️ ${job.code}：無効なコード\n成功${summary.success}人／未実行${summary.unprocessed||0}人`;
   const unresolved=job.targets.filter(p=>['failed','unknown'].includes(p.status));
   const groups=new Map();
   for(const player of unresolved){const label=failureGroup(player.msg);groups.set(label,(groups.get(label)||0)+1);}
