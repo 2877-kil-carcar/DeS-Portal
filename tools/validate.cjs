@@ -70,7 +70,7 @@ test('data.js matches JSON and standalone embeds same data',()=>{
 test('static shell ids unique and resource references exist',()=>{
  const html=fs.readFileSync(path.join(root,'index.html'),'utf8');const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]);assert.equal(ids.length,new Set(ids).size);
  for(const f of ['assets/app.css','assets/core.js','assets/app.js','assets/data.js'])assert.ok(fs.existsSync(path.join(root,f)));
- for(const id of ['view-joiners','view-library','view-battle','view-sources','view-bear','view-canyon','view-gallery','view-games','view-redeem','mobile-dock'])assert.ok(ids.includes(id));
+  for(const id of ['view-joiners','view-library','view-notes','view-battle','view-sources','view-bear','view-canyon','view-gallery','view-games','view-redeem','mobile-dock'])assert.ok(ids.includes(id));
  new vm.Script(fs.readFileSync(path.join(root,'assets/app.js'),'utf8'));
  assert.equal(html.includes('http://'),false);
 });

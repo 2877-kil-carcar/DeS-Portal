@@ -16,19 +16,20 @@
   let state = C.normalizeState(saved, heroes), currentView = 'redeem';
   let toastTimer;
   const modules = [
-    { id: 'battle', label: '戦闘ターン', icon: '⇄', eyebrow: 'COMBAT FIELD NOTES', title: '1ターンの、その中へ。', subtitle: '両軍が同時に動く仕組みを、ステップで確かめる。' },
+    { id: 'battle', label: '戦闘ターン', icon: '⇄', eyebrow: 'COMBAT FIELD NOTES', title: '1ターンの、その中へ。', subtitle: '両軍が同時に動く仕組みを、ステップで確かめる。', memoOnly:true },
     { id: 'sources', label: '出典・検証', icon: '◎', eyebrow: 'RESEARCH LOG', title: '根拠から、確かめる。', subtitle: '公式ルール・採用した本文・未確認事項を分けて記録。' },
     { id: 'bear', label:'熊罠配置', icon:'▦', path:'./apps/bear/index.html?v=3.30', title:'熊罠配置', eyebrow:'ALLIANCE LAYOUT', subtitle:'同盟の配置を確認・調整' },
-    { id: 'canyon', label:'峡谷合戦', icon:'△', path:'./apps/canyon/index.html', title:'峡谷合戦', eyebrow:'CANYON CLASH', subtitle:'42レッスンの攻略ガイド' },
+    { id: 'canyon', label:'峡谷合戦', icon:'△', path:'./apps/canyon/index.html', title:'峡谷合戦', eyebrow:'CANYON CLASH', subtitle:'42レッスンの攻略ガイド', memoOnly:true },
     { id: 'gallery', label:'もふもふギャラリー', icon:'♧', path:'./apps/gallery/index.html', title:'もふもふギャラリー', eyebrow:'THE FLUFFY HALL', subtitle:'同盟のもふもふコレクション' },
     { id: 'games', label:'ミニゲーム', icon:'♠', path:'./apps/games/index.html?v=3.30', title:'ミニゲーム', eyebrow:'PLAY TOGETHER', subtitle:'みんなで楽しむカードゲーム' },
     { id: 'formation', label:'編成ツール', icon:'◫', path:'https://wos.henseiradar.com/', title:'編成ツール', eyebrow:'FORMATION RADAR', subtitle:'英雄・兵士の編成を確認' },
     { id: 'svs', label:'2856SvS補助ツール', icon:'⚑', path:'./apps/svs/index.html?v=3.38', title:'2856SvS補助ツール', eyebrow:'SVS OPERATIONS', subtitle:'参加管理・集結設定・振り分け・カウントアップ' },
     { id: 'forms', label:'申請フォーム一覧', icon:'▧', path:'./apps/forms/index.html?v=3.27', title:'申請フォーム一覧', eyebrow:'APPLICATION DESK', subtitle:'各種申請・スプレッドシート・端末メモ' },
-    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.40', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' }
+    { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.40', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' },
+    { id: 'notes', label:'かるろすのメモ帳', icon:'▤', eyebrow:'KARUROSU NOTES', title:'かるろすのメモ帳', subtitle:'戦闘の仕組みとイベント攻略をまとめて確認。' }
   ].filter(m => !window.WOS_STANDALONE || !m.path);
   const primaryNavigationIds = ['redeem', 'gallery', 'forms', 'bear', 'games', 'formation', 'svs'];
-  const navigationModules=window.WOS_STANDALONE?modules:[...primaryNavigationIds.map(id=>modules.find(m=>m.id===id)),...modules.filter(m=>!primaryNavigationIds.includes(m.id))];
+  const navigationModules=(window.WOS_STANDALONE?modules:[...primaryNavigationIds.map(id=>modules.find(m=>m.id===id)),...modules.filter(m=>!primaryNavigationIds.includes(m.id))]).filter(m=>!m.memoOnly);
   const moduleFrames = new Map();
   let redeemAlertCount = 0;
   const previewMode = new URLSearchParams(location.search).get('preview') === '1';
@@ -160,7 +161,8 @@
     for(const key of moduleFrames.keys())panelVisibility(key,false);
     currentView = selected.id;
     document.querySelectorAll('.view').forEach(v=>{v.hidden=v.id!==`view-${currentView}`;});
-    $('navigation').querySelectorAll('button').forEach(b=>{const on=b.dataset.nav===currentView; b.classList.toggle('active',on); if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+    const navigationView=['battle','canyon'].includes(currentView)?'notes':currentView;
+    $('navigation').querySelectorAll('button').forEach(b=>{const on=b.dataset.nav===navigationView; b.classList.toggle('active',on); if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
     $('breadcrumb-current').textContent=selected.label; $('page-title').textContent=selected.title; $('page-eyebrow').textContent=selected.eyebrow; $('page-subtitle').textContent=selected.subtitle;
     $('reset-settings').hidden=currentView!=='joiners';
     document.body.classList.toggle('embedded-module',Boolean(selected.path));

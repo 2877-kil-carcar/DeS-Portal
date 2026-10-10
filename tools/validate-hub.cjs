@@ -98,6 +98,15 @@ test('gift code, gallery and forms lead navigation without changing default modu
  assert.ok(app.includes("['redeem','gallery','forms','bear']"));
  assert.ok(app.includes("let state = C.normalizeState(saved, heroes), currentView = 'redeem'"));
  assert.ok(html.includes('brand-name">DeS</span><span class="brand-row"><span class="brand-mark"'));assert.ok(html.includes('brand-title">ポータル'));assert.ok(html.includes('<div class="nav-label">メニュー</div>'));assert.ok(fs.existsSync(path.join(root,'assets/pepper-portal.jpg')));
- assert.ok(css.includes('.brand{width:100%;padding:0 3px;gap:9px;flex-direction:column'));assert.ok(css.includes('.brand-name{display:block;width:100%;text-align:center'));assert.ok(css.includes('font-size:82px'));assert.ok(css.includes('.brand-row{display:flex;align-items:center;gap:9px'));assert.ok(css.includes('.brand-title{display:block;line-height:1.15;font-size:26px'));assert.ok(css.includes('.brand-mark{width:70px;height:78px;flex:0 0 70px'));assert.ok(css.includes('.brand-mark::before'));
+  assert.ok(css.includes('.brand{width:100%;padding:0 3px;gap:9px;flex-direction:column'));assert.ok(css.includes('.brand-name{display:block;width:100%;text-align:center'));assert.ok(css.includes('font-size:82px'));assert.ok(css.includes('.brand-row{display:flex;align-items:center;gap:9px'));assert.ok(css.includes('.brand-title{display:block;line-height:1.15;font-size:26px'));assert.ok(css.includes('.brand-mark{width:70px;height:78px;flex:0 0 70px'));assert.ok(css.includes('.brand-mark::before'));
+});
+test('battle and canyon are grouped in the final notebook menu',()=>{
+ const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+ assert.ok(app.includes("id: 'battle'")&&app.includes("label: '戦闘ターン'")&&app.includes('memoOnly:true'));
+ assert.ok(app.includes("id: 'canyon'")&&app.includes("label:'峡谷合戦'")&&app.includes('memoOnly:true'));
+ assert.ok(app.includes("id: 'notes', label:'かるろすのメモ帳'"));
+ assert.ok(app.includes('.filter(m=>!m.memoOnly)'));
+ assert.ok(html.includes('id="view-notes"'));assert.ok(html.includes('href="#battle"'));assert.ok(html.includes('href="#canyon"'));
+ assert.equal((html.match(/href="#notes"/g)||[]).length,2);
 });
 console.log(groups+' hub test groups passed (static/unit only; not browser E2E)');
