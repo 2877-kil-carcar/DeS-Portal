@@ -106,6 +106,17 @@ assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40017}).failure_
   await f.tick();assert.equal(f.notifications.length,0);assert.equal(job.notification,null);
 }
 {
+  const f=fixture();await f.queue.submit('LEGACYEXPIRED',{type:'manual'});await f.drain();
+  const legacy=f.queue.get('LEGACYEXPIRED');legacy.status='failed';legacy.source={type:'discord'};
+  legacy.targets=legacy.targets.map((player,index)=>({...player,status:'failed',attempts:index?0:1,msg:'交換期限切れ'}));
+  legacy.notification={status:'pending',attempts:0,next_at:Date.now(),sent_at:null,last_error:''};f.queue.save(legacy);
+  f.queue.sql.exec("DELETE FROM metadata WHERE key='migration.closed-codes-v2'");
+  const migrated=new RedeemQueue(f.ctx,{},f.queue.services),job=migrated.get('LEGACYEXPIRED');
+  assert.equal(job.status,'expired');assert.equal(job.summary.failed,0);assert.equal(job.summary.expired,1);assert.equal(job.summary.unprocessed,1);
+  assert.equal(job.notification.status,'suppressed');
+  assert.equal((await (await migrated.fetch(new Request('https://test/jobs'))).json()).unresolved,0);
+}
+{
   const f=fixture({redeemPlayer:async()=>{throw Error('timeout');}});
   await f.queue.submit('ERR123',{type:'manual'});await f.drain();
   const job=f.queue.get('ERR123');assert.equal(job.status,'failed');assert.ok(job.targets.every(p=>p.status==='unknown'));

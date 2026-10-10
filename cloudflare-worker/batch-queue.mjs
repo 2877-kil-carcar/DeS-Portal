@@ -31,6 +31,7 @@ export class RedeemQueue {
       stop_requested INTEGER NOT NULL DEFAULT 0, payload TEXT NOT NULL)`);
     this.sql.exec('CREATE INDEX IF NOT EXISTS jobs_status ON gift_codes(status, detected_at)');
     this.sql.exec('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+    this.migrateLegacyClosedJobs();
   }
   rows(query, ...args) { return Array.from(this.sql.exec(query, ...args)); }
   get(code) {
@@ -52,6 +53,21 @@ export class RedeemQueue {
   }
   meta(key) { return this.rows('SELECT value FROM metadata WHERE key=?',key)[0]?.value; }
   setMeta(key, value) { this.sql.exec('INSERT INTO metadata(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',key,value); }
+  migrateLegacyClosedJobs() {
+    const key='migration.closed-codes-v2';
+    if(this.meta(key))return;
+    for(const row of this.rows("SELECT code FROM gift_codes WHERE status='failed'")){
+      const job=this.get(row.code),unresolved=(job.targets||[]).filter(player=>['failed','unknown'].includes(player.status));
+      if(!unresolved.length||!unresolved.every(player=>player.status==='failed'&&/期限切れ/.test(String(player.msg||''))))continue;
+      const confirmed=unresolved.find(player=>Number(player.attempts)>0)||unresolved[0];
+      for(const player of unresolved){player.status=player===confirmed?'expired':'closed';if(player!==confirmed)player.msg='期限切れのため未実行';}
+      job.status='expired';job.error=confirmed.msg||'交換期限切れ';
+      // Historical rows were already surfaced under the old rules. Never send a new Discord notice during migration.
+      job.notification={status:'suppressed',attempts:0,next_at:0,sent_at:null,last_error:'旧形式の期限切れを移行'};
+      this.save(job);
+    }
+    this.setMeta(key,String(Date.now()));
+  }
   async wake(delay = 1000) {
     const active = this.rows("SELECT code FROM gift_codes WHERE status IN ('pending','processing') LIMIT 1");
     const notify = this.rows("SELECT code FROM gift_codes WHERE status IN ('completed','failed','cancelled','expired','invalid') ORDER BY updated_at DESC LIMIT 30")
@@ -109,6 +125,7 @@ export class RedeemQueue {
         return Response.json(await this.submit(input.code,input.source,input.retry,input.acknowledgeUnknown));
       }
       if (url.pathname === '/jobs') {
+        this.migrateLegacyClosedJobs();
         const code = url.searchParams.get('code');
         if (code) return Response.json({job:this.get(normalizeCode(code))});
         const jobs = this.rows('SELECT code FROM gift_codes ORDER BY detected_at DESC LIMIT 20').map(r => this.get(r.code));
