@@ -61,8 +61,8 @@
     panelVisibility(record[0],currentView===record[0]);
   });
   function persist() {
-    try { localStorage.setItem(storageKey, JSON.stringify(state)); $('save-status').textContent = 'この端末に保存済み'; }
-    catch (_) { $('save-status').textContent = 'この環境では保存できません（操作は可能）'; }
+    try { localStorage.setItem(storageKey, JSON.stringify(state)); }
+    catch (_) {}
   }
   function renderRedeemAlert(){document.querySelectorAll('[data-redeem-alert]').forEach(node=>{node.textContent=redeemAlertCount>99?'99+':String(redeemAlertCount);node.hidden=redeemAlertCount===0;});}
   function toast(message) {
