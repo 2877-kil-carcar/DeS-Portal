@@ -71,6 +71,7 @@ test('evidence UI exists in hub and generated single-file version', () => {
     assert.ok(!html.includes('id="download-data"'));
   }
   const app = fs.readFileSync(path.join(root,'assets/app.js'),'utf8');
+  assert.ok(app.includes("label: '出典情報'"));
   assert.ok(app.includes("title: 'いろんな情報から確かめる。'"));
   assert.ok(!app.includes('どの情報を優先したか'));
   assert.ok(!app.includes("$('download-data')"));

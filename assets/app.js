@@ -17,7 +17,7 @@
   let toastTimer;
   const modules = [
     { id: 'battle', label: '戦闘ターン', icon: '⇄', eyebrow: 'COMBAT FIELD NOTES', title: '1ターンの、その中へ。', subtitle: '両軍が同時に動く仕組みを、ステップで確かめる。', memoOnly:true },
-    { id: 'sources', label: '出典・検証', icon: '◎', eyebrow: 'RESEARCH LOG', title: 'いろんな情報から確かめる。', subtitle: '' },
+    { id: 'sources', label: '出典情報', icon: '◎', eyebrow: 'RESEARCH LOG', title: 'いろんな情報から確かめる。', subtitle: '' },
     { id: 'bear', label:'熊罠配置', icon:'▦', path:'./apps/bear/index.html?v=3.44', title:'熊罠配置', eyebrow:'ALLIANCE LAYOUT', subtitle:'DeS・GeMの配置を確認・調整' },
     { id: 'canyon', label:'峡谷合戦', icon:'△', path:'./apps/canyon/index.html', title:'峡谷合戦', eyebrow:'CANYON CLASH', subtitle:'42レッスンの攻略ガイド', memoOnly:true },
     { id: 'gallery', label:'もふもふギャラリー', icon:'♧', path:'./apps/gallery/index.html', title:'もふもふギャラリー', eyebrow:'THE FLUFFY HALL', subtitle:'同盟のもふもふコレクション' },
