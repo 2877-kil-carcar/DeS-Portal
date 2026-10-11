@@ -311,12 +311,24 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   box-shadow: 0 20px 60px rgba(16, 44, 65, .28);
 }
 #adminDialog::backdrop { background: rgba(20, 38, 53, .55); }
+#mapSettingsDialog {
+  width: min(460px, calc(100vw - 28px));
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  color: var(--ink);
+  box-shadow: 0 20px 60px rgba(16, 44, 65, .28);
+}
+#mapSettingsDialog::backdrop { background: rgba(20, 38, 53, .55); }
 .dialog-card { padding: 20px; }
 .dialog-card h2 { margin: 0; font-size: 19px; }
 .dialog-card p { margin: 6px 0 16px; color: var(--muted); font-size: 12px; }
 .dialog-card label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 700; }
 .dialog-card input { min-height: 46px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 16px; }
+.map-range-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.map-range-fields input { width: 100%; min-width: 0; }
+.dialog-error { min-height: 18px; margin: 8px 0 0 !important; color: #a43f37 !important; font-weight: 700; }
 
 #topBar.members-topbar { display: flex; height: 58px; padding: 8px 12px; align-items: center; gap: 12px; }
 .members-topbar h1 { margin: 0; font-size: 17px; line-height: 24px; }

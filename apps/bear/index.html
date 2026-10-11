@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <title>DeS 熊罠配置 | DeS ポータル</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <link rel="stylesheet" href="css/style.css?v=3.42">
-  <link rel="stylesheet" href="css/mobile.css?v=3.42">
+  <link rel="stylesheet" href="css/style.css?v=3.43">
+  <link rel="stylesheet" href="css/mobile.css?v=3.43">
 </head>
 <body>
   <header id="topBar">
@@ -19,6 +19,7 @@
       <button id="findMember" type="button">⌕ 同盟員検索</button>
       <button id="mapAll" type="button">全体表示</button>
       <button id="adminApproveBtn" type="button">編集</button>
+      <button id="mapSettingsBtn" type="button" hidden>表示範囲</button>
       <a id="memberLink" href="./members.html" hidden>同盟員管理</a>
       <div id="currentPosTop" aria-live="polite"></div>
     </nav>
@@ -54,10 +55,24 @@
       <div class="dialog-actions"><button id="adminCancelBtn" value="cancel">キャンセル</button><button id="adminSubmitBtn" class="primary" value="default">編集を開始</button></div>
     </form>
   </dialog>
+  <dialog id="mapSettingsDialog">
+    <form id="mapSettingsForm" class="dialog-card">
+      <h2>GeM 表示範囲</h2>
+      <p>Xは最小値が左、Yは最大値が上に表示されます。各辺は最大100マスです。</p>
+      <div class="map-range-fields">
+        <label>X 最小<input id="mapMinX" type="number" min="0" max="9999" inputmode="numeric" required></label>
+        <label>X 最大<input id="mapMaxX" type="number" min="0" max="9999" inputmode="numeric" required></label>
+        <label>Y 最小<input id="mapMinY" type="number" min="0" max="9999" inputmode="numeric" required></label>
+        <label>Y 最大<input id="mapMaxY" type="number" min="0" max="9999" inputmode="numeric" required></label>
+      </div>
+      <p id="mapSettingsError" class="dialog-error" role="alert"></p>
+      <div class="dialog-actions"><button id="mapSettingsCancel" type="button">キャンセル</button><button class="primary" type="submit">保存</button></div>
+    </form>
+  </dialog>
   <div class="map-controls" aria-label="地図倍率"><button id="zoomOut" aria-label="地図を縮小">−</button><button id="zoomReset" aria-label="地図の倍率をリセット">100%</button><button id="zoomIn" aria-label="地図を拡大">＋</button></div>
   <div id="coordHint">スワイプで移動 · 2本指で拡大 · マスをタップして詳細表示</div>
-  <script src="./js/placement-core.js?v=3.42"></script>
-  <script type="module" src="./js/app.js?v=3.42"></script>
+  <script src="./js/placement-core.js?v=3.43"></script>
+  <script type="module" src="./js/app.js?v=3.43"></script>
   <script src="../bridge.js"></script>
 </body>
 </html>

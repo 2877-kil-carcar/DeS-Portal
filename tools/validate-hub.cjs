@@ -107,6 +107,21 @@ test('bear alliance tabs isolate DeS and GeM data',()=>{
  assert.ok(members.includes('collection(db, allianceConfig.membersCollection)'));
  assert.ok(members.includes('doc(db, allianceConfig.membersCollection'));
 });
+test('GeM map range is shared, bounded and stored in world coordinates',()=>{
+ const read=f=>fs.readFileSync(path.join(root,f),'utf8');
+ const config=read('apps/bear/js/map-config.js');
+ const bear=read('apps/bear/js/app.js');
+ const html=read('apps/bear/index.html');
+ assert.ok(config.includes('width > 100 || height > 100'));
+ assert.ok(config.includes('stored.mapX = worldX(object.x)'));
+ assert.ok(config.includes('stored.mapY = worldY(object.y + object.size - 1)'));
+ assert.ok(config.includes('object.mapX = 411 + object.x'));
+ assert.ok(config.includes('objectFitsMap'));
+ assert.ok(bear.includes('doc(db, allianceConfig.settingsCollection, "map")'));
+ assert.ok(bear.includes('範囲外になる配置が'));
+ assert.ok(bear.includes('grid.style.gridTemplateColumns'));
+ for(const id of ['mapSettingsBtn','mapSettingsDialog','mapMinX','mapMaxX','mapMinY','mapMaxY'])assert.ok(html.includes('id="'+id+'"'),id);
+});
 test('gift code, gallery and forms lead navigation without changing default module',()=>{
  const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8'),css=fs.readFileSync(path.join(root,'assets/app.css'),'utf8');
  assert.ok(app.includes("const primaryNavigationIds = ['redeem', 'gallery', 'forms', 'bear', 'games', 'formation', 'svs']"));

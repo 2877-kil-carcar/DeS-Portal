@@ -1,5 +1,6 @@
 import { members, objects, adminApproved } from "./data.js?v=3.27.1";
 import { getObjectAt } from "./grid.js?v=3.27.1";
+import { coordinates } from "./map-config.js?v=3.43";
 
 const sheet = document.getElementById("sheet");
 const list = document.getElementById("list");
@@ -214,10 +215,6 @@ function emptyState(message) {
   empty.className = "empty-state";
   empty.textContent = message;
   list.appendChild(empty);
-}
-
-function coordinates(x, y) {
-  return "X:" + (411 + x) + "  Y:" + (659 - y);
 }
 
 function formatDateTime(timestamp) {

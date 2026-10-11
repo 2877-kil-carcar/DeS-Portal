@@ -7,6 +7,7 @@
   #topActions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
   #topActions button, #topActions a { min-width: 0; min-height: 40px; justify-content: center; padding: 6px 4px; overflow: hidden; font-size: 10px; text-overflow: ellipsis; }
   #memberLink { grid-column: span 2; }
+  #mapSettingsBtn { grid-column: span 2; }
   #currentPosTop { display: none; }
   #syncStatus { padding-right: 10px; padding-left: 10px; }
   #gridWrapper { bottom: 64px; }
@@ -53,6 +54,7 @@
   .member-name-field { align-items: flex-start; flex-direction: column; gap: 5px; }
   .name-input-wrap { width: 100%; }
   #nameDropdown { max-height: min(40dvh, 280px); }
+  .map-range-fields { gap: 8px; }
 }
 
 @media (max-width: 390px) {

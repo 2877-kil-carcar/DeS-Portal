@@ -10,7 +10,7 @@ import {
   deleteDoc,
   doc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { allianceConfig, allianceHref, setupAllianceTabs } from "./alliance.js?v=3.42";
+import { allianceConfig, allianceHref, setupAllianceTabs } from "./alliance.js?v=3.43";
 
 const nameInput = document.getElementById("name");
 const rankSelect = document.getElementById("rank");

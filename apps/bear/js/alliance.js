@@ -9,7 +9,8 @@ const ALLIANCES = Object.freeze({
     key: "gem",
     label: "GeM",
     objectsCollection: "gemObjects",
-    membersCollection: "gemMembers"
+    membersCollection: "gemMembers",
+    settingsCollection: "gemSettings"
   })
 });
 

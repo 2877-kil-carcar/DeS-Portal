@@ -1,9 +1,22 @@
 import { db, authReady, PREVIEW } from "./firebase.js";
-import { doc, writeBatch, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { GRID_COLS, GRID_ROWS, GRID_MIN_X, GRID_MAX_X, GRID_VIEW_COLS, members, setObjects, objects, setMembers, adminApproved, setAdminApproved } from "./data.js?v=3.27.1";
+import { doc, writeBatch, deleteDoc, onSnapshot, collection, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { members, setObjects, objects, setMembers, adminApproved, setAdminApproved } from "./data.js?v=3.27.1";
 import { getObjectAt } from "./grid.js?v=3.27.1";
-import * as ui from "./ui.js?v=3.27.1";
-import { allianceConfig, allianceHref, setupAllianceTabs } from "./alliance.js?v=3.42";
+import * as ui from "./ui.js?v=3.43";
+import { allianceConfig, allianceHref, setupAllianceTabs } from "./alliance.js?v=3.43";
+import {
+  coordinates,
+  getGridMetrics,
+  getMapConfig,
+  gridObjectToStored,
+  normalizeMapConfig,
+  objectFitsMap,
+  setMapConfig,
+  storageIdForObject,
+  storedObjectToGrid,
+  worldX,
+  worldY
+} from "./map-config.js?v=3.43";
 
 const grid = document.getElementById("grid");
 const wrapper = document.getElementById("gridWrapper");
@@ -17,6 +30,10 @@ const placementTray = document.getElementById("placementTray");
 const placementLabel = document.getElementById("placementLabel");
 const placementHint = document.getElementById("placementHint");
 const confirmPlacement = document.getElementById("confirmPlacement");
+const mapSettingsBtn = document.getElementById("mapSettingsBtn");
+const mapSettingsDialog = document.getElementById("mapSettingsDialog");
+const mapSettingsForm = document.getElementById("mapSettingsForm");
+const mapSettingsError = document.getElementById("mapSettingsError");
 const ADMIN_PASSWORD = "des";
 
 document.getElementById("allianceName").textContent = allianceConfig.label;
@@ -33,8 +50,11 @@ let scale = 1;
 let lastDist = null;
 let lastPanAt = -1000;
 let trapIndex = -1;
-const GRID_PIXEL_WIDTH = GRID_VIEW_COLS * 37 + 13;
-const GRID_PIXEL_HEIGHT = 1015;
+let metrics = getGridMetrics();
+let rawStoredObjects = [];
+
+function gridPixelWidth() { return metrics.viewCols * 37 + 13; }
+function gridPixelHeight() { return metrics.rows * 37 + 16; }
 
 function showStatus(message, error = false) {
   status.textContent = message;
@@ -48,14 +68,14 @@ new ResizeObserver(updateMapHeight).observe(document.getElementById("topBar"));
 
 function syncScale() {
   grid.style.transform = "scale(" + scale + ")";
-  stage.style.width = (GRID_PIXEL_WIDTH * scale) + "px";
-  stage.style.height = (GRID_PIXEL_HEIGHT * scale) + "px";
+  stage.style.width = (gridPixelWidth() * scale) + "px";
+  stage.style.height = (gridPixelHeight() * scale) + "px";
   document.getElementById("zoomReset").textContent = Math.round(scale * 100) + "%";
 }
 
 function zoomTo(next) {
   const old = scale;
-  scale = Math.max(.15, Math.min(3, next));
+  scale = Math.max(.08, Math.min(3, next));
   const cx = wrapper.clientWidth / 2;
   const cy = wrapper.clientHeight / 2;
   syncScale();
@@ -64,7 +84,7 @@ function zoomTo(next) {
 }
 
 function showWholeMap() {
-  zoomTo(Math.min(wrapper.clientWidth / GRID_PIXEL_WIDTH, wrapper.clientHeight / GRID_PIXEL_HEIGHT));
+  zoomTo(Math.min(wrapper.clientWidth / gridPixelWidth(), wrapper.clientHeight / gridPixelHeight()));
   wrapper.scrollTo(0, 0);
 }
 
@@ -88,6 +108,7 @@ function updateAdminUi() {
   adminApproveBtn.textContent = adminApproved ? "編集を終了" : "編集";
   adminApproveBtn.classList.toggle("editing", adminApproved);
   memberLink.hidden = !adminApproved;
+  mapSettingsBtn.hidden = allianceConfig.key !== "gem" || !adminApproved;
   ui.refreshSheet();
 }
 
@@ -131,17 +152,86 @@ adminPwInput.addEventListener("input", () => adminPwInput.setCustomValidity(""))
 memberLink.addEventListener("click", event => { if (!adminApproved) event.preventDefault(); });
 
 function initGrid() {
+  metrics = getGridMetrics();
+  grid.replaceChildren();
+  grid.style.gridTemplateColumns = `repeat(${metrics.viewCols}, 34px)`;
   const fragment = document.createDocumentFragment();
-  for (let y = 0; y < GRID_ROWS; y++) {
-    for (let x = 0; x < GRID_COLS; x++) {
+  for (let y = 0; y < metrics.rows; y++) {
+    for (let x = 0; x < metrics.cols; x++) {
       const cell = document.createElement("div");
       cell.className = "cell";
       fragment.appendChild(cell);
     }
   }
   grid.appendChild(fragment);
+  syncScale();
   render();
 }
+
+function applyStoredObjects() {
+  setObjects(rawStoredObjects.map(item => storedObjectToGrid(item, item._storageId)));
+  ui.refreshSheet();
+}
+
+function fillMapSettingsForm() {
+  const config = getMapConfig();
+  document.getElementById("mapMinX").value = config.minX;
+  document.getElementById("mapMaxX").value = config.maxX;
+  document.getElementById("mapMinY").value = config.minY;
+  document.getElementById("mapMaxY").value = config.maxY;
+  mapSettingsError.textContent = "";
+}
+
+mapSettingsBtn.addEventListener("click", () => {
+  if (allianceConfig.key !== "gem" || !adminApproved) return;
+  fillMapSettingsForm();
+  mapSettingsDialog.showModal();
+});
+
+document.getElementById("mapSettingsCancel").addEventListener("click", () => mapSettingsDialog.close());
+
+mapSettingsForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  if (allianceConfig.key !== "gem" || !adminApproved) return;
+  const nextConfig = normalizeMapConfig({
+    minX: document.getElementById("mapMinX").valueAsNumber,
+    maxX: document.getElementById("mapMaxX").valueAsNumber,
+    minY: document.getElementById("mapMinY").valueAsNumber,
+    maxY: document.getElementById("mapMaxY").valueAsNumber
+  });
+  if (!nextConfig) {
+    mapSettingsError.textContent = "最小値より最大値を大きくし、各辺を2〜100マスで設定してください。";
+    return;
+  }
+
+  const storedForCheck = PREVIEW ? objects.map(gridObjectToStored) : rawStoredObjects;
+  const outsideCount = storedForCheck.filter(object => !objectFitsMap(object, nextConfig)).length;
+  if (outsideCount) {
+    mapSettingsError.textContent = `範囲外になる配置が${outsideCount}件あります。配置を範囲内へ移動してから変更してください。`;
+    return;
+  }
+
+  const submit = mapSettingsForm.querySelector('button[type="submit"]');
+  submit.disabled = true;
+  try {
+    if (PREVIEW) {
+      rawStoredObjects = storedForCheck;
+      setMapConfig(nextConfig);
+      applyStoredObjects();
+      activeCellPos = null;
+      cancelPending();
+      initGrid();
+    } else {
+      await setDoc(doc(db, allianceConfig.settingsCollection, "map"), { ...nextConfig, updatedAt: Date.now() });
+    }
+    mapSettingsDialog.close();
+    showStatus(PREVIEW ? "表示確認モード：GeMの表示範囲を更新しました" : "GeMの表示範囲を保存しました");
+  } catch (_) {
+    mapSettingsError.textContent = "保存できませんでした。通信・権限を確認してください。";
+  } finally {
+    submit.disabled = false;
+  }
+});
 
 async function commitPlan(plan) {
   if (!adminApproved || saving || !plan) return;
@@ -158,11 +248,13 @@ async function commitPlan(plan) {
       render();
     } else {
       const batch = writeBatch(db);
-      const nextRef = doc(db, allianceConfig.objectsCollection, next.x + "_" + next.y);
+      const storedNext = gridObjectToStored(next);
+      const nextId = allianceConfig.key === "gem" ? `${storedNext.mapX}_${storedNext.mapY}` : `${next.x}_${next.y}`;
+      const nextRef = doc(db, allianceConfig.objectsCollection, nextId);
       if (plan.previous && (plan.previous.x !== next.x || plan.previous.y !== next.y)) {
-        batch.delete(doc(db, allianceConfig.objectsCollection, plan.previous.x + "_" + plan.previous.y));
+        batch.delete(doc(db, allianceConfig.objectsCollection, storageIdForObject(plan.previous)));
       }
-      batch.set(nextRef, next);
+      batch.set(nextRef, storedNext);
       await batch.commit();
     }
     showStatus(PREVIEW ? "表示確認モード：試し置きは本番に保存されません" : "配置を保存しました");
@@ -178,7 +270,7 @@ async function commitPlan(plan) {
 ui.setOnSelectCallback(async (type, memberId, pos) => {
   if (!adminApproved || saving) return;
   try {
-    const plan = window.WOS_PLACEMENT.planPlacement(objects, type, memberId, pos, GRID_COLS, GRID_ROWS, null, GRID_MIN_X, GRID_MAX_X);
+    const plan = window.WOS_PLACEMENT.planPlacement(objects, type, memberId, pos, metrics.cols, metrics.rows, null, metrics.minGridX, metrics.maxGridX);
     await commitPlan(plan);
   } catch (error) {
     showStatus(error.message, true);
@@ -206,11 +298,11 @@ function previewPlacement(pos) {
       pendingSelection.type,
       pendingSelection.memberId,
       pos,
-      GRID_COLS,
-      GRID_ROWS,
+      metrics.cols,
+      metrics.rows,
       pendingSelection.previous,
-      GRID_MIN_X,
-      GRID_MAX_X
+      metrics.minGridX,
+      metrics.maxGridX
     );
     placementHint.textContent = coordinates(pos.x, pos.y) + " に配置できます";
     placementHint.classList.remove("error");
@@ -244,11 +336,11 @@ function render() {
   const cells = grid.children;
   for (let i = 0; i < cells.length; i++) {
     const cell = cells[i];
-    const x = i % GRID_COLS;
-    const y = Math.floor(i / GRID_COLS);
+    const x = i % metrics.cols;
+    const y = Math.floor(i / metrics.cols);
     cell.className = "cell";
     cell.replaceChildren();
-    if (x !== 0 && (x < GRID_MIN_X || x > GRID_MAX_X)) {
+    if (x !== 0 && (x < metrics.minGridX || x > metrics.maxGridX)) {
       cell.classList.add("out-of-range");
       continue;
     }
@@ -258,12 +350,12 @@ function render() {
       continue;
     }
     if (y === 0) {
-      cell.textContent = 411 + x;
+      cell.textContent = worldX(x);
       cell.classList.add("coord-cell");
       continue;
     }
     if (x === 0) {
-      cell.textContent = 659 - y;
+      cell.textContent = worldY(y);
       cell.classList.add("coord-cell");
       continue;
     }
@@ -316,9 +408,9 @@ function appendText(cell, className, value) {
 function appendCoordinates(cell, object) {
   const element = document.createElement("div");
   element.className = "cell-center";
-  const first = document.createTextNode("X" + (411 + object.x));
+  const first = document.createTextNode("X" + worldX(object.x));
   const br = document.createElement("br");
-  const second = document.createTextNode("Y" + (659 - (object.y + 1)));
+  const second = document.createTextNode("Y" + worldY(object.y + 1));
   element.append(first, br, second);
   cell.appendChild(element);
 }
@@ -336,7 +428,7 @@ export async function deleteObjectAt(x, y) {
     if (PREVIEW) {
       setObjects(objects.filter(item => item !== object));
       render();
-    } else await deleteDoc(doc(db, allianceConfig.objectsCollection, object.x + "_" + object.y));
+    } else await deleteDoc(doc(db, allianceConfig.objectsCollection, storageIdForObject(object)));
     showStatus(PREVIEW ? "表示確認モード：試し置きを削除しました" : "配置を削除しました");
   } catch (error) {
     showStatus("削除できませんでした。通信・権限を確認してください。", true);
@@ -381,8 +473,18 @@ async function connect() {
   try {
     await authReady;
     const failed = () => showStatus("共有配置を読み込めません。通信またはアクセス権限を確認してください。", true);
+    if (allianceConfig.key === "gem") {
+      onSnapshot(doc(db, allianceConfig.settingsCollection, "map"), snapshot => {
+        setMapConfig(snapshot.exists() ? snapshot.data() : undefined);
+        applyStoredObjects();
+        cancelPending();
+        activeCellPos = null;
+        initGrid();
+      }, failed);
+    }
     onSnapshot(collection(db, allianceConfig.objectsCollection), snapshot => {
-      setObjects(snapshot.docs.map(item => item.data()));
+      rawStoredObjects = snapshot.docs.map(item => ({ ...item.data(), _storageId: item.id }));
+      applyStoredObjects();
       render();
       showStatus(adminApproved ? "共有配置と同期中 · 編集モード" : "共有配置と同期中 · 閲覧モード");
     }, failed);
@@ -398,7 +500,7 @@ async function connect() {
 
 export function jumpTo(x, y) {
   const cellSize = 37;
-  const visibleX = Math.max(1, Math.min(GRID_VIEW_COLS - 1, x - GRID_MIN_X + 1));
+  const visibleX = Math.max(1, Math.min(metrics.viewCols - 1, x - metrics.minGridX + 1));
   const targetX = visibleX * cellSize * scale;
   const targetY = y * cellSize * scale;
   activeCellPos = { x, y };
@@ -419,7 +521,7 @@ wrapper.addEventListener("wheel", event => {
   const mouseX = event.clientX - rect.left;
   const mouseY = event.clientY - rect.top;
   const previous = scale;
-  scale = Math.min(Math.max(.5, scale + (event.deltaY > 0 ? -.1 : .1)), 2);
+  scale = Math.min(Math.max(.08, scale + (event.deltaY > 0 ? -.1 : .1)), 2);
   syncScale();
   wrapper.scrollLeft = (wrapper.scrollLeft + mouseX) * scale / previous - mouseX;
   wrapper.scrollTop = (wrapper.scrollTop + mouseY) * scale / previous - mouseY;
@@ -459,7 +561,7 @@ wrapper.addEventListener("touchmove", event => {
   const distance = Math.sqrt(dx * dx + dy * dy);
   if (distance > 0) {
     const previous = scale;
-    scale = Math.min(Math.max(.15, scale * (distance / lastDist)), 3);
+    scale = Math.min(Math.max(.08, scale * (distance / lastDist)), 3);
     const ratio = scale / previous;
     const rect = wrapper.getBoundingClientRect();
     const midX = (first.clientX + second.clientX) / 2 - rect.left;
@@ -506,10 +608,6 @@ function formatDateTime(timestamp, short = false) {
 function updateGlobalUpdatedAt() {
   const latest = objects.reduce((value, object) => Math.max(value, object.updatedAt || 0), 0);
   document.getElementById("globalUpdatedAt").textContent = latest ? "最終更新 " + formatDateTime(latest) : "";
-}
-
-function coordinates(x, y) {
-  return "X:" + (411 + x) + "  Y:" + (659 - y);
 }
 
 function updateCurrentPos() {
