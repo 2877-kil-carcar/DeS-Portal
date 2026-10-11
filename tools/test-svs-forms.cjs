@@ -61,7 +61,7 @@ async function connectedForms(){
   assert.ok(heroHtml.indexOf('第1世代')<heroHtml.indexOf('第2世代'));assert.ok(heroHtml.includes('hero-generation-fold'));
   assert.equal((playerHtml.match(/alliance-fold/g)||[]).length,2);
   assert.ok(playerHtml.indexOf('集計コピー')<playerHtml.indexOf('playerName'));assert.ok(playerHtml.includes('>グループ'));assert.ok(playerHtml.includes('>同盟'));
-  assert.ok(ownedHtml.includes('ownership-generation-fold'));assert.ok(ownedHtml.includes('ownership-grid'));assert.ok(s.node('heroList').innerHTML.includes('hero-check-generation'));
+  assert.ok(ownedHtml.includes('ownership-generation-fold'));assert.ok(ownedHtml.includes('ownership-scroll'));assert.ok(ownedHtml.includes('ownership-grid'));assert.ok(s.node('heroList').innerHTML.includes('hero-check-generation'));
   assert.ok(rallyHtml.includes('rally-form-fields'));assert.ok(rallyHtml.includes('march-time-input'));assert.ok(rallyHtml.includes('rate-fields'));
   assert.ok(rallyHtml.includes('rally-alliance-fold'));assert.ok(rallyHtml.includes('<th>行軍時間</th>'));assert.ok(!rallyHtml.includes('<th>行軍</th>'));
  });
@@ -151,6 +151,7 @@ async function connectedForms(){
   assert.equal((svsHtml.match(/id="syncStatus"/g)||[]).length,1);
   assert.ok(svsHtml.indexOf('id="syncStatus"')>svsHtml.indexOf('id="countupTab"'));
   assert.ok(read('apps/svs/heroes.js').includes('hero-generation-fold'));
+  assert.ok(read('apps/svs/hub.css').includes('.ownership-scroll{max-width:100%;overflow-x:auto'));
  });
  console.log(count+' SvS/forms offline test groups passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});

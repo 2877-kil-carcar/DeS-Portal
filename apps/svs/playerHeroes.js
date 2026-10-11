@@ -101,8 +101,9 @@ function renderPlayerHeroes(){
 
     Object.keys(allianceGroups).forEach(alliance=>{
       html += `<section class="ownership-alliance">
-        <h4>${escapeHtml(alliance)} <small>${allianceGroups[alliance].length}人</small></h4>
-        <div class="ownership-grid" style="--hero-count:${generationHeroes.length}">
+        <h4>${escapeHtml(alliance)} <small>${allianceGroups[alliance].length}人</small><span class="ownership-swipe-hint">左右にスワイプ</span></h4>
+        <div class="ownership-scroll" role="region" tabindex="0" aria-label="${generationLabel} ${escapeHtml(alliance)}の所持英雄一覧・左右にスクロールできます">
+        <div class="ownership-grid" style="--hero-count:${generationHeroes.length};--ownership-min-width:${110 + generationHeroes.length * 60}px">
           <div class="owner-name owner-head">プレイヤー</div>`
 
       generationHeroes.forEach(hero=>{
@@ -119,7 +120,7 @@ function renderPlayerHeroes(){
         })
       })
 
-      html += `</div></section>`
+      html += `</div></div></section>`
     })
 
     html += `</div></details>`
