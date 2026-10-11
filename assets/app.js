@@ -253,6 +253,5 @@
     battle.initialLeft=[0,1,2].map(i=>Number($(`battle-left-${i}`).value));battle.initialRight=[0,1,2].map(i=>Number($(`battle-right-${i}`).value));battle.rate=Number($('battle-rate').value);resetBattle();
   });
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stopBattle();for(const key of moduleFrames.keys())panelVisibility(key,!document.hidden&&key===currentView);});
-  $('download-data').addEventListener('click',()=>{const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='wos_rally_joiner_gen1-8.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
   render();resetBattle();navigate(location.hash.slice(1));
 })();
