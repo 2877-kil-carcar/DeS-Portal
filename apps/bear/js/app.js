@@ -34,7 +34,8 @@ const mapSettingsBtn = document.getElementById("mapSettingsBtn");
 const mapSettingsDialog = document.getElementById("mapSettingsDialog");
 const mapSettingsForm = document.getElementById("mapSettingsForm");
 const mapSettingsError = document.getElementById("mapSettingsError");
-const ADMIN_PASSWORD = "des";
+const ADMIN_PASSWORD = allianceConfig.key === "gem" ? "gem" : "des";
+const ADMIN_SESSION_KEY = `adminApproved:${allianceConfig.key}`;
 
 document.getElementById("allianceName").textContent = allianceConfig.label;
 document.title = `${allianceConfig.label} 熊罠配置 | DeS ポータル`;
@@ -114,7 +115,7 @@ function updateAdminUi() {
 
 function endEditing() {
   setAdminApproved(false);
-  sessionStorage.removeItem("adminApproved");
+  sessionStorage.removeItem(ADMIN_SESSION_KEY);
   cancelPending();
   updateAdminUi();
   render();
@@ -143,7 +144,7 @@ document.getElementById("adminSubmitBtn").addEventListener("click", event => {
   adminPwInput.setCustomValidity("");
   adminPwInput.value = "";
   setAdminApproved(true);
-  sessionStorage.setItem("adminApproved", "true");
+  sessionStorage.setItem(ADMIN_SESSION_KEY, "true");
   updateAdminUi();
   render();
   showStatus("編集モード：配置を変更できます");
@@ -468,7 +469,7 @@ async function connect() {
     render();
     return;
   }
-  if (sessionStorage.getItem("adminApproved") === "true") setAdminApproved(true);
+  if (sessionStorage.getItem(ADMIN_SESSION_KEY) === "true") setAdminApproved(true);
   updateAdminUi();
   try {
     await authReady;

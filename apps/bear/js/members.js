@@ -20,7 +20,7 @@ const addBtn = document.querySelector("#membersForm button");
 const nameDropdown = document.getElementById("nameDropdown");
 const memberBackLink = document.getElementById("memberBackLink");
 
-const isAdmin = !PREVIEW && sessionStorage.getItem("adminApproved") === "true";
+const isAdmin = !PREVIEW && sessionStorage.getItem(`adminApproved:${allianceConfig.key}`) === "true";
 
 memberBackLink.href = allianceHref("./index.html");
 document.getElementById("membersAllianceName").textContent = allianceConfig.label;

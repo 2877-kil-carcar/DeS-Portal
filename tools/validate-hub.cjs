@@ -122,6 +122,15 @@ test('GeM map range is shared, bounded and stored in world coordinates',()=>{
  assert.ok(bear.includes('grid.style.gridTemplateColumns'));
  for(const id of ['mapSettingsBtn','mapSettingsDialog','mapMinX','mapMaxX','mapMinY','mapMaxY'])assert.ok(html.includes('id="'+id+'"'),id);
 });
+test('bear admin passwords and sessions are isolated per alliance',()=>{
+ const read=f=>fs.readFileSync(path.join(root,f),'utf8');
+ const bear=read('apps/bear/js/app.js');
+ const members=read('apps/bear/js/members.js');
+ assert.ok(bear.includes('allianceConfig.key === "gem" ? "gem" : "des"'));
+ assert.ok(bear.includes('`adminApproved:${allianceConfig.key}`'));
+ assert.ok(!bear.includes('sessionStorage.setItem("adminApproved"'));
+ assert.ok(members.includes('sessionStorage.getItem(`adminApproved:${allianceConfig.key}`)'));
+});
 test('gift code, gallery and forms lead navigation without changing default module',()=>{
  const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8'),css=fs.readFileSync(path.join(root,'assets/app.css'),'utf8');
  assert.ok(app.includes("const primaryNavigationIds = ['redeem', 'gallery', 'forms', 'bear', 'games', 'formation', 'svs']"));
