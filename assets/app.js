@@ -17,7 +17,7 @@
   let toastTimer;
   const modules = [
     { id: 'battle', label: '戦闘ターン', icon: '⇄', eyebrow: 'COMBAT FIELD NOTES', title: '1ターンの、その中へ。', subtitle: '両軍が同時に動く仕組みを、ステップで確かめる。', memoOnly:true },
-    { id: 'sources', label: '出典・検証', icon: '◎', eyebrow: 'RESEARCH LOG', title: '根拠から、確かめる。', subtitle: '公式ルール・採用した本文・未確認事項を分けて記録。' },
+    { id: 'sources', label: '出典・検証', icon: '◎', eyebrow: 'RESEARCH LOG', title: 'いろんな情報から確かめる。', subtitle: '' },
     { id: 'bear', label:'熊罠配置', icon:'▦', path:'./apps/bear/index.html?v=3.44', title:'熊罠配置', eyebrow:'ALLIANCE LAYOUT', subtitle:'DeS・GeMの配置を確認・調整' },
     { id: 'canyon', label:'峡谷合戦', icon:'△', path:'./apps/canyon/index.html', title:'峡谷合戦', eyebrow:'CANYON CLASH', subtitle:'42レッスンの攻略ガイド', memoOnly:true },
     { id: 'gallery', label:'もふもふギャラリー', icon:'♧', path:'./apps/gallery/index.html', title:'もふもふギャラリー', eyebrow:'THE FLUFFY HALL', subtitle:'同盟のもふもふコレクション' },
@@ -163,7 +163,8 @@
     document.querySelectorAll('.view').forEach(v=>{v.hidden=v.id!==`view-${currentView}`;});
     const navigationView=['battle','canyon'].includes(currentView)?'notes':currentView;
     $('navigation').querySelectorAll('button').forEach(b=>{const on=b.dataset.nav===navigationView; b.classList.toggle('active',on); if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
-    $('breadcrumb-current').textContent=selected.label; $('page-title').textContent=selected.title; $('page-eyebrow').textContent=selected.eyebrow; $('page-subtitle').textContent=selected.subtitle;
+    $('breadcrumb-current').textContent=selected.label; $('page-title').textContent=selected.title; $('page-eyebrow').textContent=selected.eyebrow;
+    $('page-subtitle').textContent=selected.subtitle||'';$('page-subtitle').hidden=!selected.subtitle;
     $('reset-settings').hidden=currentView!=='joiners';
     document.body.classList.toggle('embedded-module',Boolean(selected.path));
     mountModule(selected);panelVisibility(selected.id,true);
@@ -210,8 +211,7 @@
   const triggerTypes=new Map(heroes.flatMap(h=>h.skills.map(s=>[s.trigger.type,s.trigger.label])));
   $('trigger-filter').innerHTML='<option value="all">すべての発動タイプ</option>'+[...triggerTypes].map(([type,label])=>`<option value="${esc(type)}">${esc(label)}</option>`).join('');
   renderFormula();
-  $('evidence-policy').innerHTML='<h3>どの情報を優先したか</h3><p>'+esc(data.evidencePolicy.adoptionRule)+'</p><p>'+esc(data.evidencePolicy.limitations)+'</p><details class="evidence-detail"><summary>今回の調査範囲・照合件数について</summary><p>'+esc(data.evidencePolicy.coverage)+'</p><p>'+esc(data.evidencePolicy.extractionNote)+'</p><p>'+esc(data.evidencePolicy.recommendations)+'</p></details>';
-  $('source-list').innerHTML=data.sources.map(s=>`<article class="panel source-card">${tag(s.evidenceLevel==='official-general'?'公式一般則':s.evidenceLevel.startsWith('rejected')?'根拠に不採用':s.evidenceLevel==='out-of-scope'?'対象外':s.evidenceLevel==='community-disputed'?'報告が対立':s.evidenceLevel==='community-report'?'コミュニティ報告':'本文照合・補助資料',s.evidenceLevel==='official-general'?'good':'')}<h3>${link(s.url,s.name)}</h3><p>${esc(s.assessment)}</p></article>`).join('');
+  $('source-list').innerHTML=data.sources.map(s=>`<article class="panel source-card">${tag(s.evidenceLevel==='official-general'?'公式':s.evidenceLevel.startsWith('community-')?'経験談・推論':'コミュニティ等',s.evidenceLevel==='official-general'?'good':s.evidenceLevel.startsWith('community-')?'amber':'')}<h3>${link(s.url,s.name)}</h3><p>${esc(s.assessment)}</p></article>`).join('');
   $('battle-source').innerHTML=`公式の戦闘説明：${cite('official-combat')}。周期の例はスキル図鑑の個別出典を参照。`;
   $('battle-inputs').innerHTML=`<div class="battle-input-grid"><span></span>${C.troops.map(t=>`<span>${troopNames[t]}</span>`).join('')}${['left','right'].map(side=>`<span>${side==='left'?'味方':'敵軍'}</span>${C.troops.map((t,i)=>`<input type="number" id="battle-${side}-${i}" aria-label="${side==='left'?'味方':'敵軍'} ${troopNames[t]}の兵数" value="500" min="0" max="1500">`).join('')}`).join('')}</div>`;
   document.addEventListener('click',event=>{

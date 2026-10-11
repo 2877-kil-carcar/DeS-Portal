@@ -22,7 +22,7 @@
       "name": "Century Games / Combat FAQ",
       "url": "https://centurygames.helpshift.com/hc/en/64-whiteout-survival/faq/8048-combat-faq/",
       "evidenceLevel": "official-general",
-      "assessment": "集結・駐屯のスキル範囲と同時ターン。英雄別の隠れた計算式はない。",
+      "assessment": "集結時に有効になる集結主・参加者の遠征スキル、駐屯時のスキル適用範囲、同一ターン内で双方の攻撃が処理される仕組みを説明しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -30,7 +30,7 @@
       "name": "Century Games / 同一スキル重複",
       "url": "https://centurygames.helpshift.com/hc/en/64-whiteout-survival/faq/8050-if-the-4-skills-of-the-rally-members-are-the-same-as-the-captain-s-will-the-effects-be-stackable/",
       "evidenceLevel": "official-general",
-      "assessment": "集結主と参加者の同スキルは重複可という一般回答。各英雄の倍率・上書き・抽選方式は未記載。",
+      "assessment": "集結参加者4人のスキルが集結主と同じ場合に効果が重なるか、という質問に対し、同じ効果を重ねられると回答しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -38,7 +38,7 @@
       "name": "Century Games / スキル説明",
       "url": "https://centurygames.helpshift.com/hc/en/64-whiteout-survival/faq/8052-about-skill-descriptions/",
       "evidenceLevel": "official-general",
-      "assessment": "被ダメ軽減と敵与ダメ軽減は異なる主体。単純加算でないと説明。",
+      "assessment": "「味方の被ダメージ減少」と「敵の与ダメージ減少」の違いを、効果がかかる対象とダメージ計算上の扱いから説明しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -46,7 +46,7 @@
       "name": "Century Games / 異なるレベルの重複",
       "url": "https://centurygames.helpshift.com/hc/en/64-whiteout-survival/faq/6627-are-skills-of-different-level-stackable/",
       "evidenceLevel": "official-general",
-      "assessment": "スキルレベルが異なっても効果は重複するとの一般則。",
+      "assessment": "同じ種類のスキルでもレベルが異なる場合に効果を重ねられるか、という質問と公式回答を掲載しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -54,7 +54,7 @@
       "name": "Reddit / Mixed Heroes on offensive rallies",
       "url": "https://www.reddit.com/r/whiteoutsurvival/comments/1qgt8ce/mixed_heroes_on_offensive_rallies/",
       "evidenceLevel": "community-report",
-      "assessment": "PvPの混成採用・兵種条件の経験談。実験条件・全戦報を揃えた再現可能な検証ではない。",
+      "assessment": "攻撃集結で異なる英雄を混ぜる編成と、兵種限定スキルがどの部隊に作用するかについて、プレイヤー同士が意見交換しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -62,7 +62,7 @@
       "name": "Reddit / Defensive rally joiners",
       "url": "https://www.reddit.com/r/whiteoutsurvival/comments/1qkqjyf/defensive_rally_joiners/",
       "evidenceLevel": "community-report",
-      "assessment": "攻撃側にも耐久、防衛側にも火力が役立つという主張。Mia重複の効率低下は経験談で確定式なし。",
+      "assessment": "防衛集結の乗り手候補を挙げながら、攻撃側の耐久・防衛側の火力、Miaを複数入れた場合の効果について議論しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -70,7 +70,7 @@
       "name": "Reddit / Rally joiner question",
       "url": "https://www.reddit.com/r/whiteoutsurvival/comments/1sub9j3/rally_joiner_question/",
       "evidenceLevel": "community-report",
-      "assessment": "PvPと熊は目的が異なるという議論。比較検証の十分な生データはない。",
+      "assessment": "集結参加時にどの英雄を先頭へ置くかを質問し、熊狩りとPvPで乗り手を使い分ける理由をコメントで説明しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -78,7 +78,7 @@
       "name": "Reddit / Norah as rally joiner in Gen 5",
       "url": "https://www.reddit.com/r/whiteoutsurvival/comments/1rvc4e4/norah_as_rally_joiner_in_gen_5/",
       "evidenceLevel": "community-report",
-      "assessment": "盾弓編成でのNorah複数採用例。最適人数・固定比率の証明にはしない。",
+      "assessment": "第5世代環境でNorahを集結参加者に使う場合について、盾兵・弓兵を含む編成例や複数採用の使用感が投稿されています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -86,7 +86,7 @@
       "name": "Reddit / SvS castle battle joiners attack & garrison",
       "url": "https://www.reddit.com/r/whiteoutsurvival/comments/1uipny4/svs_castle_battle_joiners_attack_garrison_g9/",
       "evidenceLevel": "community-report",
-      "assessment": "Gen7/8の編成例。AhmoseとGatotの干渉説は投稿者の主張で再現データなし。",
+      "assessment": "SvS城戦を想定した第7・第8世代の攻撃集結と駐屯の乗り手候補を紹介し、AhmoseやGatotを組み合わせた際の効果について議論しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -94,7 +94,7 @@
       "name": "Reddit / Renee Rally Stacking Adjustment",
       "url": "https://www.reddit.com/r/whiteoutsurvival/comments/1n7y0qa/renee_rally_stacking_adjustment/",
       "evidenceLevel": "community-disputed",
-      "assessment": "2025-09-04の調整報告。掲載画像は運営通知とされるが、この監査では画像本文を読めていない。コメントの完全非重複説と効果減少説が対立。",
+      "assessment": "Reneeの集結スキルに調整が入ったという告知画像を共有し、調整後に同じスキルを複数重ねた場合の挙動をコメントで議論しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -102,7 +102,7 @@
       "name": "Reddit / Renee Nerfed",
       "url": "https://www.reddit.com/r/whiteoutsurvival/comments/1n8162b/renee_nerfed/",
       "evidenceLevel": "community-disputed",
-      "assessment": "調整後も重複する/しないという報告が対立。サポート回答の伝聞もあり、更新後の式は確定不可。",
+      "assessment": "Reneeの調整内容を取り上げ、弱体化後の効果量や複数参加者での重なり方について、プレイヤーの報告とサポート回答の情報を交換しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -110,7 +110,7 @@
       "name": "Reddit / Is Renee better than Norah",
       "url": "https://www.reddit.com/r/whiteoutsurvival/comments/1qrj6qc/is_renee_better_than_norah/",
       "evidenceLevel": "community-report",
-      "assessment": "2026年のPvP乗り手として槍編成で採用する議論。複数重ねない提案は実測確定ではない。",
+      "assessment": "PvPの乗り手としてReneeとNorahのどちらを選ぶかを質問し、槍兵編成や同じ英雄を複数入れる場合の考え方を比較しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -118,7 +118,7 @@
       "name": "Whiteout Survival Wiki / Wayne",
       "url": "https://www.whiteoutsurvival.wiki/heroes/wayne/",
       "evidenceLevel": "published-description",
-      "assessment": "第1の周期追加攻撃・第2の対象兵種・第3の全兵種会心率を本文確認。会心倍率と内部分類は未掲載。",
+      "assessment": "Wayneの英雄概要、能力値、探索スキルと遠征スキルを掲載し、周期的な追加攻撃・兵種対象・全部隊の会心率上昇を説明しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -126,7 +126,7 @@
       "name": "WSCO / Wayne",
       "url": "https://www.whiteoutsurvival-community.com/guides/heroes/en/wayne.html",
       "evidenceLevel": "secondary-description",
-      "assessment": "公開スキル本文は一致。独立実機テストではない。",
+      "assessment": "Wayneの世代・兵種・入手情報と、探索スキル・遠征スキルの効果量や発動条件を一覧で紹介しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -134,7 +134,7 @@
       "name": "Whiteout Survival Data / Generation 6",
       "url": "https://whiteoutdata.com/heroes/generation-6-heroes/",
       "evidenceLevel": "secondary-description",
-      "assessment": "ウェインの公開倍率と周期を照合。内部会心式はない。",
+      "assessment": "第6世代英雄をまとめたページで、Wayneを含む各英雄の特徴、スキル倍率、発動周期などを紹介しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -142,7 +142,7 @@
       "name": "Whiteout Guide Notes / Rally Comps × Joiner Skills",
       "url": "https://blog.astris.kr/en/posts/adb04f46-d525-46a6-810c-940b72f26c77",
       "evidenceLevel": "rejected-for-engine-proof",
-      "assessment": "PvP対象だが数式根拠は別ゲームKingshot。effect_opのWoS一次資料なし。主の同枠を全除外する断定、全兵種軽減のAhmoseを全スキル盾限定とする記述などを採用しない。",
+      "assessment": "PvPの集結主編成と乗り手スキルを分類し、攻撃・防衛での英雄候補、効果の組み合わせ、計算カテゴリの考え方を解説しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -150,7 +150,7 @@
       "name": "ほわほわ / 集結と駐屯",
       "url": "https://note.com/wosjapan/n/nf5aba687aed3",
       "evidenceLevel": "secondary-hypothesis",
-      "assessment": "記事自身が内部識別子の根拠はKingshotでWoS公式確認なしと明記。WoS確定式としての転載はしない。",
+      "assessment": "集結と駐屯で参照される英雄スキル、参加者の第1遠征スキル、似た効果の分類や重なり方について日本語で整理しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -158,7 +158,7 @@
       "name": "WoS Guru / Heroes",
       "url": "https://wosguru.com/heroes",
       "evidenceLevel": "rejected-for-mechanics-proof",
-      "assessment": "Sergeyを30%とする箇所、探索/遠征の混同、Ahmoseの軽減対象誤読などあり。非スタック断定の根拠として不採用。",
+      "assessment": "Whiteout Survivalの英雄一覧から、世代・兵種・役割・スキルなどの個別情報を検索して確認できるデータベースです。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -166,7 +166,7 @@
       "name": "Whiteout Survival Handbook / Ahmose",
       "url": "https://whiteoutsurvivalhandbook.com/guides/whiteoutsurvival-ahmose-guide-2026",
       "evidenceLevel": "rejected",
-      "assessment": "乗り手に第3遠征効果まで寄与するとする記載が公式一般則と不整合。",
+      "assessment": "Ahmoseの能力、探索・遠征スキル、装備や育成、集結・駐屯での使い方と編成例をまとめた攻略ガイドです。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -174,7 +174,7 @@
       "name": "WOS Nerds / bear-calc",
       "url": "https://github.com/wosnerdwarriors/website-index/tree/main/bear-calc",
       "evidenceLevel": "out-of-scope",
-      "assessment": "熊専用モデル。PvPの計算枠・推薦・重複判定には使用しない。",
+      "assessment": "熊狩りの集結ダメージを計算するWebツールのソースコードで、英雄・兵士・各種バフを入力して結果を比較する処理が収録されています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -182,7 +182,7 @@
       "name": "Whiteout Survival Wiki / Gwen（正しい本文URL）",
       "url": "https://www.whiteoutsurvival.wiki/heroes/gwen-2/",
       "evidenceLevel": "published-description",
-      "assessment": "第1の5〜25%を照合。第3は敵全体への追加ダメージ。味方兵種の明示や次の攻撃という表現には他資料との差が残る。",
+      "assessment": "Gwenの英雄概要、能力値、探索スキルと遠征スキルを掲載し、与ダメージ増加や敵全部隊への追加ダメージ効果を説明しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -190,7 +190,7 @@
       "name": "Whiteout Survival Wiki / Ling Xue（内容確認URL）",
       "url": "https://www.whiteoutsurvival.wiki/heroes/ling-shuang/",
       "evidenceLevel": "published-description",
-      "assessment": "敵全部隊の攻撃力4〜20%低下・訓練速度4〜20%増加を照合。名称から生成したURLではなく内容を確認。",
+      "assessment": "リンセツの英雄概要、能力値、探索・遠征スキルを掲載し、敵全部隊の攻撃力低下や訓練速度上昇などの効果を説明しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -198,7 +198,7 @@
       "name": "Whiteout Survival Wiki / Gordon",
       "url": "https://www.whiteoutsurvival.wiki/heroes/gordon/",
       "evidenceLevel": "published-description",
-      "assessment": "第3の敵弓与ダメ低下Lv3は15%。Forge/WOS Heroesの18%と差異があるため、公式Wikiの15%を暫定採用。",
+      "assessment": "Gordonの英雄概要、能力値、探索スキルと遠征スキルを掲載し、敵部隊への弱体化効果とレベル別の数値を紹介しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -206,7 +206,7 @@
       "name": "Reddit / 会心と殺傷力の解釈",
       "url": "https://www.reddit.com/r/whiteoutsurvival/comments/1krqvia/whats_the_difference/",
       "evidenceLevel": "rejected-for-engine-proof",
-      "assessment": "会心＝殺傷力というサポート回答の伝聞。回答原文や統制実験がなく、ウェイン③のE枠への確定変換には不採用。",
+      "assessment": "会心ダメージと殺傷力の違いを質問し、ゲーム内での意味やサポートから得たという回答についてプレイヤー同士が意見交換しています。",
       "checkedAt": "2026-10-04"
     },
     {
@@ -214,7 +214,7 @@
       "name": "Whiteout Guide Notes / Normal Attack vs Skill Damage",
       "url": "https://astris.kr/en/posts/a775cee1-9e3b-407a-a7a5-0225102702ff",
       "evidenceLevel": "rejected-for-engine-proof",
-      "assessment": "通常攻撃強化で増えるならスキルダメージとする判定や盾兵の説明に記事内の不整合。原動画・シート内容も未検証のため、内部分類の証明にはしない。",
+      "assessment": "通常攻撃ダメージとスキルダメージの違いを、戦闘結果やダメージ変化の観察例を使って整理し、各種強化がどちらへ作用するかを考察しています。",
       "checkedAt": "2026-10-04"
     }
   ],

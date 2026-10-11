@@ -64,10 +64,14 @@ test('disagreements remain visible instead of becoming verified formulas', () =>
 test('evidence UI exists in hub and generated single-file version', () => {
   for (const file of ['index.html','standalone.html']) {
     const html = fs.readFileSync(path.join(root,file),'utf8');
-    assert.ok(html.includes('id="evidence-policy"'));
+    assert.ok(!html.includes('id="evidence-policy"'));
+    assert.ok(html.includes('公式・経験談・推論を分ける。'));
+    assert.ok(!html.includes('33英雄91スキル。公開資料を照合'));
     assert.ok(html.includes('ゴードン③'));
   }
   const app = fs.readFileSync(path.join(root,'assets/app.js'),'utf8');
+  assert.ok(app.includes("title: 'いろんな情報から確かめる。'"));
+  assert.ok(!app.includes('どの情報を優先したか'));
   assert.ok(app.includes('skillEvidence(s)'));
   assert.ok(app.includes('evidenceTag(s)'));
 });
