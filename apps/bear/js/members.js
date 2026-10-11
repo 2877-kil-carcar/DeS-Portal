@@ -10,6 +10,7 @@ import {
   deleteDoc,
   doc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { allianceConfig, allianceHref, setupAllianceTabs } from "./alliance.js?v=3.42";
 
 const nameInput = document.getElementById("name");
 const rankSelect = document.getElementById("rank");
@@ -21,7 +22,10 @@ const memberBackLink = document.getElementById("memberBackLink");
 
 const isAdmin = !PREVIEW && sessionStorage.getItem("adminApproved") === "true";
 
-memberBackLink.href = PREVIEW ? "./index.html?preview=1" : "./index.html";
+memberBackLink.href = allianceHref("./index.html");
+document.getElementById("membersAllianceName").textContent = allianceConfig.label;
+document.title = `${allianceConfig.label} 同盟員登録`;
+setupAllianceTabs(document.getElementById("allianceTabs"), "./members.html");
 
 let memberCount = 0;
 
@@ -159,7 +163,7 @@ async function addMember() {
 
   if (existing) {
     // 既存メンバーの更新（名前以外）
-    await setDoc(doc(db, "members", existing.id), {
+    await setDoc(doc(db, allianceConfig.membersCollection, existing.id), {
       name: existing.data().name,
       rank,
       createdAt: existing.data().createdAt
@@ -175,7 +179,7 @@ async function addMember() {
     return;
   }
 
-  await addDoc(collection(db, "members"), {
+  await addDoc(collection(db, allianceConfig.membersCollection), {
     name,
     rank,
     createdAt: Date.now()
@@ -189,7 +193,7 @@ const rankOrder = { R5: 0, R4: 1, R3: 2, R2: 3, R1: 4, R0: 5 };
 let connectionReady=false;
 try { await authReady; connectionReady=true; }
 catch (_) { list.textContent='同盟員を読み込めません。通信・認証設定を確認してください。'; }
-const q = collection(db, "members");
+const q = collection(db, allianceConfig.membersCollection);
 
 if (!PREVIEW && connectionReady) onSnapshot(q, snap => {
   window._docs = snap.docs;
@@ -246,7 +250,7 @@ if (!PREVIEW && connectionReady) onSnapshot(q, snap => {
       if (isAdmin) {
         div.onclick = async () => {
           if (confirm("削除する？")) {
-            try { await deleteDoc(doc(db, "members", docSnap.id)); }
+            try { await deleteDoc(doc(db, allianceConfig.membersCollection, docSnap.id)); }
             catch (_) { alert('削除できませんでした。通信・権限を確認してください。'); }
           }
         };

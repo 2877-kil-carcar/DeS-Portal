@@ -2,6 +2,8 @@
   #topBar { padding: 9px 10px 8px; }
   #topTitle h1 { font-size: 16px; }
   #modeBadge { padding: 3px 7px; font-size: 10px; }
+  .alliance-switch { margin-top: 6px; }
+  .alliance-switch a { min-height: 40px; font-size: 14px; }
   #topActions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
   #topActions button, #topActions a { min-width: 0; min-height: 40px; justify-content: center; padding: 6px 4px; overflow: hidden; font-size: 10px; text-overflow: ellipsis; }
   #memberLink { grid-column: span 2; }
@@ -45,6 +47,7 @@
   .list-row { min-height: 54px; }
   #topBar.members-topbar { height: 58px; padding: 8px 10px; }
   #membersContainer { top: 58px; padding: 10px; }
+  .members-alliance-switch { margin-top: 0; }
   .members-back { min-width: 72px; padding-right: 10px; padding-left: 10px; font-size: 13px; }
   #membersForm { padding: 12px; }
   .member-name-field { align-items: flex-start; flex-direction: column; gap: 5px; }

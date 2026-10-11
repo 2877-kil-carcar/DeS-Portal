@@ -2,17 +2,18 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>熊罠配置 | DeS ポータル</title>
+  <title>DeS 熊罠配置 | DeS ポータル</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <link rel="stylesheet" href="css/style.css?v=3.27">
-  <link rel="stylesheet" href="css/mobile.css?v=3.27">
+  <link rel="stylesheet" href="css/style.css?v=3.42">
+  <link rel="stylesheet" href="css/mobile.css?v=3.42">
 </head>
 <body>
   <header id="topBar">
     <div id="topTitle">
-      <div><h1>熊罠・同盟配置</h1><span id="globalUpdatedAt"></span></div>
+      <div><h1><span id="allianceName">DeS</span> 熊罠・同盟配置</h1><span id="globalUpdatedAt"></span></div>
       <span id="modeBadge">閲覧モード</span>
     </div>
+    <nav id="allianceTabs" class="alliance-switch" role="tablist" aria-label="同盟切替"></nav>
     <nav id="topActions" aria-label="地図の操作">
       <button id="focusTrap" type="button">🐻 熊罠へ</button>
       <button id="findMember" type="button">⌕ 同盟員検索</button>
@@ -55,8 +56,8 @@
   </dialog>
   <div class="map-controls" aria-label="地図倍率"><button id="zoomOut" aria-label="地図を縮小">−</button><button id="zoomReset" aria-label="地図の倍率をリセット">100%</button><button id="zoomIn" aria-label="地図を拡大">＋</button></div>
   <div id="coordHint">スワイプで移動 · 2本指で拡大 · マスをタップして詳細表示</div>
-  <script src="./js/placement-core.js?v=3.27"></script>
-  <script type="module" src="./js/app.js?v=3.27.1"></script>
+  <script src="./js/placement-core.js?v=3.42"></script>
+  <script type="module" src="./js/app.js?v=3.42"></script>
   <script src="../bridge.js"></script>
 </body>
 </html>

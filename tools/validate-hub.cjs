@@ -91,6 +91,22 @@ test('bear member UI omits furnace data and uses the expanded mobile sheet',()=>
  assert.ok(read('apps/bear/js/data.js').includes('GRID_MIN_X = 5'));
  assert.ok(read('apps/bear/js/data.js').includes('GRID_MAX_X = 42'));
 });
+test('bear alliance tabs isolate DeS and GeM data',()=>{
+ const read=f=>fs.readFileSync(path.join(root,f),'utf8');
+ const alliance=read('apps/bear/js/alliance.js');
+ const bear=read('apps/bear/js/app.js');
+ const members=read('apps/bear/js/members.js');
+ for(const html of [read('apps/bear/index.html'),read('apps/bear/members.html')])assert.ok(html.includes('id="allianceTabs"'));
+ assert.ok(alliance.includes('objectsCollection: "objects"'));
+ assert.ok(alliance.includes('membersCollection: "members"'));
+ assert.ok(alliance.includes('objectsCollection: "gemObjects"'));
+ assert.ok(alliance.includes('membersCollection: "gemMembers"'));
+ assert.ok(alliance.includes('currentParams.get("alliance") || "des"'));
+ assert.ok(bear.includes('collection(db, allianceConfig.objectsCollection)'));
+ assert.ok(bear.includes('collection(db, allianceConfig.membersCollection)'));
+ assert.ok(members.includes('collection(db, allianceConfig.membersCollection)'));
+ assert.ok(members.includes('doc(db, allianceConfig.membersCollection'));
+});
 test('gift code, gallery and forms lead navigation without changing default module',()=>{
  const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8'),css=fs.readFileSync(path.join(root,'assets/app.css'),'utf8');
  assert.ok(app.includes("const primaryNavigationIds = ['redeem', 'gallery', 'forms', 'bear', 'games', 'formation', 'svs']"));

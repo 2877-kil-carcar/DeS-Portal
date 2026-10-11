@@ -55,6 +55,33 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   font-weight: 700;
 }
 #modeBadge.editing { background: #dcf5e8; color: #24734c; }
+.alliance-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 7px;
+  padding: 4px;
+  border: 1px solid #d5e2ec;
+  border-radius: 12px;
+  background: #edf3f8;
+}
+.alliance-switch a {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #61798d;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.alliance-switch a[aria-selected="true"] {
+  background: #216fa8;
+  box-shadow: 0 2px 7px rgba(33, 111, 168, .22);
+  color: #fff;
+}
+.alliance-switch a:not([aria-selected="true"]):hover { background: #fff; color: #315570; }
 #topActions { display: flex; align-items: center; gap: 6px; margin-top: 7px; }
 #topActions button, #topActions a {
   min-height: 38px;
@@ -311,6 +338,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   white-space: nowrap;
 }
 #membersContainer { position: fixed; top: 58px; right: 0; bottom: 0; left: 0; overflow-y: auto; padding: 16px; background: #f3f6fa; }
+.members-alliance-switch { max-width: 520px; margin: 0 0 12px; }
 #membersForm { padding: 16px; border-radius: 12px; background: #fff; }
 .member-name-field { display: flex; margin-bottom: 12px; align-items: center; gap: 10px; }
 .member-name-field > label { flex: 0 0 auto; font-weight: 700; }

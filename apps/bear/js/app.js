@@ -3,6 +3,7 @@ import { doc, writeBatch, deleteDoc, onSnapshot, collection } from "https://www.
 import { GRID_COLS, GRID_ROWS, GRID_MIN_X, GRID_MAX_X, GRID_VIEW_COLS, members, setObjects, objects, setMembers, adminApproved, setAdminApproved } from "./data.js?v=3.27.1";
 import { getObjectAt } from "./grid.js?v=3.27.1";
 import * as ui from "./ui.js?v=3.27.1";
+import { allianceConfig, allianceHref, setupAllianceTabs } from "./alliance.js?v=3.42";
 
 const grid = document.getElementById("grid");
 const wrapper = document.getElementById("gridWrapper");
@@ -17,6 +18,11 @@ const placementLabel = document.getElementById("placementLabel");
 const placementHint = document.getElementById("placementHint");
 const confirmPlacement = document.getElementById("confirmPlacement");
 const ADMIN_PASSWORD = "des";
+
+document.getElementById("allianceName").textContent = allianceConfig.label;
+document.title = `${allianceConfig.label} 熊罠配置 | DeS ポータル`;
+setupAllianceTabs(document.getElementById("allianceTabs"), "./index.html");
+memberLink.href = allianceHref("./members.html");
 
 let activeCellPos = null;
 let flashCellPos = null;
@@ -152,9 +158,9 @@ async function commitPlan(plan) {
       render();
     } else {
       const batch = writeBatch(db);
-      const nextRef = doc(db, "objects", next.x + "_" + next.y);
+      const nextRef = doc(db, allianceConfig.objectsCollection, next.x + "_" + next.y);
       if (plan.previous && (plan.previous.x !== next.x || plan.previous.y !== next.y)) {
-        batch.delete(doc(db, "objects", plan.previous.x + "_" + plan.previous.y));
+        batch.delete(doc(db, allianceConfig.objectsCollection, plan.previous.x + "_" + plan.previous.y));
       }
       batch.set(nextRef, next);
       await batch.commit();
@@ -330,7 +336,7 @@ export async function deleteObjectAt(x, y) {
     if (PREVIEW) {
       setObjects(objects.filter(item => item !== object));
       render();
-    } else await deleteDoc(doc(db, "objects", object.x + "_" + object.y));
+    } else await deleteDoc(doc(db, allianceConfig.objectsCollection, object.x + "_" + object.y));
     showStatus(PREVIEW ? "表示確認モード：試し置きを削除しました" : "配置を削除しました");
   } catch (error) {
     showStatus("削除できませんでした。通信・権限を確認してください。", true);
@@ -364,7 +370,7 @@ async function connect() {
       { type: "player", memberId: "demo-b", x: 10, y: 8, size: 2, updatedAt: Date.now() - 2400000 }
     ]);
     status.classList.add("preview");
-    memberLink.href = "./members.html?preview=1";
+    memberLink.href = allianceHref("./members.html");
     showStatus("表示確認モード：本番には接続・保存しません");
     updateAdminUi();
     render();
@@ -375,12 +381,12 @@ async function connect() {
   try {
     await authReady;
     const failed = () => showStatus("共有配置を読み込めません。通信またはアクセス権限を確認してください。", true);
-    onSnapshot(collection(db, "objects"), snapshot => {
+    onSnapshot(collection(db, allianceConfig.objectsCollection), snapshot => {
       setObjects(snapshot.docs.map(item => item.data()));
       render();
       showStatus(adminApproved ? "共有配置と同期中 · 編集モード" : "共有配置と同期中 · 閲覧モード");
     }, failed);
-    onSnapshot(collection(db, "members"), snapshot => {
+    onSnapshot(collection(db, allianceConfig.membersCollection), snapshot => {
       setMembers(snapshot.docs.map(item => ({ ...item.data(), id: item.id })));
       render();
       ui.refreshSheet();
