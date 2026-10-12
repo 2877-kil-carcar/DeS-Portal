@@ -152,9 +152,10 @@ test('battle and canyon are grouped in the final notebook menu',()=>{
  assert.ok(app.includes("id: 'joiner-comparison'")&&app.includes("label: 'レイナ・ジェシー・グエン比較'")&&app.includes('memoOnly:true'));
  assert.ok(app.includes("id: 'fortress-rules'")&&app.includes("label: '砦・要塞の申請ルール'")&&app.includes('memoOnly:true'));
  assert.ok(app.includes("id: 'damage-buff-comparison'")&&app.includes("label: '与ダメ上昇と被ダメ上昇'")&&app.includes('memoOnly:true'));
+ assert.ok(app.includes("id: 'tourism-theater'")&&app.includes("label: '観光シアター攻略'")&&app.includes('memoOnly:true'));
  assert.ok(app.includes("id: 'notes', label:'かるろすのメモ帳'"));
  assert.ok(app.includes('.filter(m=>!m.memoOnly)'));
-assert.ok(html.includes('id="view-notes"'));assert.ok(html.includes('href="#battle"'));assert.ok(html.includes('href="#canyon"'));assert.ok(html.includes('href="#rally-skills"'));assert.ok(html.includes('id="view-rally-skills"'));assert.ok(html.includes('href="#mia-stacking"'));assert.ok(html.includes('id="view-mia-stacking"'));assert.ok(html.includes('href="#ahmose-stacking"'));assert.ok(html.includes('id="view-ahmose-stacking"'));assert.ok(html.includes('href="#stamina-routine"'));assert.ok(html.includes('id="view-stamina-routine"'));assert.ok(html.includes('href="#joiner-comparison"'));assert.ok(html.includes('id="view-joiner-comparison"'));assert.ok(html.includes('href="#fortress-rules"'));assert.ok(html.includes('id="view-fortress-rules"'));assert.ok(html.includes('href="#damage-buff-comparison"'));assert.ok(html.includes('id="view-damage-buff-comparison"'));
+assert.ok(html.includes('id="view-notes"'));assert.ok(html.includes('href="#battle"'));assert.ok(html.includes('href="#canyon"'));assert.ok(html.includes('href="#rally-skills"'));assert.ok(html.includes('id="view-rally-skills"'));assert.ok(html.includes('href="#mia-stacking"'));assert.ok(html.includes('id="view-mia-stacking"'));assert.ok(html.includes('href="#ahmose-stacking"'));assert.ok(html.includes('id="view-ahmose-stacking"'));assert.ok(html.includes('href="#stamina-routine"'));assert.ok(html.includes('id="view-stamina-routine"'));assert.ok(html.includes('href="#joiner-comparison"'));assert.ok(html.includes('id="view-joiner-comparison"'));assert.ok(html.includes('href="#fortress-rules"'));assert.ok(html.includes('id="view-fortress-rules"'));assert.ok(html.includes('href="#damage-buff-comparison"'));assert.ok(html.includes('id="view-damage-buff-comparison"'));assert.ok(html.includes('href="#tourism-theater"'));assert.ok(html.includes('id="view-tourism-theater"'));
 for(const text of ['ミアの遠征スキル「不幸の連鎖」重複について','同時に発動しても“最後の1件だけ”が有効','ミア4人：発動率93.75%（1−0.5⁴）、効果＋50%','ミアは1人で効果MAX。ただし人数を増やせば発動が安定する。','グレッグ／ローガン／フリント']) assert.ok(html.includes(text),text);
  for(const text of ['アクモスの遠征スキル「マムシ方陣」重複について','盾兵の被ダメージ -70%（2ターン）','Ahmose for example doesn\'t stack','発動回数は増えても、効果量は1人分だけ。','アクモスは1人で完成。複数入れても軽減は増えない。']) assert.ok(html.includes(text),text);
  for(const text of ['領主体力の理想的な使い方','専門家アグネスがいると獲得倉庫体力と灯台出現量が変わるためそこは考慮していません','ジーナ編成だけで自然回復6時間分の体力を節約！','巨獣10回集結の発起者特別報酬をここで達成！','体力缶詰ゼロでもOK！']) assert.ok(html.includes(text),text);
@@ -162,7 +163,8 @@ for(const text of ['ミアの遠征スキル「不幸の連鎖」重複につい
  for(const text of ['乗り手比較：レイナ vs ジェシー vs グエン','ジェシー4人の方が総ダメが高くなる','熊罠に関してはレイナの方が圧倒的にダメージが高い','グエンは非推奨。','全ステータスがダメージポイントの計算対象','ジェシーよりレイナを乗り手採用した方がダメージは増える傾向']) assert.ok(html.includes(text),text);
  for(const text of ['砦・要塞の申請ルール　2856版','前週占領している場所＋新規1ヶ所','3号要塞（自動申請）','戦闘なしで占領になります。','木曜日 朝9時までに申請','全同盟 占領0からスタート','申請できるのは<strong>最大3ヶ所</strong>','サーバールールに沿って事前に共有・相談しましょう。']) assert.ok(html.includes(text),text);
  for(const text of ['与ダメ上昇 vs 被ダメ上昇（遠征スキル）まとめ','単体性能はほぼ同格（25% vs 25%）','与ダメ＝人数分伸びる','主力に被ダメがいるなら、ジョイナーに被ダメは不要','被ダメ1＋与ダメ3','被ダメは1枠前提で運用するのが正解']) assert.ok(html.includes(text),text);
- assert.equal((html.match(/href="#notes"/g)||[]).length,9);
+ for(const text of ['観光シアター攻略（コイン重視）','コイン獲得を最優先','保護探索5回','500 × 8 =','第4階層へ進める可能性','階層が上昇したら、その時点でコイン回収','アップデートや仕様変更によって最適な立ち回りが変わる可能性があります。']) assert.ok(html.includes(text),text);
+ assert.equal((html.match(/href="#notes"/g)||[]).length,10);
  for(const text of ['強化元は集結主（1番上の人）！','駐屯の強化元は「並び順」じゃなくて「ステータス」で決まる！','対象：2・3・5・6','Lv5が4人いないときは、Lv4でも対象になる！','フレンダー・ジンマン・他全員ジェシーで乗って！','事前の調整は必須！'])assert.ok(html.includes(text),text);
 });
 console.log(groups+' hub test groups passed (static/unit only; not browser E2E)');
