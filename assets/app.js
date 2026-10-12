@@ -29,6 +29,7 @@
     { id: 'fortress-rules', label: '砦・要塞の申請ルール', icon: '🏰', eyebrow: '2856 FORTRESS RULES', title: '砦・要塞の申請ルール 2856版', subtitle: '', memoOnly:true },
     { id: 'damage-buff-comparison', label: '与ダメ上昇と被ダメ上昇', icon: '🧊', eyebrow: 'DAMAGE BUFF GUIDE', title: '与ダメ上昇 vs 被ダメ上昇（遠征スキル）', subtitle: '', memoOnly:true },
     { id: 'tourism-theater', label: '観光シアター攻略', icon: '🎭', eyebrow: 'TOURISM THEATER', title: '観光シアター攻略（コイン重視）', subtitle: '', memoOnly:true },
+    { id: 'frostwind-siege', label: '凛風攻城戦', icon: '🏰', eyebrow: 'FROSTWIND SIEGE', title: '凛風攻城戦', subtitle: '', memoOnly:true },
     { id: 'sources', label: '出典情報', icon: '◎', eyebrow: 'RESEARCH LOG', title: 'いろんな情報から確かめる。', subtitle: '' },
     { id: 'bear', label:'熊罠配置', icon:'▦', path:'./apps/bear/index.html?v=3.44', title:'熊罠配置', eyebrow:'ALLIANCE LAYOUT', subtitle:'DeS・GeMの配置を確認・調整' },
     { id: 'canyon', label:'峡谷合戦', icon:'△', path:'./apps/canyon/index.html', title:'峡谷合戦', eyebrow:'CANYON CLASH', subtitle:'42レッスンの攻略ガイド', memoOnly:true },
@@ -173,7 +174,7 @@
     for(const key of moduleFrames.keys())panelVisibility(key,false);
     currentView = selected.id;
     document.querySelectorAll('.view').forEach(v=>{v.hidden=v.id!==`view-${currentView}`;});
-    const navigationView=['battle','canyon','rally-skills','mia-stacking','ahmose-stacking','stamina-routine','joiner-comparison','fortress-rules','damage-buff-comparison','tourism-theater'].includes(currentView)?'notes':currentView;
+    const navigationView=['battle','canyon','rally-skills','mia-stacking','ahmose-stacking','stamina-routine','joiner-comparison','fortress-rules','damage-buff-comparison','tourism-theater','frostwind-siege'].includes(currentView)?'notes':currentView;
     $('navigation').querySelectorAll('button').forEach(b=>{const on=b.dataset.nav===navigationView; b.classList.toggle('active',on); if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
     $('breadcrumb-current').textContent=selected.label; $('page-title').textContent=selected.title; $('page-eyebrow').textContent=selected.eyebrow;
     $('page-subtitle').textContent=selected.subtitle||'';$('page-subtitle').hidden=!selected.subtitle;
