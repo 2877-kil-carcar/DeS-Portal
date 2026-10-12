@@ -12,8 +12,7 @@ html = html.replace('<link rel="stylesheet" href="./assets/app.css">', '<style>'
 for (const [filename, mime] of [
   ['pepper-portal.jpg', 'image/jpeg'],
   ['stamina-reward-detail.jpg', 'image/jpeg'],
-  ['stamina-reward-rules.jpg', 'image/jpeg'],
-  ['frostwind-rule-update-2026-10.jpg', 'image/jpeg']
+  ['stamina-reward-rules.jpg', 'image/jpeg']
 ]) {
   const encoded = (await readFile(path.join(root, 'assets', filename))).toString('base64');
   const dataUrl = `data:${mime};base64,${encoded}`;

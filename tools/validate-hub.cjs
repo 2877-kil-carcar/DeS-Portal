@@ -167,7 +167,7 @@ for(const text of ['ミアの遠征スキル「不幸の連鎖」重複につい
  for(const text of ['観光シアター攻略（コイン重視）','コイン獲得を最優先','保護探索5回','500 × 8 =','第4階層へ進める可能性','階層が上昇したら、その時点でコイン回収','アップデートや仕様変更によって最適な立ち回りが変わる可能性があります。']) assert.ok(html.includes(text),text);
  for(const text of ['凛風攻城戦','イベント周期は<strong>推定4週間</strong>','王国内同盟総力ランキング<strong>上位20位</strong>','元の同盟に戻らなければ参加できません','上位30部隊','城主はハートを<strong>6つ</strong>','それ以外の部隊はハートを<strong>5つ</strong>','士気値が<strong>90%以上</strong>','士気値が<strong>90%未満</strong>','士気値の最低値は<strong>60%</strong>','攻撃側は士気値が100%に固定','相手の配置を確認','パエトーン護衛','最大7回','駐屯していなければ攻撃もできない','拠点1はシールドで守られています','模擬戦はイベントの勝敗には影響しません']) assert.ok(html.includes(text),text);
  assert.ok(!html.includes('35%より下がることはありません'));
- assert.ok(fs.existsSync(path.join(root,'assets/frostwind-rule-update-2026-10.jpg')));
+ assert.ok(!html.includes('ハート数と士気減少ルールが更新'));
  assert.equal((html.match(/href="#notes"/g)||[]).length,11);
  for(const text of ['強化元は集結主（1番上の人）！','駐屯の強化元は「並び順」じゃなくて「ステータス」で決まる！','対象：2・3・5・6','Lv5が4人いないときは、Lv4でも対象になる！','フレンダー・ジンマン・他全員ジェシーで乗って！','事前の調整は必須！'])assert.ok(html.includes(text),text);
 });
