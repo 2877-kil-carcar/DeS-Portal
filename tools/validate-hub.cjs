@@ -159,7 +159,7 @@ for(const text of ['ミアの遠征スキル「不幸の連鎖」重複につい
  for(const text of ['領主体力の理想的な使い方','専門家アグネスがいると獲得倉庫体力と灯台出現量が変わるためそこは考慮していません','ジーナ編成だけで自然回復6時間分の体力を節約！','巨獣10回集結の発起者特別報酬をここで達成！','体力缶詰ゼロでもOK！']) assert.ok(html.includes(text),text);
  for(const file of ['assets/stamina-reward-detail.jpg','assets/stamina-reward-rules.jpg']) assert.ok(fs.existsSync(path.join(root,file)),file);
  for(const text of ['乗り手比較：レイナ vs ジェシー vs グエン','ジェシー4人の方が総ダメが高くなる','熊罠に関してはレイナの方が圧倒的にダメージが高い','グエンは非推奨。','全ステータスがダメージポイントの計算対象','ジェシーよりレイナを乗り手採用した方がダメージは増える傾向']) assert.ok(html.includes(text),text);
- for(const text of ['砦・要塞の申請ルール　2856版','前週占領している場所＋新規1ヶ所','3号要塞（自動申請）','戦闘なしで占領になります。','木曜日 朝9時までに申請','全同盟 占領0からスタート']) assert.ok(html.includes(text),text);
+ for(const text of ['砦・要塞の申請ルール　2856版','前週占領している場所＋新規1ヶ所','3号要塞（自動申請）','戦闘なしで占領になります。','木曜日 朝9時までに申請','全同盟 占領0からスタート','申請できるのは<strong>最大3ヶ所</strong>','サーバールールに沿って事前に共有・相談しましょう。']) assert.ok(html.includes(text),text);
  assert.equal((html.match(/href="#notes"/g)||[]).length,8);
  for(const text of ['強化元は集結主（1番上の人）！','駐屯の強化元は「並び順」じゃなくて「ステータス」で決まる！','対象：2・3・5・6','Lv5が4人いないときは、Lv4でも対象になる！','フレンダー・ジンマン・他全員ジェシーで乗って！','事前の調整は必須！'])assert.ok(html.includes(text),text);
 });

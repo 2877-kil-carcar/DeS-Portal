@@ -9,7 +9,7 @@
 <style>.nav-button{position:relative}.nav-alert{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#d64545;color:#fff;font-size:10px;font-weight:800;line-height:1;box-shadow:0 0 0 2px #14283d}.mobile-dock button{position:relative}.mobile-dock .nav-alert{position:absolute;top:2px;left:calc(50% + 8px);min-width:18px;height:18px;font-size:9px;box-shadow:0 0 0 2px #fff}</style>
 <script src="./assets/data.js" defer></script>
 <script src="./assets/core.js" defer></script>
-<script src="./assets/app.js?v=3.55" defer></script>
+<script src="./assets/app.js?v=3.56" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#main">本文へ移動</a>
@@ -22,7 +22,7 @@
   <div class="sidebar-foot"><span>非公式・試作版</span><b>GEN 01 — 17</b><small>DATA CHECK / 2026.10.08</small></div>
 </aside>
 <div class="workspace">
-<header class="topbar"><div class="breadcrumb"><button id="menu-toggle" class="icon-button mobile-only" aria-label="機能メニューを開く" aria-controls="sidebar" aria-expanded="false">☰</button><span>DeS PORTAL</span><span class="slash">/</span><strong id="breadcrumb-current">ギフトコード</strong></div><span class="version"><i></i> v3.55</span></header>
+<header class="topbar"><div class="breadcrumb"><button id="menu-toggle" class="icon-button mobile-only" aria-label="機能メニューを開く" aria-controls="sidebar" aria-expanded="false">☰</button><span>DeS PORTAL</span><span class="slash">/</span><strong id="breadcrumb-current">ギフトコード</strong></div><span class="version"><i></i> v3.56</span></header>
  <main id="main" tabindex="-1">
   <div class="page-heading"><div><p class="eyebrow" id="page-eyebrow">RALLY WORKSPACE</p><h1 id="page-title">集結を、読み解く。</h1><p class="subheading" id="page-subtitle">集結主の効果を見ながら、乗り手の役割を選ぶ。</p></div><button class="quiet-button" id="reset-settings">選択をリセット</button></div>
   <section id="view-joiners" class="view">
@@ -115,7 +115,7 @@
     <section class="panel rally-guide-section"><h2>⚠ 1同盟しか申請していない場合</h2><p>もしその場所に</p><p><strong>自分の同盟しか申請していない場合</strong></p><p class="fortress-result">→ 戦闘なしで占領になります。</p><p>なので</p><ul><li>報酬が微妙</li><li>他と戦えない</li></ul><p>という場合は <strong>放棄する判断</strong> をすることもあります。</p></section>
     <section class="panel rally-guide-section fortress-abandon"><h2>🚫 放棄の例</h2><div class="rally-scenario"><h3>申請状況</h3><ul><li>3号要塞（自動申請）</li><li>4号要塞（新規申請）</li></ul></div><p>この状況で</p><ul><li>3号要塞 → 他同盟の申請なし</li><li>4号要塞 → 競争あり</li></ul><p>さらに</p><ul><li>3号要塞の報酬があまり良くない</li></ul><div class="fortress-decision"><p>👉 3号要塞を放棄して<br>👉 4号要塞を確実に取りに行く</p></div><p>という判断をすることがあります。</p><p>※これは <strong>特に砦でよくあるケース</strong> です。</p></section>
     <section class="panel rally-guide-section"><h2>⏰ 申請のタイミング</h2><div class="fortress-deadline-grid"><div><small>システム上の締切</small><strong>金曜日 朝9時<br>（デイリーリセット）まで</strong></div><div><small>申請できる人</small><strong>R4以上</strong></div></div></section>
-    <section class="panel rally-guide-section fortress-server-rule"><h2>⏰ サーバールール（盟主会ルール）</h2><p>このサーバーでは</p><p class="fortress-formula"><strong>木曜日 朝9時までに申請</strong></p><p>するルールになっています。</p><p>そのため</p><ul><li>水曜日の夜〜木曜日の朝</li></ul><p>に同盟内で相談して<br>どこに申請するか決めます。</p></section>
+    <section class="panel rally-guide-section fortress-server-rule"><h2>⏰ サーバールール（盟主会ルール）</h2><p>このサーバーでは</p><p class="fortress-formula"><strong>木曜日 朝9時までに申請</strong></p><p>するルールになっています。</p><p>そのため</p><ul><li>水曜日の夜〜木曜日の朝</li></ul><p>に同盟内で相談して<br>どこに申請するか決めます。</p><div class="fortress-rule-note"><h3>📌 申請上限と放棄時の共有</h3><p>システム上、申請できるのは<strong>最大3ヶ所</strong>です。</p><p>申請した場所を放棄する場合は、申請枠や戦闘機会を無駄にしないよう、<strong>サーバールールに沿って事前に共有・相談しましょう。</strong></p></div></section>
     <section class="panel rally-guide-section"><h2>⏰ 戦闘時間</h2><p>申請時に</p><p><strong>希望の時間を3つ選びます。</strong></p><div class="fortress-time-grid"><div><strong>13時</strong><small>日本22時</small></div><div><strong>14時</strong><small>日本23時</small></div><div><strong>17時</strong><small>日本2時</small></div></div><p>よくある時間(UTC)なのは<br>この3つを選んでいるためです。</p></section>
     <section class="panel rally-guide-section"><h2>📅 シーズンについて</h2><p>砦戦にはシーズンがあります。</p><div class="fortress-season"><small>例</small><strong>6シーズン 4 / 8期</strong><span>8 / 8まで行くと新シーズン開始</span></div><p>新シーズンになると</p><ul><li>全同盟 占領0からスタート</li></ul><p>になるため</p><p>最初の週は</p><ul><li>要塞1</li><li>砦1</li></ul><p>しか申請できません。</p><p>申請は前回の占領していたところが自動申請されるため<br>基本的に戦闘が発生しない週になります。</p></section>
     <section class="panel rally-guide-section fortress-summary"><h2>💡 まとめ</h2><p>この3つ覚えればOK</p><ol><li><strong>1️⃣ 占領上限</strong><ul><li>要塞1</li><li>砦2</li></ul></li><li><strong>2️⃣ 申請</strong><ul><li>前週＋新規1</li></ul></li><li><strong>3️⃣ 申請締切</strong><ul><li>木曜9時（サーバールール）</li></ul></li></ol></section>
