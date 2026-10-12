@@ -9,7 +9,7 @@
 <style>.nav-button{position:relative}.nav-alert{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#d64545;color:#fff;font-size:10px;font-weight:800;line-height:1;box-shadow:0 0 0 2px #14283d}.mobile-dock button{position:relative}.mobile-dock .nav-alert{position:absolute;top:2px;left:calc(50% + 8px);min-width:18px;height:18px;font-size:9px;box-shadow:0 0 0 2px #fff}</style>
 <script src="./assets/data.js" defer></script>
 <script src="./assets/core.js" defer></script>
-<script src="./assets/app.js?v=3.52" defer></script>
+<script src="./assets/app.js?v=3.53" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#main">本文へ移動</a>
@@ -22,7 +22,7 @@
   <div class="sidebar-foot"><span>非公式・試作版</span><b>GEN 01 — 17</b><small>DATA CHECK / 2026.10.08</small></div>
 </aside>
 <div class="workspace">
-<header class="topbar"><div class="breadcrumb"><button id="menu-toggle" class="icon-button mobile-only" aria-label="機能メニューを開く" aria-controls="sidebar" aria-expanded="false">☰</button><span>DeS PORTAL</span><span class="slash">/</span><strong id="breadcrumb-current">ギフトコード</strong></div><span class="version"><i></i> v3.52</span></header>
+<header class="topbar"><div class="breadcrumb"><button id="menu-toggle" class="icon-button mobile-only" aria-label="機能メニューを開く" aria-controls="sidebar" aria-expanded="false">☰</button><span>DeS PORTAL</span><span class="slash">/</span><strong id="breadcrumb-current">ギフトコード</strong></div><span class="version"><i></i> v3.53</span></header>
  <main id="main" tabindex="-1">
   <div class="page-heading"><div><p class="eyebrow" id="page-eyebrow">RALLY WORKSPACE</p><h1 id="page-title">集結を、読み解く。</h1><p class="subheading" id="page-subtitle">集結主の効果を見ながら、乗り手の役割を選ぶ。</p></div><button class="quiet-button" id="reset-settings">選択をリセット</button></div>
   <section id="view-joiners" class="view">
@@ -38,7 +38,7 @@
    <div id="active-filter" class="active-filter" hidden></div><div id="hero-grid" class="hero-grid" aria-live="polite"></div>
   </section>
   <section id="view-library" class="view" hidden><div class="panel info-banner">全33英雄・91スキル。名前を開くと、全スキル・発動条件・分類根拠を確認できます。乗り手として有効なのは⭐第1のみ。</div><div class="filter-bar"><label class="search"><span>⌕</span><input id="library-search" type="search" placeholder="図鑑の英雄を検索" aria-label="図鑑の英雄を検索"></label><label class="inline-label">第 <select id="library-generation" aria-label="図鑑の世代"></select> 世代まで</label></div><div id="library-grid" class="library-grid"></div></section>
-  <section id="view-notes" class="view" hidden><div class="panel memo-intro"><p class="eyebrow">KARUROSU NOTES</p><h2>気になる内容を、ここから開く。</h2><p>戦闘の仕組みとイベント攻略を、読み物としてまとめています。</p></div><div class="memo-grid"><a class="panel memo-link" href="#battle"><span class="memo-icon" aria-hidden="true">⇄</span><span><small>COMBAT FIELD NOTES</small><strong>戦闘ターン</strong><b>開く →</b></span></a><a class="panel memo-link" href="#canyon"><span class="memo-icon" aria-hidden="true">△</span><span><small>CANYON CLASH</small><strong>峡谷合戦</strong><b>開く →</b></span></a><a class="panel memo-link" href="#rally-skills"><span class="memo-icon" aria-hidden="true">🛡️</span><span><small>RALLY &amp; GARRISON</small><strong>強化元と右上スキル</strong><b>開く →</b></span></a><a class="panel memo-link" href="#mia-stacking"><span class="memo-icon" aria-hidden="true">🧊</span><span><small>MIA SKILL NOTE</small><strong>ミア「不幸の連鎖」の重複</strong><b>開く →</b></span></a><a class="panel memo-link" href="#ahmose-stacking"><span class="memo-icon" aria-hidden="true">🐍</span><span><small>AHMOSE SKILL NOTE</small><strong>アクモス「マムシ方陣」の重複</strong><b>開く →</b></span></a></div></section>
+  <section id="view-notes" class="view" hidden><div class="panel memo-intro"><p class="eyebrow">KARUROSU NOTES</p><h2>気になる内容を、ここから開く。</h2><p>戦闘の仕組みとイベント攻略を、読み物としてまとめています。</p></div><div class="memo-grid"><a class="panel memo-link" href="#battle"><span class="memo-icon" aria-hidden="true">⇄</span><span><small>COMBAT FIELD NOTES</small><strong>戦闘ターン</strong><b>開く →</b></span></a><a class="panel memo-link" href="#canyon"><span class="memo-icon" aria-hidden="true">△</span><span><small>CANYON CLASH</small><strong>峡谷合戦</strong><b>開く →</b></span></a><a class="panel memo-link" href="#rally-skills"><span class="memo-icon" aria-hidden="true">🛡️</span><span><small>RALLY &amp; GARRISON</small><strong>強化元と右上スキル</strong><b>開く →</b></span></a><a class="panel memo-link" href="#mia-stacking"><span class="memo-icon" aria-hidden="true">🧊</span><span><small>MIA SKILL NOTE</small><strong>ミア「不幸の連鎖」の重複</strong><b>開く →</b></span></a><a class="panel memo-link" href="#ahmose-stacking"><span class="memo-icon" aria-hidden="true">🐍</span><span><small>AHMOSE SKILL NOTE</small><strong>アクモス「マムシ方陣」の重複</strong><b>開く →</b></span></a><a class="panel memo-link" href="#stamina-routine"><span class="memo-icon" aria-hidden="true">🌟</span><span><small>STAMINA ROUTINE</small><strong>領主体力の理想ルート</strong><b>開く →</b></span></a></div></section>
   <section id="view-rally-skills" class="view" hidden>
    <div class="memo-backbar native"><a class="memo-back" href="#notes">← かるろすのメモ帳へ戻る</a></div>
    <article class="rally-guide">
@@ -75,6 +75,18 @@
     <section class="panel rally-guide-section rally-summary"><h2>✅ 結論まとめ</h2><ul><li>マムシ方陣は <strong>重複しない（上書き処理）</strong></li><li>アクモス複数でも <strong>軽減は1人分のみ</strong></li><li>“最後に発動したアクモス”の効果だけが有効</li><li>複数入れても <strong>軽減倍率は変わらない</strong></li><li>メリットは <strong>発動の安定性が少し良くなるだけ</strong></li></ul><p>➡ <strong>アクモスは1人で効果MAX。複数採用は非推奨。</strong></p></section>
     <section class="panel rally-guide-section skill-note-quote"><h2>💬 一言でいうと</h2><blockquote><strong>アクモスは1人で完成。複数入れても軽減は増えない。</strong></blockquote></section>
     <section class="panel rally-guide-section rally-warning"><h2>🎯 運用ポイント</h2><div class="rally-scenario"><h3>集結/駐屯</h3><p>アクモスは1枠固定。<br>ジェシー / セルゲイ / パトリック など<br><strong>別系統バフを積む方が強い。</strong><br>強化元にアクモスがいる場合、<strong>乗り手（参加者）はアクモスのせない</strong>が理想。<br>駐屯は強化元にアクモスがいる場合は盾槍弓の割合が6.4.0とか5.4.1とかがかなり有効かもね💛</p></div><div class="rally-scenario"><h3>熊罠（トラップ）</h3><p>アクモス複数はほぼ無意味。</p></div></section>
+   </article>
+  </section>
+  <section id="view-stamina-routine" class="view" hidden>
+   <div class="memo-backbar native"><a class="memo-back" href="#notes">← かるろすのメモ帳へ戻る</a></div>
+   <article class="rally-guide stamina-guide">
+    <header class="panel rally-guide-hero stamina-guide-hero"><p class="eyebrow">STAMINA ROUTINE</p><h2>🌟〖領主体力の理想的な使い方〗🌟</h2><p><strong>2025年11月追記</strong></p></header>
+    <section class="panel rally-guide-section stamina-alert"><p>⚠️ <strong>専門家アグネスがいると獲得倉庫体力と灯台出現量が変わるためそこは考慮していません</strong> ⚠️</p></section>
+    <section class="panel rally-guide-section"><h2>🔧 条件</h2><ul class="stamina-checklist"><li>⏰ <strong>毎朝9時前にログインできる人</strong></li><li>🌙 <strong>毎日25時頃に灯台をやる人</strong></li><li>🐺 <strong>ペットオオカミ（スキルLv4以上推奨）</strong></li><li>👩‍🚀 <strong>ジーナ遠征スキル1 Lv5編成でのみ行動</strong><ul><li>巨獣集結</li><li>灯台野獣狩り</li></ul>→ <strong>ジーナ編成で1日70～80の体力節約！</strong><ul><li>巨獣集結：<strong>-5</strong></li><li>灯台野獣：<strong>-2</strong></li></ul></li></ul><div class="stamina-needed"><h3>📉 必要体力</h3><ul><li>🌪️ 発起者特別報酬10回：<strong>-50</strong></li><li>🐾 灯台野獣 4体 × 3回：<strong>-24</strong></li></ul></div><p class="stamina-highlight">✨ <strong>ジーナ編成だけで自然回復6時間分の体力を節約！</strong></p></section>
+    <section class="panel rally-guide-section stamina-images" aria-label="報酬詳細の参考画像"><img src="./assets/stamina-reward-detail.jpg" alt="発起者特別報酬と参加者報酬の詳細画面" loading="lazy"><img src="./assets/stamina-reward-rules.jpg" alt="毎日最初の10回の集結発起で特別報酬を獲得できる説明画面" loading="lazy"></section>
+    <section class="panel rally-guide-section"><h2>💡 領主体力の仕様</h2><div class="stamina-rule">🔋 <strong>5分に1つ自然回復</strong></div></section>
+    <section class="panel rally-guide-section"><h2>📅 毎日のルーティーン</h2><div class="stamina-timeline"><article><span>①</span><div><h3>8:30～8:59</h3><p>📦 <strong>朝9時前に昨晩21時の倉庫体力を受け取り</strong><br>→ <strong>体力300スタート（目安）</strong></p></div></article><article><span>②</span><div><h3>9:00～18:00</h3><p>⚠️ <strong>9時の倉庫体力は受け取らない（自然回復を最大活用）</strong></p><ul><li>🔥 9:00 &amp; 17:00の灯台クリア</li><li>🐕 ペットお散歩4回</li><li>🐉 巨獣集結を連続実施</li><li>🐺 ペットオオカミはこの時間帯で使うのが理想</li></ul><p>→ <strong>18:00頃までに体力0へ（目安）</strong><br>→ 🌪️ <strong>巨獣10回集結の発起者特別報酬をここで達成！</strong></p></div></article><article><span>③</span><div><h3>18:00〜</h3><p>📦 <strong>朝9時の倉庫体力をここで受け取る</strong><br>→ 🔋 <strong>体力120</strong></p></div></article><article><span>④</span><div><h3>25:00〜</h3><p>🛌 <strong>18:00〜25:00は何もしない（自然回復タイム）</strong><br>→ 🔋 <strong>約200まで回復</strong></p><ul><li>🌙 25:00の灯台クリア</li></ul><p>→ <strong>体力110（目安）</strong></p></div></article><article><span>⑤</span><div><h3>25:00～8:30</h3><p>🌙➡️🌅 自然回復で <strong>体力180付近まで回復</strong><br>→ 🔁 <strong>①へ戻る</strong></p></div></article></div></section>
+    <section class="panel rally-guide-section stamina-summary"><h2>🎉 まとめ</h2><p>このサイクルでは――</p><ul><li>🥫 <strong>体力缶詰ゼロでもOK！</strong></li><li>🐉 <strong>巨獣10回集結（発起者特別報酬）を毎日余裕で達成！</strong></li><li>🗼 <strong>灯台も毎日全クリア可能！</strong></li></ul><p class="stamina-highlight">🌟 無駄のない最効率ルートを実現！ 🌟</p></section>
    </article>
   </section>
   <section id="view-battle" class="view" hidden>

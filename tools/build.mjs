@@ -9,6 +9,15 @@ const dataScript = 'window.WOS_DATA = ' + JSON.stringify(data).replaceAll('</', 
 await writeFile(path.join(root, 'assets/data.js'), dataScript, 'utf8');
 let html = await read('index.html');
 html = html.replace('<link rel="stylesheet" href="./assets/app.css">', '<style>' + await read('assets/app.css') + '</style>');
+for (const [filename, mime] of [
+  ['pepper-portal.jpg', 'image/jpeg'],
+  ['stamina-reward-detail.jpg', 'image/jpeg'],
+  ['stamina-reward-rules.jpg', 'image/jpeg']
+]) {
+  const encoded = (await readFile(path.join(root, 'assets', filename))).toString('base64');
+  const dataUrl = `data:${mime};base64,${encoded}`;
+  html = html.replaceAll(`./assets/${filename}`, dataUrl).replaceAll(`./${filename}`, dataUrl);
+}
 const scripts = ['<script>window.WOS_STANDALONE=true;</script>'];
 for (const filename of ['data.js', 'core.js', 'app.js']) {
   const content = filename === 'data.js' ? dataScript : await read('assets/' + filename);
