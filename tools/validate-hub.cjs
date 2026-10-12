@@ -145,9 +145,11 @@ test('battle and canyon are grouped in the final notebook menu',()=>{
  const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8');
  assert.ok(app.includes("id: 'battle'")&&app.includes("label: '戦闘ターン'")&&app.includes('memoOnly:true'));
  assert.ok(app.includes("id: 'canyon'")&&app.includes("label:'峡谷合戦'")&&app.includes('memoOnly:true'));
+ assert.ok(app.includes("id: 'rally-skills'")&&app.includes("label: '駐屯・集結の右上スキル'")&&app.includes('memoOnly:true'));
  assert.ok(app.includes("id: 'notes', label:'かるろすのメモ帳'"));
  assert.ok(app.includes('.filter(m=>!m.memoOnly)'));
- assert.ok(html.includes('id="view-notes"'));assert.ok(html.includes('href="#battle"'));assert.ok(html.includes('href="#canyon"'));
- assert.equal((html.match(/href="#notes"/g)||[]).length,2);
+ assert.ok(html.includes('id="view-notes"'));assert.ok(html.includes('href="#battle"'));assert.ok(html.includes('href="#canyon"'));assert.ok(html.includes('href="#rally-skills"'));assert.ok(html.includes('id="view-rally-skills"'));
+ assert.equal((html.match(/href="#notes"/g)||[]).length,3);
+ for(const text of ['強化元は集結主（1番上の人）！','駐屯の強化元は「並び順」じゃなくて「ステータス」で決まる！','対象：2・3・5・6','Lv5が4人いないときは、Lv4でも対象になる！','フレンダー・ジンマン・他全員ジェシーで乗って！','事前の調整は必須！'])assert.ok(html.includes(text),text);
 });
 console.log(groups+' hub test groups passed (static/unit only; not browser E2E)');

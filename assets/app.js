@@ -16,7 +16,12 @@
   let state = C.normalizeState(saved, heroes), currentView = 'redeem';
   let toastTimer;
   const modules = [
+    ...(window.WOS_STANDALONE ? [
+      { id:'joiners', label:'乗り手選定', icon:'◇', eyebrow:'RALLY SKILL MATRIX', title:'集結を、読み解く。', subtitle:'集結主の効果を見ながら、乗り手の役割を選ぶ。' },
+      { id:'library', label:'スキル図鑑', icon:'▤', eyebrow:'SKILL LIBRARY', title:'英雄と遠征スキル', subtitle:'世代・兵種・発動条件から確認。' }
+    ] : []),
     { id: 'battle', label: '戦闘ターン', icon: '⇄', eyebrow: 'COMBAT FIELD NOTES', title: '1ターンの、その中へ。', subtitle: '両軍が同時に動く仕組みを、ステップで確かめる。', memoOnly:true },
+    { id: 'rally-skills', label: '駐屯・集結の右上スキル', icon: '🛡️', eyebrow: 'RALLY & GARRISON', title: '駐屯と集結の「右上スキル」と「強化元」', subtitle: '', memoOnly:true },
     { id: 'sources', label: '出典情報', icon: '◎', eyebrow: 'RESEARCH LOG', title: 'いろんな情報から確かめる。', subtitle: '' },
     { id: 'bear', label:'熊罠配置', icon:'▦', path:'./apps/bear/index.html?v=3.44', title:'熊罠配置', eyebrow:'ALLIANCE LAYOUT', subtitle:'DeS・GeMの配置を確認・調整' },
     { id: 'canyon', label:'峡谷合戦', icon:'△', path:'./apps/canyon/index.html', title:'峡谷合戦', eyebrow:'CANYON CLASH', subtitle:'42レッスンの攻略ガイド', memoOnly:true },
@@ -161,7 +166,7 @@
     for(const key of moduleFrames.keys())panelVisibility(key,false);
     currentView = selected.id;
     document.querySelectorAll('.view').forEach(v=>{v.hidden=v.id!==`view-${currentView}`;});
-    const navigationView=['battle','canyon'].includes(currentView)?'notes':currentView;
+    const navigationView=['battle','canyon','rally-skills'].includes(currentView)?'notes':currentView;
     $('navigation').querySelectorAll('button').forEach(b=>{const on=b.dataset.nav===navigationView; b.classList.toggle('active',on); if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
     $('breadcrumb-current').textContent=selected.label; $('page-title').textContent=selected.title; $('page-eyebrow').textContent=selected.eyebrow;
     $('page-subtitle').textContent=selected.subtitle||'';$('page-subtitle').hidden=!selected.subtitle;

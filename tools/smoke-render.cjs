@@ -24,7 +24,7 @@ function run(standalone){
  }
  click({add:'wayne'});click({add:'wayne'});assert.ok(get('comparison-notes').innerHTML.includes('個別重複式は未確認'));
  assert.ok(get('trigger-filter').innerHTML.includes('critical'));assert.ok(get('trigger-filter').innerHTML.includes('periodic_delayed'));
- assert.ok(get('evidence-policy').innerHTML.includes('83/91'));
+ assert.ok(get('source-list').innerHTML.includes('集結時に有効になる集結主・参加者の遠征スキル'));
  click({detail:'gordon'});assert.ok(get('dialog-content').innerHTML.includes('6% / 12% / 15% / 24% / 30%'));
  click({detail:'gwen'});assert.ok(get('dialog-content').innerHTML.includes('/gwen-2/'));
  assert.ok(get('hero-grid').innerHTML.includes('暫定採用・資料差あり'));
