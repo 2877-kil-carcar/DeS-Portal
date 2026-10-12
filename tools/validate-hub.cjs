@@ -145,11 +145,13 @@ test('battle and canyon are grouped in the final notebook menu',()=>{
  const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8');
  assert.ok(app.includes("id: 'battle'")&&app.includes("label: '戦闘ターン'")&&app.includes('memoOnly:true'));
  assert.ok(app.includes("id: 'canyon'")&&app.includes("label:'峡谷合戦'")&&app.includes('memoOnly:true'));
- assert.ok(app.includes("id: 'rally-skills'")&&app.includes("label: '駐屯・集結の右上スキル'")&&app.includes('memoOnly:true'));
+ assert.ok(app.includes("id: 'rally-skills'")&&app.includes("label: '強化元と右上スキル'")&&app.includes('memoOnly:true'));
+ assert.ok(app.includes("id: 'mia-stacking'")&&app.includes("label: 'ミア「不幸の連鎖」の重複'")&&app.includes('memoOnly:true'));
  assert.ok(app.includes("id: 'notes', label:'かるろすのメモ帳'"));
  assert.ok(app.includes('.filter(m=>!m.memoOnly)'));
- assert.ok(html.includes('id="view-notes"'));assert.ok(html.includes('href="#battle"'));assert.ok(html.includes('href="#canyon"'));assert.ok(html.includes('href="#rally-skills"'));assert.ok(html.includes('id="view-rally-skills"'));
- assert.equal((html.match(/href="#notes"/g)||[]).length,3);
+assert.ok(html.includes('id="view-notes"'));assert.ok(html.includes('href="#battle"'));assert.ok(html.includes('href="#canyon"'));assert.ok(html.includes('href="#rally-skills"'));assert.ok(html.includes('id="view-rally-skills"'));assert.ok(html.includes('href="#mia-stacking"'));assert.ok(html.includes('id="view-mia-stacking"'));
+for(const text of ['ミアの遠征スキル「不幸の連鎖」重複について','同時に発動しても“最後の1件だけ”が有効','ミア4人：発動率93.75%（1−0.5⁴）、効果＋50%','ミアは1人で効果MAX。ただし人数を増やせば発動が安定する。','グレッグ／ローガン／フリント']) assert.ok(html.includes(text),text);
+ assert.equal((html.match(/href="#notes"/g)||[]).length,4);
  for(const text of ['強化元は集結主（1番上の人）！','駐屯の強化元は「並び順」じゃなくて「ステータス」で決まる！','対象：2・3・5・6','Lv5が4人いないときは、Lv4でも対象になる！','フレンダー・ジンマン・他全員ジェシーで乗って！','事前の調整は必須！'])assert.ok(html.includes(text),text);
 });
 console.log(groups+' hub test groups passed (static/unit only; not browser E2E)');
