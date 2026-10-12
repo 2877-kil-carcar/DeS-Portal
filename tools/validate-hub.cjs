@@ -149,14 +149,16 @@ test('battle and canyon are grouped in the final notebook menu',()=>{
  assert.ok(app.includes("id: 'mia-stacking'")&&app.includes("label: 'ミア「不幸の連鎖」の重複'")&&app.includes('memoOnly:true'));
  assert.ok(app.includes("id: 'ahmose-stacking'")&&app.includes("label: 'アクモス「マムシ方陣」の重複'")&&app.includes('memoOnly:true'));
  assert.ok(app.includes("id: 'stamina-routine'")&&app.includes("label: '領主体力の理想ルート'")&&app.includes('memoOnly:true'));
+ assert.ok(app.includes("id: 'joiner-comparison'")&&app.includes("label: 'レイナ・ジェシー・グエン比較'")&&app.includes('memoOnly:true'));
  assert.ok(app.includes("id: 'notes', label:'かるろすのメモ帳'"));
  assert.ok(app.includes('.filter(m=>!m.memoOnly)'));
-assert.ok(html.includes('id="view-notes"'));assert.ok(html.includes('href="#battle"'));assert.ok(html.includes('href="#canyon"'));assert.ok(html.includes('href="#rally-skills"'));assert.ok(html.includes('id="view-rally-skills"'));assert.ok(html.includes('href="#mia-stacking"'));assert.ok(html.includes('id="view-mia-stacking"'));assert.ok(html.includes('href="#ahmose-stacking"'));assert.ok(html.includes('id="view-ahmose-stacking"'));assert.ok(html.includes('href="#stamina-routine"'));assert.ok(html.includes('id="view-stamina-routine"'));
+assert.ok(html.includes('id="view-notes"'));assert.ok(html.includes('href="#battle"'));assert.ok(html.includes('href="#canyon"'));assert.ok(html.includes('href="#rally-skills"'));assert.ok(html.includes('id="view-rally-skills"'));assert.ok(html.includes('href="#mia-stacking"'));assert.ok(html.includes('id="view-mia-stacking"'));assert.ok(html.includes('href="#ahmose-stacking"'));assert.ok(html.includes('id="view-ahmose-stacking"'));assert.ok(html.includes('href="#stamina-routine"'));assert.ok(html.includes('id="view-stamina-routine"'));assert.ok(html.includes('href="#joiner-comparison"'));assert.ok(html.includes('id="view-joiner-comparison"'));
 for(const text of ['ミアの遠征スキル「不幸の連鎖」重複について','同時に発動しても“最後の1件だけ”が有効','ミア4人：発動率93.75%（1−0.5⁴）、効果＋50%','ミアは1人で効果MAX。ただし人数を増やせば発動が安定する。','グレッグ／ローガン／フリント']) assert.ok(html.includes(text),text);
  for(const text of ['アクモスの遠征スキル「マムシ方陣」重複について','盾兵の被ダメージ -70%（2ターン）','Ahmose for example doesn\'t stack','発動回数は増えても、効果量は1人分だけ。','アクモスは1人で完成。複数入れても軽減は増えない。']) assert.ok(html.includes(text),text);
  for(const text of ['領主体力の理想的な使い方','専門家アグネスがいると獲得倉庫体力と灯台出現量が変わるためそこは考慮していません','ジーナ編成だけで自然回復6時間分の体力を節約！','巨獣10回集結の発起者特別報酬をここで達成！','体力缶詰ゼロでもOK！']) assert.ok(html.includes(text),text);
  for(const file of ['assets/stamina-reward-detail.jpg','assets/stamina-reward-rules.jpg']) assert.ok(fs.existsSync(path.join(root,file)),file);
- assert.equal((html.match(/href="#notes"/g)||[]).length,6);
+ for(const text of ['乗り手比較：レイナ vs ジェシー vs グエン','ジェシー4人の方が総ダメが高くなる','熊罠に関してはレイナの方が圧倒的にダメージが高い','グエンは非推奨。','全ステータスがダメージポイントの計算対象','ジェシーよりレイナを乗り手採用した方がダメージは増える傾向']) assert.ok(html.includes(text),text);
+ assert.equal((html.match(/href="#notes"/g)||[]).length,7);
  for(const text of ['強化元は集結主（1番上の人）！','駐屯の強化元は「並び順」じゃなくて「ステータス」で決まる！','対象：2・3・5・6','Lv5が4人いないときは、Lv4でも対象になる！','フレンダー・ジンマン・他全員ジェシーで乗って！','事前の調整は必須！'])assert.ok(html.includes(text),text);
 });
 console.log(groups+' hub test groups passed (static/unit only; not browser E2E)');
