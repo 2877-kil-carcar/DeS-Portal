@@ -116,7 +116,9 @@ button.danger-ghost { border-color: #efc9cc; color: var(--danger); background: #
 
 .settings-card { display: grid; grid-template-columns: 1fr minmax(210px, 320px); gap: 18px; align-items: center; padding: 18px; border-radius: 18px; background: #f3f8fc; }
 .settings-card p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.phase-time-settings { display: grid; gap: 12px; }
 .time-setting { display: grid; gap: 8px; }
+.time-label { color: var(--muted); font-size: 11px; letter-spacing: .04em; }
 .custom-time { display: grid; grid-template-columns: minmax(90px, 1fr) auto; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
 
 .game-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 330px); gap: 18px; align-items: start; }
@@ -126,6 +128,7 @@ button.danger-ghost { border-color: #efc9cc; color: var(--danger); background: #
 .turn-guide { margin: 8px 0 0; color: var(--muted); line-height: 1.7; }
 .required-start { margin: 13px 0 0; font-size: clamp(18px, 4vw, 25px); font-weight: 900; color: var(--accent-dark); }
 .timer { min-width: 86px; text-align: center; font-variant-numeric: tabular-nums; font-size: 24px; font-weight: 950; }
+.timer.reconnecting { font-size: 16px; white-space: nowrap; }
 .timer.warning { color: var(--danger); animation: pulse .8s infinite alternate; }
 @keyframes pulse { to { transform: scale(1.06); opacity: .72; } }
 

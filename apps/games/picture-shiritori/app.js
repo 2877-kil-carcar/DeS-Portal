@@ -6,6 +6,7 @@ import {
   onValue,
   onDisconnect,
   runTransaction,
+  serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const Rules = window.PictureShiritoriRules;
@@ -23,14 +24,15 @@ const firebaseConfig = Object.freeze({
 
 const ROOT_PATH = "pictureShiritori/rooms";
 const MAX_PLAYERS = 8;
+const RECONNECT_GRACE_MS = 180000;
 const PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
 const $ = id => document.getElementById(id);
 const els = Object.fromEntries([
   "homeView", "roomView", "homeName", "roomCodeInput", "createRoomBtn", "joinRoomBtn",
   "connectionBadge", "roomCodeText", "copyRoomBtn", "leaveRoomBtn", "lobbyPanel",
   "memberCount", "hostLabel", "memberList", "hostSettings", "timePreset", "customTimeWrap",
-  "customTime", "startGameBtn", "lobbyMessage", "gamePanel", "gameHostSettings",
-  "gameTimePreset", "gameCustomTimeWrap", "gameCustomTime", "turnNumber", "timer",
+  "customTime", "answerTimePreset", "answerCustomTimeWrap", "answerCustomTime", "startGameBtn", "lobbyMessage", "gamePanel", "gameHostSettings",
+  "gameTimePreset", "gameCustomTimeWrap", "gameCustomTime", "gameAnswerTimePreset", "gameAnswerCustomTimeWrap", "gameAnswerCustomTime", "turnNumber", "timer",
   "turnTitle", "turnGuide", "requiredStart", "drawCard", "drawingCanvas", "undoBtn",
   "clearBtn", "secretAnswer", "submitDrawingBtn", "guessCard", "submittedImage", "guessForm",
   "guessInput", "guessFeedback", "waitingCard", "waitingText", "spectatorImageWrap",
@@ -49,8 +51,9 @@ let disconnectAction = null;
 let toastTimer = 0;
 let expirePending = false;
 let renderedTurnKey = "";
-let lastSettingsValue = null;
+let lastSettingsValues = { draw: null, answer: null };
 let reconcilePending = false;
+let lastPresenceTick = 0;
 
 const canvas = els.drawingCanvas;
 const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -97,8 +100,25 @@ function playerName(room, id) {
   return room?.players?.[id]?.name || "退出したプレイヤー";
 }
 
-function activeIds(room) {
-  return (room?.order || []).filter(id => room.players?.[id]?.active !== false);
+function reconnectRemaining(player, now = Date.now()) {
+  if (!player || player.active !== false) return 0;
+  const disconnectedAt = Number(player.disconnectedAt || 0);
+  if (!disconnectedAt) return 0;
+  return Math.max(0, disconnectedAt + RECONNECT_GRACE_MS - now);
+}
+
+function isPlayerAvailable(player, now = Date.now()) {
+  return Boolean(player) && (player.active !== false || reconnectRemaining(player, now) > 0);
+}
+
+function activeIds(room, now = Date.now()) {
+  return (room?.order || []).filter(id => isPlayerAvailable(room.players?.[id], now));
+}
+
+function phaseActorId(room) {
+  const game = room?.game;
+  if (!game) return "";
+  return game.phase === "guess" ? game.guesserId : game.artistId;
 }
 
 function historyEntries(room) {
@@ -143,8 +163,30 @@ function finishRoom(room, reason, now) {
   if (room.game) room.game.phase = "finished";
 }
 
+function finishForUnansweredDrawing(room, now) {
+  const game = room.game || {};
+  const loserName = playerName(room, game.artistId);
+  addHistory(room, "timeout-guess", now, {
+    loserId: game.artistId || "",
+    loserName,
+  });
+  room.loserId = game.artistId || "";
+  room.loserName = loserName;
+  finishRoom(room, `回答時間切れ。${loserName}さん（絵を描いた人）の負けです。`, now);
+}
+
+function resolveMissingPhaseActor(room, now) {
+  const game = room.game || {};
+  if (game.phase === "guess") {
+    finishForUnansweredDrawing(room, now);
+    return;
+  }
+  addHistory(room, "left", now, { guess: "" });
+  beginNextTurn(room, "", now);
+}
+
 function beginNextTurn(room, basisWord, now) {
-  const active = activeIds(room);
+  const active = activeIds(room, now);
   if (active.length < 2) {
     finishRoom(room, "参加者が2人未満になったため終了しました。", now);
     return;
@@ -168,13 +210,15 @@ function beginNextTurn(room, basisWord, now) {
 }
 
 function startRoom(room, now) {
-  const active = activeIds(room);
+  const active = activeIds(room, now);
   if (active.length < 2) return false;
   const seconds = Rules.normalizeTurnSeconds(room.settings?.turnSeconds);
   room.status = "playing";
   room.history = {};
   room.startedAt = now;
   room.finishReason = "";
+  room.loserId = "";
+  room.loserName = "";
   room.game = {
     turnNo: 1,
     phase: "draw",
@@ -229,8 +273,8 @@ async function createRoom() {
           status: "lobby",
           createdAt: now,
           updatedAt: now,
-          settings: { turnSeconds: 60 },
-          players: { [pid]: { name, active: true, joinedAt: now } },
+          settings: { turnSeconds: 60, answerSeconds: 60 },
+          players: { [pid]: { name, active: true, disconnectedAt: 0, joinedAt: now } },
           order: [pid],
           history: {},
         };
@@ -275,8 +319,18 @@ async function joinRoom() {
       const exists = Boolean(room.players[pid]);
       if (!exists && room.status !== "lobby") { failure = "ゲーム開始後の新規参加はできません。"; return; }
       if (!exists && activeIds(room).length >= MAX_PLAYERS) { failure = "この部屋は満員です。"; return; }
-      room.players[pid] = { ...(room.players[pid] || {}), name, active: true, joinedAt: room.players[pid]?.joinedAt || now };
+      const previousPlayer = room.players[pid] || {};
+      const disconnectedAt = previousPlayer.active === false ? Number(previousPlayer.disconnectedAt || 0) : 0;
+      const disconnectedFor = disconnectedAt ? Math.max(0, now - disconnectedAt) : 0;
+      room.players[pid] = { ...previousPlayer, name, active: true, disconnectedAt: 0, joinedAt: previousPlayer.joinedAt || now };
       if (!room.order.includes(pid)) room.order.push(pid);
+      if (exists && room.status === "playing" && phaseActorId(room) === pid && disconnectedFor) {
+        if (disconnectedFor <= RECONNECT_GRACE_MS) {
+          if (room.game?.deadline) room.game.deadline += disconnectedFor;
+        } else {
+          resolveMissingPhaseActor(room, now);
+        }
+      }
       room.updatedAt = now;
       return room;
     }, { applyLocally: false });
@@ -298,8 +352,8 @@ async function enterRoom(code, pid, name) {
   els.homeView.hidden = true;
   els.roomView.hidden = false;
   els.roomCodeText.textContent = code;
-  disconnectAction = onDisconnect(ref(db, `${ROOT_PATH}/${code}/players/${pid}/active`));
-  await disconnectAction.set(false);
+  disconnectAction = onDisconnect(ref(db, `${ROOT_PATH}/${code}/players/${pid}`));
+  await disconnectAction.update({ active: false, disconnectedAt: serverTimestamp() });
   if (stopRoomListener) stopRoomListener();
   stopRoomListener = onValue(roomRef(), snapshot => {
     if (!snapshot.exists()) {
@@ -319,24 +373,25 @@ async function enterRoom(code, pid, name) {
 
 async function reconcileDisconnectedPlayers() {
   if (reconcilePending || !currentRoom || !myId || currentRoom.players?.[myId]?.active === false) return;
-  const hostInactive = currentRoom.hostId && currentRoom.players?.[currentRoom.hostId]?.active === false;
-  const actorInactive = currentRoom.status === "playing" && [currentRoom.game?.artistId, currentRoom.game?.guesserId]
-    .some(id => id && currentRoom.players?.[id]?.active === false);
-  if (!hostInactive && !actorInactive) return;
+  const checkAt = Date.now();
+  const hostExpired = currentRoom.hostId && !isPlayerAvailable(currentRoom.players?.[currentRoom.hostId], checkAt);
+  const actorId = currentRoom.status === "playing" ? phaseActorId(currentRoom) : "";
+  const actorExpired = actorId && !isPlayerAvailable(currentRoom.players?.[actorId], checkAt);
+  if (!hostExpired && !actorExpired) return;
   reconcilePending = true;
   try {
     const now = Date.now();
     await runTransaction(roomRef(), room => {
       if (!room) return;
-      const active = activeIds(room);
-      if (!room.hostId || room.players?.[room.hostId]?.active === false) room.hostId = active[0] || "";
+      const active = activeIds(room, now);
+      if (!room.hostId || !isPlayerAvailable(room.players?.[room.hostId], now)) room.hostId = active[0] || "";
       if (room.status === "playing" && active.length < 2) {
         finishRoom(room, "参加者が2人未満になったため終了しました。", now);
-      } else if (room.status === "playing" && [room.game?.artistId, room.game?.guesserId]
-        .some(id => id && room.players?.[id]?.active === false)) {
-        const basisWord = room.game.phase === "guess" ? room.game.answer : "";
-        addHistory(room, "left", now);
-        beginNextTurn(room, basisWord, now);
+      } else if (room.status === "playing") {
+        const currentActorId = phaseActorId(room);
+        if (currentActorId && !isPlayerAvailable(room.players?.[currentActorId], now)) {
+          resolveMissingPhaseActor(room, now);
+        }
       }
       room.updatedAt = now;
       return room;
@@ -357,12 +412,11 @@ async function leaveRoom() {
     await runTransaction(roomRef(), room => {
       if (!room?.players?.[myId]) return room;
       room.players[myId].active = false;
-      const active = activeIds(room);
+      room.players[myId].disconnectedAt = 0;
+      const active = activeIds(room, now);
       if (room.hostId === myId) room.hostId = active[0] || "";
-      if (room.status === "playing" && [room.game?.artistId, room.game?.guesserId].includes(myId)) {
-        const phase = room.game.phase;
-        addHistory(room, "left", now, { guess: "" });
-        beginNextTurn(room, phase === "guess" ? room.game.answer : "", now);
+      if (room.status === "playing" && phaseActorId(room) === myId) {
+        resolveMissingPhaseActor(room, now);
       } else if (room.status === "playing" && active.length < 2) {
         finishRoom(room, "参加者が2人未満になったため終了しました。", now);
       }
@@ -375,21 +429,22 @@ async function leaveRoom() {
   clearSessionView();
 }
 
-async function saveTurnSeconds(value) {
+async function saveTimeSetting(kind, value) {
   if (!currentRoom || currentRoom.hostId !== myId) return;
   const seconds = Rules.normalizeTurnSeconds(value);
-  if (seconds === lastSettingsValue) return;
+  const settingKey = kind === "answer" ? "answerSeconds" : "turnSeconds";
+  if (seconds === lastSettingsValues[kind]) return;
   try {
     await runTransaction(roomRef(), room => {
       if (!room || room.hostId !== myId) return;
       room.settings ||= {};
-      room.settings.turnSeconds = seconds;
+      room.settings[settingKey] = seconds;
       room.updatedAt = Date.now();
       return room;
     });
   } catch (error) {
     console.error(error);
-    showToast("制限時間を保存できませんでした。");
+    showToast(`${kind === "answer" ? "回答" : "描画"}時間を保存できませんでした。`);
   }
 }
 
@@ -429,6 +484,7 @@ async function submitDrawing() {
       game.answer = check.word;
       game.image = image;
       game.phase = "guess";
+      game.turnSeconds = Rules.normalizeTurnSeconds(room.settings?.answerSeconds ?? 60) || 60;
       game.startedAt = now;
       game.deadline = nextDeadline(game.turnSeconds, now);
       game.lastGuess = "";
@@ -485,9 +541,12 @@ async function expireTurn() {
     await runTransaction(roomRef(), room => {
       const game = room?.game;
       if (!room || room.status !== "playing" || game?.turnNo !== expectedTurn || !game.deadline || game.deadline > now) return;
-      const basisWord = game.phase === "guess" ? game.answer : "";
-      addHistory(room, game.phase === "draw" ? "timeout-draw" : "timeout-guess", now);
-      beginNextTurn(room, basisWord, now);
+      if (game.phase === "guess") {
+        finishForUnansweredDrawing(room, now);
+      } else {
+        addHistory(room, "timeout-draw", now);
+        beginNextTurn(room, "", now);
+      }
       return room;
     }, { applyLocally: false });
   } catch (error) {
@@ -515,6 +574,8 @@ async function returnLobby() {
     room.game = null;
     room.history = {};
     room.finishReason = "";
+    room.loserId = "";
+    room.loserName = "";
     room.updatedAt = now;
     return room;
   }, { applyLocally: false });
@@ -559,6 +620,7 @@ function renderMemberList(target, room, compact) {
     const player = room.players?.[id];
     if (!player) continue;
     const li = document.createElement("li");
+    const reconnecting = reconnectRemaining(player) > 0;
     if (player.active === false) li.classList.add("inactive");
     if (id === game.artistId || id === game.guesserId) li.classList.add("current");
     const avatar = document.createElement("span");
@@ -574,7 +636,8 @@ function renderMemberList(target, room, compact) {
     if (compact && id === game.artistId) tags.push("描く");
     if (compact && id === game.guesserId) tags.push("答える");
     if (id === myId) tags.push("YOU");
-    if (player.active === false) tags.push("退出");
+    if (reconnecting) tags.push("再接続待ち（3分）");
+    else if (player.active === false) tags.push("退出");
     tag.textContent = tags.join(" · ");
     li.append(avatar, name, tag);
     target.append(li);
@@ -590,15 +653,16 @@ function setControlValue(preset, customWrap, custom, seconds) {
 }
 
 function renderSettingControls(room, host) {
-  const seconds = Rules.normalizeTurnSeconds(room.settings?.turnSeconds);
-  lastSettingsValue = seconds;
+  const drawSeconds = Rules.normalizeTurnSeconds(room.settings?.turnSeconds);
+  const answerSeconds = Rules.normalizeTurnSeconds(room.settings?.answerSeconds ?? 60) || 60;
+  lastSettingsValues = { draw: drawSeconds, answer: answerSeconds };
   if (host) {
-    setControlValue(els.timePreset, els.customTimeWrap, els.customTime, seconds);
-    setControlValue(els.gameTimePreset, els.gameCustomTimeWrap, els.gameCustomTime, seconds);
+    setControlValue(els.timePreset, els.customTimeWrap, els.customTime, drawSeconds);
+    setControlValue(els.gameTimePreset, els.gameCustomTimeWrap, els.gameCustomTime, drawSeconds);
+    setControlValue(els.answerTimePreset, els.answerCustomTimeWrap, els.answerCustomTime, answerSeconds);
+    setControlValue(els.gameAnswerTimePreset, els.gameAnswerCustomTimeWrap, els.gameAnswerCustomTime, answerSeconds);
   }
-  const current = Rules.timerLabel(room.game?.turnSeconds ?? seconds);
-  const next = Rules.timerLabel(seconds);
-  els.gameSettingLabel.textContent = current === next ? current : `現在 ${current} / 次 ${next}`;
+  els.gameSettingLabel.textContent = `描画 ${Rules.timerLabel(drawSeconds)} / 回答 ${Rules.timerLabel(answerSeconds)}`;
 }
 
 function renderGame(room) {
@@ -683,6 +747,7 @@ function renderHistoryInto(target, items) {
     title.textContent = item.word || labels[item.result] || "スキップ";
     const meta = document.createElement("span");
     meta.textContent = `#${item.turnNo} ${item.artistName} → ${item.guesserName} · ${labels[item.result] || item.result}`;
+    if (item.loserName) meta.textContent += ` · ${item.loserName}さんの負け`;
     body.append(title, meta);
     li.append(visual, body);
     target.append(li);
@@ -695,8 +760,25 @@ function formatRemaining(ms) {
 }
 
 function updateTimer() {
+  reconcileDisconnectedPlayers();
+  const presenceTick = Math.floor(Date.now() / 1000);
+  if (currentRoom && presenceTick !== lastPresenceTick) {
+    lastPresenceTick = presenceTick;
+    els.memberCount.textContent = `${activeIds(currentRoom).length}/${MAX_PLAYERS}`;
+    renderMemberList(els.memberList, currentRoom, false);
+    renderMemberList(els.gameMemberList, currentRoom, true);
+  }
   const game = currentRoom?.status === "playing" ? currentRoom.game : null;
   if (!game) return;
+  const actor = currentRoom.players?.[phaseActorId(currentRoom)];
+  const reconnectMs = reconnectRemaining(actor);
+  if (reconnectMs > 0) {
+    els.timer.textContent = `再接続 ${formatRemaining(reconnectMs)}`;
+    els.timer.classList.add("reconnecting");
+    els.timer.classList.toggle("warning", reconnectMs <= 10000);
+    return;
+  }
+  els.timer.classList.remove("reconnecting");
   if (!game.deadline) {
     els.timer.textContent = "制限なし";
     els.timer.classList.remove("warning");
@@ -778,16 +860,16 @@ function clearDrawing() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
-function wireTimeControls(preset, customWrap, custom) {
+function wireTimeControls(preset, customWrap, custom, kind) {
   preset.addEventListener("change", () => {
     customWrap.hidden = preset.value !== "custom";
     if (preset.value === "custom") custom.focus();
-    else saveTurnSeconds(preset.value);
+    else saveTimeSetting(kind, preset.value);
   });
   custom.addEventListener("change", () => {
     const value = Rules.normalizeTurnSeconds(custom.value);
     custom.value = String(value || 10);
-    saveTurnSeconds(value || 10);
+    saveTimeSetting(kind, value || 10);
   });
 }
 
@@ -808,8 +890,10 @@ els.submitDrawingBtn.addEventListener("click", submitDrawing);
 els.guessForm.addEventListener("submit", submitGuess);
 els.endGameBtn.addEventListener("click", endGame);
 els.returnLobbyBtn.addEventListener("click", returnLobby);
-wireTimeControls(els.timePreset, els.customTimeWrap, els.customTime);
-wireTimeControls(els.gameTimePreset, els.gameCustomTimeWrap, els.gameCustomTime);
+wireTimeControls(els.timePreset, els.customTimeWrap, els.customTime, "draw");
+wireTimeControls(els.gameTimePreset, els.gameCustomTimeWrap, els.gameCustomTime, "draw");
+wireTimeControls(els.answerTimePreset, els.answerCustomTimeWrap, els.answerCustomTime, "answer");
+wireTimeControls(els.gameAnswerTimePreset, els.gameAnswerCustomTimeWrap, els.gameAnswerCustomTime, "answer");
 
 document.querySelectorAll(".color-chip").forEach(button => button.addEventListener("click", () => {
   lineColor = button.dataset.color;

@@ -29,6 +29,7 @@ assert.equal(Rules.nextActive(["a", "b", "c"], { a: { active: true }, b: { activ
 for (const required of [
   "createRoomBtn", "joinRoomBtn", "drawingCanvas", "secretAnswer", "guessForm",
   "timePreset", "gameTimePreset", "historyList", "leaveRoomBtn", "endGameBtn",
+  "answerTimePreset", "answerCustomTime", "gameAnswerTimePreset", "gameAnswerCustomTime",
 ]) assert.match(html, new RegExp(`id=["']${required}["']`), `${required} がHTMLに必要`);
 
 for (const marker of [
@@ -42,6 +43,11 @@ for (const marker of [
   "currentRoom.hostId !== myId",
   "const existing = await get(roomRef(code))",
   'if (!room) { failure = "部屋が見つかりません。"; return null; }',
+  "const RECONNECT_GRACE_MS = 180000",
+  "disconnectedAt: serverTimestamp()",
+  "finishForUnansweredDrawing",
+  'room.settings?.answerSeconds',
+  'game.turnSeconds = Rules.normalizeTurnSeconds(room.settings?.answerSeconds ?? 60) || 60',
 ]) assert.ok(app.includes(marker), `${marker} が実装に必要`);
 
 assert.ok(css.includes("touch-action: none"), "スマホ描画でブラウザスクロールを抑止する");
@@ -52,4 +58,4 @@ assert.ok(css.includes(".waiting-card .submitted-image-wrap { grid-column: 1 / -
 const syntax = spawnSync(process.execPath, ["--check", path.join(base, "app.js")], { encoding: "utf8" });
 assert.equal(syntax.status, 0, syntax.stderr || "app.js syntax check failed");
 
-console.log("picture-shiritori validation: 30 checks passed");
+console.log("picture-shiritori validation: 39 checks passed");

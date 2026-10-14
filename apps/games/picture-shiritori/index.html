@@ -70,21 +70,38 @@
         <div id="hostSettings" class="settings-card" hidden>
           <div>
             <strong>制限時間</strong>
-            <p>ゲーム中の変更は次のターンから反映されます。</p>
+            <p>描画と回答を別々に設定できます。ゲーム中の変更は次のターンから反映されます。</p>
           </div>
-          <div class="time-setting">
-            <select id="timePreset" aria-label="制限時間">
-              <option value="30">30秒</option>
-              <option value="60" selected>60秒</option>
-              <option value="90">90秒</option>
-              <option value="120">120秒</option>
-              <option value="custom">カスタム</option>
-              <option value="none">時間制限なし</option>
-            </select>
-            <label id="customTimeWrap" class="custom-time" hidden>
-              <input id="customTime" type="number" min="10" max="600" value="180" inputmode="numeric">
-              <span>秒（10〜600）</span>
-            </label>
+          <div class="phase-time-settings">
+            <div class="time-setting">
+              <strong class="time-label">描画時間</strong>
+              <select id="timePreset" aria-label="描画時間">
+                <option value="30">30秒</option>
+                <option value="60" selected>60秒</option>
+                <option value="90">90秒</option>
+                <option value="120">120秒</option>
+                <option value="custom">カスタム</option>
+                <option value="none">時間制限なし</option>
+              </select>
+              <label id="customTimeWrap" class="custom-time" hidden>
+                <input id="customTime" type="number" min="10" max="600" value="180" inputmode="numeric">
+                <span>秒（10〜600）</span>
+              </label>
+            </div>
+            <div class="time-setting">
+              <strong class="time-label">回答時間</strong>
+              <select id="answerTimePreset" aria-label="回答時間">
+                <option value="30">30秒</option>
+                <option value="60" selected>60秒</option>
+                <option value="90">90秒</option>
+                <option value="120">120秒</option>
+                <option value="custom">カスタム</option>
+              </select>
+              <label id="answerCustomTimeWrap" class="custom-time" hidden>
+                <input id="answerCustomTime" type="number" min="10" max="600" value="60" inputmode="numeric">
+                <span>秒（10〜600）</span>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -160,18 +177,37 @@
               <p class="eyebrow">HOST SETTING</p>
               <h2>次のターンの制限時間</h2>
             </div>
-            <select id="gameTimePreset" aria-label="次のターンの制限時間">
-              <option value="30">30秒</option>
-              <option value="60">60秒</option>
-              <option value="90">90秒</option>
-              <option value="120">120秒</option>
-              <option value="custom">カスタム</option>
-              <option value="none">時間制限なし</option>
-            </select>
-            <label id="gameCustomTimeWrap" class="custom-time" hidden>
-              <input id="gameCustomTime" type="number" min="10" max="600" value="180" inputmode="numeric">
-              <span>秒（10〜600）</span>
-            </label>
+            <div class="phase-time-settings">
+              <div class="time-setting">
+                <strong class="time-label">描画時間</strong>
+                <select id="gameTimePreset" aria-label="次の描画時間">
+                  <option value="30">30秒</option>
+                  <option value="60">60秒</option>
+                  <option value="90">90秒</option>
+                  <option value="120">120秒</option>
+                  <option value="custom">カスタム</option>
+                  <option value="none">時間制限なし</option>
+                </select>
+                <label id="gameCustomTimeWrap" class="custom-time" hidden>
+                  <input id="gameCustomTime" type="number" min="10" max="600" value="180" inputmode="numeric">
+                  <span>秒（10〜600）</span>
+                </label>
+              </div>
+              <div class="time-setting">
+                <strong class="time-label">回答時間</strong>
+                <select id="gameAnswerTimePreset" aria-label="次の回答時間">
+                  <option value="30">30秒</option>
+                  <option value="60">60秒</option>
+                  <option value="90">90秒</option>
+                  <option value="120">120秒</option>
+                  <option value="custom">カスタム</option>
+                </select>
+                <label id="gameAnswerCustomTimeWrap" class="custom-time" hidden>
+                  <input id="gameAnswerCustomTime" type="number" min="10" max="600" value="60" inputmode="numeric">
+                  <span>秒（10〜600）</span>
+                </label>
+              </div>
+            </div>
             <p class="hint">変更しても現在のターンは変わりません。</p>
           </article>
           <article class="panel">
