@@ -46,8 +46,10 @@ for (const marker of [
 
 assert.ok(css.includes("touch-action: none"), "スマホ描画でブラウザスクロールを抑止する");
 assert.ok(css.includes("@media (max-width: 760px)"), "スマホレイアウトが必要");
+assert.ok(css.includes("grid-template-columns: 58px minmax(0, 1fr)"), "待機画面の文章領域が縮みすぎないこと");
+assert.ok(css.includes(".waiting-card .submitted-image-wrap { grid-column: 1 / -1"), "待機中の絵はカード全幅に配置すること");
 
 const syntax = spawnSync(process.execPath, ["--check", path.join(base, "app.js")], { encoding: "utf8" });
 assert.equal(syntax.status, 0, syntax.stderr || "app.js syntax check failed");
 
-console.log("picture-shiritori validation: 28 checks passed");
+console.log("picture-shiritori validation: 30 checks passed");

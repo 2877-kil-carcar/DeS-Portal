@@ -140,8 +140,11 @@ button.danger-ghost { border-color: #efc9cc; color: var(--danger); background: #
 .guess-form { display: flex; align-items: end; gap: 10px; }
 .grow { flex: 1; }
 .feedback { min-height: 24px; margin: 0; color: var(--danger); font-weight: 800; }
-.waiting-card { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 16px; }
+.waiting-card { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 16px; min-width: 0; }
+.waiting-card > div { min-width: 0; }
+.waiting-card h3, .waiting-card p { overflow-wrap: anywhere; word-break: normal; }
 .waiting-card p { margin: 5px 0 0; color: var(--muted); }
+.waiting-card .submitted-image-wrap { grid-column: 1 / -1; min-width: 0; }
 .waiting-icon { display: grid; place-items: center; width: 58px; height: 58px; border-radius: 50%; background: #eaf4fa; color: var(--accent); font-size: 34px; animation: spin 2s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
