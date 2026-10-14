@@ -66,7 +66,7 @@
   function status(title,message,kind=''){$('connection-title').textContent=title;$('connection-message').textContent=message;document.querySelector('.connection').className='connection '+kind;}
   function renderAdmin(message=''){
     $('adminLoginFields').hidden=isAdmin;$('adminSession').hidden=!isAdmin;
-    $('adminSummary').textContent=isAdmin?'管理者ログイン中：isozaki':'管理者ログイン';
+    $('adminSummary').textContent=isAdmin?'管理者ログイン中':'管理者ログイン';
     $('adminMessage').textContent=message||(isAdmin?'名前・王国の変更と削除ができます。':'名前・王国の変更と削除は管理者のみ操作できます。');
   }
   function loginAdmin(){
