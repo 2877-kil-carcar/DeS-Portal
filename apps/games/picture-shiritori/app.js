@@ -259,9 +259,17 @@ async function joinRoom() {
   let failure = "";
   els.joinRoomBtn.disabled = true;
   try {
+    // A fresh Firebase client has no local value for this room yet. Prime the
+    // cache before the transaction so its first callback does not mistake the
+    // existing room for a missing one and abort locally.
+    const existing = await get(roomRef(code));
+    if (!existing.exists()) return showToast("部屋が見つかりません。");
     const now = Date.now();
     const result = await runTransaction(roomRef(code), room => {
-      if (!room) { failure = "部屋が見つかりません。"; return; }
+      // The first transaction callback can still receive an empty local cache.
+      // Returning null lets Firebase compare with the server and retry with the
+      // current room, while returning undefined would abort before that retry.
+      if (!room) { failure = "部屋が見つかりません。"; return null; }
       room.players ||= {};
       room.order ||= [];
       const exists = Boolean(room.players[pid]);
@@ -272,7 +280,7 @@ async function joinRoom() {
       room.updatedAt = now;
       return room;
     }, { applyLocally: false });
-    if (!result.committed) return showToast(failure || "部屋に参加できませんでした。");
+    if (!result.committed || !result.snapshot.exists()) return showToast(failure || "部屋に参加できませんでした。");
     await enterRoom(code, pid, name);
   } catch (error) {
     console.error(error);

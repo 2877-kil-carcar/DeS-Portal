@@ -150,6 +150,7 @@ test('picture shiritori is linked from mini games and keeps isolated realtime da
  assert.ok(game.includes('id="timePreset"'));
  assert.ok(game.includes('id="customTime"'));
  assert.ok(app.includes('const ROOT_PATH = "pictureShiritori/rooms"'));
+ assert.ok(app.includes('const existing = await get(roomRef(code))'));
  assert.ok(app.includes('canvas.toDataURL("image/jpeg", 0.78)'));
  assert.ok(app.includes('setConnection(snapshot.val() ? "接続済み" : "再接続中"'));
 });

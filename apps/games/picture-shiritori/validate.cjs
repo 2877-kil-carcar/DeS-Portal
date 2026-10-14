@@ -40,6 +40,8 @@ for (const marker of [
   "remaining <= 10000",
   "MAX_PLAYERS = 8",
   "currentRoom.hostId !== myId",
+  "const existing = await get(roomRef(code))",
+  'if (!room) { failure = "部屋が見つかりません。"; return null; }',
 ]) assert.ok(app.includes(marker), `${marker} が実装に必要`);
 
 assert.ok(css.includes("touch-action: none"), "スマホ描画でブラウザスクロールを抑止する");
@@ -48,4 +50,4 @@ assert.ok(css.includes("@media (max-width: 760px)"), "スマホレイアウト�
 const syntax = spawnSync(process.execPath, ["--check", path.join(base, "app.js")], { encoding: "utf8" });
 assert.equal(syntax.status, 0, syntax.stderr || "app.js syntax check failed");
 
-console.log("picture-shiritori validation: 26 checks passed");
+console.log("picture-shiritori validation: 28 checks passed");
