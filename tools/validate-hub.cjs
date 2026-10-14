@@ -141,6 +141,18 @@ test('gift code, gallery and forms lead navigation without changing default modu
  assert.ok(!html.includes('非公式の同盟ツール集'));assert.ok(!html.includes('id="save-status"'));assert.ok(!app.includes('この端末に保存済み'));
   assert.ok(css.includes('.brand{width:100%;padding:0 3px;gap:9px;flex-direction:column'));assert.ok(css.includes('.brand-name{display:block;width:100%;text-align:center'));assert.ok(css.includes('font-size:82px'));assert.ok(css.includes('.brand-row{display:flex;align-items:center;gap:9px'));assert.ok(css.includes('.brand-title{display:block;line-height:1.15;font-size:26px'));assert.ok(css.includes('.brand-mark{width:70px;height:78px;flex:0 0 70px'));assert.ok(css.includes('.brand-mark::before'));
 });
+test('picture shiritori is linked from mini games and keeps isolated realtime data',()=>{
+ const read=f=>fs.readFileSync(path.join(root,f),'utf8');
+ const menu=read('apps/games/index.html'),game=read('apps/games/picture-shiritori/index.html'),app=read('apps/games/picture-shiritori/app.js');
+ assert.ok(menu.includes('href="./picture-shiritori/"'));
+ assert.ok(menu.includes('絵しりとり'));
+ assert.ok(game.includes('2〜8人で遊べます'));
+ assert.ok(game.includes('id="timePreset"'));
+ assert.ok(game.includes('id="customTime"'));
+ assert.ok(app.includes('const ROOT_PATH = "pictureShiritori/rooms"'));
+ assert.ok(app.includes('canvas.toDataURL("image/jpeg", 0.78)'));
+ assert.ok(app.includes('setConnection(snapshot.val() ? "接続済み" : "再接続中"'));
+});
 test('battle and canyon are grouped in the final notebook menu',()=>{
  const app=fs.readFileSync(path.join(root,'assets/app.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8');
  assert.ok(app.includes("id: 'battle'")&&app.includes("label: '戦闘ターン'")&&app.includes('memoOnly:true'));

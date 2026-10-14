@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#f4f7fb">
+  <title>絵しりとり | DeSポータル</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="back-link" href="../../../#games" aria-label="ミニゲームへ戻る">‹ 戻る</a>
+    <div>
+      <p class="eyebrow">ONLINE MINI GAME</p>
+      <h1>絵しりとり</h1>
+    </div>
+    <span id="connectionBadge" class="connection-badge is-loading">接続中</span>
+  </header>
+
+  <main class="shell">
+    <section id="homeView" class="view stack">
+      <article class="hero-card">
+        <div class="hero-mark" aria-hidden="true">✎</div>
+        <div>
+          <p class="eyebrow">DRAW · GUESS · CONNECT</p>
+          <h2>絵を見て、言葉をつなごう。</h2>
+          <p>描く人が答えを決め、次の人が絵だけを見て回答します。回答者が次の描き手です。</p>
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>あそぶ</h2>
+        <label class="field">
+          <span>表示名</span>
+          <input id="homeName" maxlength="16" autocomplete="nickname" placeholder="名前を入力">
+        </label>
+        <div class="action-grid">
+          <button id="createRoomBtn" class="primary" type="button">部屋を作る</button>
+          <div class="join-row">
+            <input id="roomCodeInput" maxlength="6" inputmode="text" autocapitalize="characters" placeholder="部屋コード">
+            <button id="joinRoomBtn" type="button">参加</button>
+          </div>
+        </div>
+        <p class="hint">2〜8人で遊べます。部屋コードを参加者へ共有してください。</p>
+      </article>
+    </section>
+
+    <section id="roomView" class="view stack" hidden>
+      <article class="room-head panel">
+        <div>
+          <p class="eyebrow">ROOM</p>
+          <div class="room-code-row">
+            <h2 id="roomCodeText">------</h2>
+            <button id="copyRoomBtn" class="small" type="button">コードをコピー</button>
+          </div>
+        </div>
+        <button id="leaveRoomBtn" class="danger-ghost" type="button">退出</button>
+      </article>
+
+      <section id="lobbyPanel" class="panel stack">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">MEMBERS</p>
+            <h2>参加者 <span id="memberCount">0/8</span></h2>
+          </div>
+          <span id="hostLabel" class="status-pill">待機中</span>
+        </div>
+        <ul id="memberList" class="member-list"></ul>
+
+        <div id="hostSettings" class="settings-card" hidden>
+          <div>
+            <strong>制限時間</strong>
+            <p>ゲーム中の変更は次のターンから反映されます。</p>
+          </div>
+          <div class="time-setting">
+            <select id="timePreset" aria-label="制限時間">
+              <option value="30">30秒</option>
+              <option value="60" selected>60秒</option>
+              <option value="90">90秒</option>
+              <option value="120">120秒</option>
+              <option value="custom">カスタム</option>
+              <option value="none">時間制限なし</option>
+            </select>
+            <label id="customTimeWrap" class="custom-time" hidden>
+              <input id="customTime" type="number" min="10" max="600" value="180" inputmode="numeric">
+              <span>秒（10〜600）</span>
+            </label>
+          </div>
+        </div>
+
+        <button id="startGameBtn" class="primary" type="button" hidden>ゲーム開始</button>
+        <p id="lobbyMessage" class="hint center">部屋主が開始するまでお待ちください。</p>
+      </section>
+
+      <section id="gamePanel" class="game-layout" hidden>
+        <div class="game-main stack">
+          <article class="turn-card panel">
+            <div class="turn-topline">
+              <span id="turnNumber" class="status-pill">TURN 1</span>
+              <div id="timer" class="timer" aria-live="polite">--:--</div>
+            </div>
+            <h2 id="turnTitle">準備中</h2>
+            <p id="turnGuide" class="turn-guide"></p>
+            <p id="requiredStart" class="required-start"></p>
+          </article>
+
+          <article id="drawCard" class="panel stack" hidden>
+            <div class="canvas-toolbar">
+              <div class="colors" aria-label="線の色">
+                <button class="color-chip active" data-color="#20344c" style="--chip:#20344c" aria-label="紺"></button>
+                <button class="color-chip" data-color="#e45555" style="--chip:#e45555" aria-label="赤"></button>
+                <button class="color-chip" data-color="#2e9d68" style="--chip:#2e9d68" aria-label="緑"></button>
+                <button class="color-chip" data-color="#3979d2" style="--chip:#3979d2" aria-label="青"></button>
+                <button class="color-chip" data-color="#f2a93b" style="--chip:#f2a93b" aria-label="黄"></button>
+              </div>
+              <div class="tool-actions">
+                <button id="undoBtn" class="small" type="button">1つ戻す</button>
+                <button id="clearBtn" class="small" type="button">消す</button>
+              </div>
+            </div>
+            <div class="canvas-wrap">
+              <canvas id="drawingCanvas" width="720" height="480" aria-label="絵を描くキャンバス"></canvas>
+            </div>
+            <label class="field">
+              <span>この絵の答え（ほかの人には回答後まで表示されません）</span>
+              <input id="secretAnswer" maxlength="24" inputmode="text" autocapitalize="off" autocomplete="off" placeholder="ひらがなで入力">
+            </label>
+            <button id="submitDrawingBtn" class="primary" type="button">絵を出す</button>
+          </article>
+
+          <article id="guessCard" class="panel stack" hidden>
+            <div class="submitted-image-wrap">
+              <img id="submittedImage" alt="出題された絵">
+            </div>
+            <form id="guessForm" class="guess-form">
+              <label class="field grow">
+                <span>この絵はなに？</span>
+                <input id="guessInput" maxlength="24" inputmode="text" autocapitalize="off" autocomplete="off" placeholder="ひらがなで回答">
+              </label>
+              <button class="primary" type="submit">回答</button>
+            </form>
+            <p id="guessFeedback" class="feedback" aria-live="polite"></p>
+          </article>
+
+          <article id="waitingCard" class="panel waiting-card" hidden>
+            <span class="waiting-icon" aria-hidden="true">◌</span>
+            <div>
+              <h3>ほかのプレイヤーの番です</h3>
+              <p id="waitingText"></p>
+            </div>
+            <div id="spectatorImageWrap" class="submitted-image-wrap compact" hidden>
+              <img id="spectatorImage" alt="出題された絵">
+            </div>
+          </article>
+        </div>
+
+        <aside class="game-side stack">
+          <article id="gameHostSettings" class="panel stack" hidden>
+            <div>
+              <p class="eyebrow">HOST SETTING</p>
+              <h2>次のターンの制限時間</h2>
+            </div>
+            <select id="gameTimePreset" aria-label="次のターンの制限時間">
+              <option value="30">30秒</option>
+              <option value="60">60秒</option>
+              <option value="90">90秒</option>
+              <option value="120">120秒</option>
+              <option value="custom">カスタム</option>
+              <option value="none">時間制限なし</option>
+            </select>
+            <label id="gameCustomTimeWrap" class="custom-time" hidden>
+              <input id="gameCustomTime" type="number" min="10" max="600" value="180" inputmode="numeric">
+              <span>秒（10〜600）</span>
+            </label>
+            <p class="hint">変更しても現在のターンは変わりません。</p>
+          </article>
+          <article class="panel">
+            <div class="section-title">
+              <h2>参加者</h2>
+              <span id="gameSettingLabel" class="status-pill"></span>
+            </div>
+            <ul id="gameMemberList" class="member-list compact"></ul>
+          </article>
+          <article class="panel">
+            <div class="section-title">
+              <h2>履歴</h2>
+              <span id="historyCount" class="status-pill">0</span>
+            </div>
+            <ol id="historyList" class="history-list"></ol>
+          </article>
+          <button id="endGameBtn" class="danger" type="button" hidden>ゲームを終了</button>
+        </aside>
+      </section>
+
+      <section id="finishedPanel" class="panel finished-card" hidden>
+        <span class="finish-icon" aria-hidden="true">◎</span>
+        <h2>ゲーム終了</h2>
+        <p id="finishReason"></p>
+        <div class="finished-history">
+          <div class="section-title">
+            <h3>今回の履歴</h3>
+            <span id="finishedHistoryCount" class="status-pill">0</span>
+          </div>
+          <ol id="finishedHistoryList" class="history-list"></ol>
+        </div>
+        <button id="returnLobbyBtn" class="primary" type="button" hidden>同じ部屋でもう一度</button>
+      </section>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./rules.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
