@@ -144,11 +144,13 @@ test('gift code, gallery and forms lead navigation without changing default modu
 test('picture shiritori is linked from mini games and keeps isolated realtime data',()=>{
  const read=f=>fs.readFileSync(path.join(root,f),'utf8');
  const menu=read('apps/games/index.html'),game=read('apps/games/picture-shiritori/index.html'),app=read('apps/games/picture-shiritori/app.js');
- assert.ok(menu.includes('href="./picture-shiritori/"'));
+ assert.ok(menu.includes('href="./picture-shiritori/?v=3.72"'));
  assert.ok(menu.includes('絵しりとり'));
  assert.ok(game.includes('2〜8人で遊べます'));
  assert.ok(game.includes('id="timePreset"'));
  assert.ok(game.includes('id="customTime"'));
+ assert.ok(game.includes('class="back-link" href="../?v=3.72"'));
+ assert.ok(!game.includes('href="../../../#games"'));
  assert.ok(app.includes('const ROOT_PATH = "pictureShiritori/rooms"'));
  assert.ok(app.includes('const existing = await get(roomRef(code))'));
  assert.ok(app.includes('canvas.toDataURL("image/jpeg", 0.78)'));
