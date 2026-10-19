@@ -115,6 +115,20 @@ for(const type of ['manual','discord','integration']){
   assert.equal(f.exchanges.length,5);assert.equal(f.queue.get('CONDITION'+type).summary.condition,4);
 }
 {
+  let entered,release;
+  const started=new Promise(resolve=>entered=resolve);
+  const f=fixture({redeemPlayer:async(_env,code,p)=>{f.exchanges.push([code,p.fid]);return {done:p.fid!=='456',msg:p.fid==='456'?'サーバービジー':'成功'};},
+    notifyDiscord:async()=>{entered();await new Promise(resolve=>release=resolve);}});
+  await f.queue.submit('NOTIFYADD',{type:'discord'});await f.drain();
+  const notifying=f.tick();await started;
+  f.players.push({fid:'789',kid:'2856',name:'New',status:'pending',attempts:0});
+  assert.equal((await f.queue.submit('NOTIFYADD',{type:'manual'})).added,1);
+  release();await notifying;
+  assert.equal(f.queue.get('NOTIFYADD').status,'pending');assert.equal(f.queue.get('NOTIFYADD').targets.length,3);
+  assert.equal(f.queue.get('NOTIFYADD').source.type,'manual');assert.equal(f.queue.get('NOTIFYADD').notification,null);
+  await f.drain();assert.deepEqual(f.exchanges,[['NOTIFYADD','123'],['NOTIFYADD','456'],['NOTIFYADD','789']]);
+}
+{
   let busy=true;
   const f=fixture({redeemPlayer:async(_env,code,p)=>{
     f.exchanges.push([code,p.fid]);return globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:p.fid==='123'?40017:busy?40004:20000});

@@ -188,7 +188,11 @@ export class RedeemQueue {
       if(notificationOnly){
         try{await this.services.notifyDiscord(this.env,job);job.notification={...job.notification,status:'sent',sent_at:Date.now(),last_error:''};}
         catch(error){job.notification={...job.notification,status:'failed',attempts:job.notification.attempts+1,next_at:Date.now()+Math.max(60,error.retryAfter||60)*1000,last_error:error.message};}
-        this.save(job);return;
+        // A manual run may start while Discord is responding. Update only this attempt's
+        // notification; never restore the old targets/status over the newly appended players.
+        const latest=this.get(job.code);
+        if(latest.attempt===job.attempt&&latest.status===job.status){latest.notification=job.notification;this.save(latest);}
+        job=latest;return;
       }
       if (job.next_at > Date.now()) return;
       job.status = 'processing'; job.started_at ||= Date.now();
