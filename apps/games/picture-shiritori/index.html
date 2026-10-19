@@ -5,16 +5,22 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
   <meta name="theme-color" content="#f4f7fb">
   <title>絵しりとり | DeSポータル</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css?v=3.73">
 </head>
 <body>
   <header class="topbar">
-    <a class="back-link" href="../?v=3.72" aria-label="ミニゲームへ戻る">‹ 戻る</a>
+    <a class="back-link" href="../?v=3.73" aria-label="ミニゲームへ戻る">‹ 戻る</a>
     <div>
       <p class="eyebrow">ONLINE MINI GAME</p>
       <h1>絵しりとり</h1>
     </div>
     <span id="connectionBadge" class="connection-badge is-loading">接続中</span>
+    <button id="chatToggle" class="chat-peek" type="button" aria-controls="chatPanel" aria-expanded="false" hidden>
+      <span class="chat-peek-label">💬 チャット</span>
+      <span id="chatPreview" class="chat-preview">部屋のみんなと話そう</span>
+      <span id="chatUnread" class="chat-unread" hidden>0</span>
+      <span class="chat-peek-arrow" aria-hidden="true">⌃</span>
+    </button>
   </header>
 
   <main class="shell">
@@ -41,7 +47,7 @@
             <button id="joinRoomBtn" type="button">参加</button>
           </div>
         </div>
-        <p class="hint">2〜8人で遊べます。部屋コードを参加者へ共有してください。</p>
+        <p class="hint">2〜8人で遊べます。部屋コードを参加者へ共有してください。開始ごとに順番をシャッフルし、最初のひらがな1文字を決めます。</p>
       </article>
     </section>
 
@@ -66,6 +72,7 @@
           <span id="hostLabel" class="status-pill">待機中</span>
         </div>
         <ul id="memberList" class="member-list"></ul>
+        <p class="hint">描く順番・答える順番は、ゲーム開始のたびにランダムになります。</p>
 
         <div id="hostSettings" class="settings-card" hidden>
           <div>
@@ -114,10 +121,12 @@
           <article class="turn-card panel">
             <div class="turn-topline">
               <span id="turnNumber" class="status-pill">TURN 1</span>
+              <span id="turnRole" class="turn-role">待機中</span>
               <div id="timer" class="timer" aria-live="polite">--:--</div>
             </div>
             <h2 id="turnTitle">準備中</h2>
             <p id="turnGuide" class="turn-guide"></p>
+            <p id="turnParticipants" class="turn-participants"></p>
             <p id="requiredStart" class="required-start"></p>
           </article>
 
@@ -212,7 +221,7 @@
           </article>
           <article class="panel">
             <div class="section-title">
-              <h2>参加者</h2>
+              <h2>描く・答える順番</h2>
               <span id="gameSettingLabel" class="status-pill"></span>
             </div>
             <ul id="gameMemberList" class="member-list compact"></ul>
@@ -244,8 +253,24 @@
     </section>
   </main>
 
+  <section id="chatPanel" class="chat-panel" role="dialog" aria-modal="false" aria-labelledby="chatTitle" hidden>
+    <div class="chat-heading">
+      <div><p class="eyebrow">ROOM CHAT</p><h2 id="chatTitle">部屋のチャット</h2></div>
+      <button id="chatClose" class="chat-close" type="button" aria-label="チャットを閉じる">×</button>
+    </div>
+    <ol id="chatList" class="chat-list" aria-label="チャット履歴" tabindex="0"></ol>
+    <button id="chatNewMessages" class="chat-new-messages" type="button" hidden>新しいメッセージを見る ↓</button>
+    <form id="chatForm" class="chat-form">
+      <label class="sr-only" for="chatInput">メッセージ</label>
+      <input id="chatInput" maxlength="240" autocomplete="off" placeholder="メッセージを入力" enterkeyhint="send">
+      <button id="chatSend" class="primary" type="submit">送信</button>
+    </form>
+    <p class="chat-hint">同じ部屋の参加者に届きます</p>
+  </section>
+  <div id="chatAnnouncement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="./rules.js"></script>
-  <script type="module" src="./app.js"></script>
+  <script src="./rules.js?v=3.73"></script>
+  <script type="module" src="./app.js?v=3.73"></script>
 </body>
 </html>

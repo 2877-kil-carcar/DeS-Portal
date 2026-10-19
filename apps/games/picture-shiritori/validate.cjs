@@ -41,7 +41,7 @@ for (const marker of [
   "remaining <= 10000",
   "MAX_PLAYERS = 8",
   "currentRoom.hostId !== myId",
-  "const existing = await get(roomRef(code))",
+  "const existing = await withTimeout(get(roomRef(code)))",
   'if (!room) { failure = "部屋が見つかりません。"; return null; }',
   "const RECONNECT_GRACE_MS = 180000",
   "disconnectedAt: serverTimestamp()",
@@ -54,7 +54,7 @@ assert.ok(css.includes("touch-action: none"), "スマホ描画でブラウザス
 assert.ok(css.includes("@media (max-width: 760px)"), "スマホレイアウトが必要");
 assert.ok(css.includes("grid-template-columns: 58px minmax(0, 1fr)"), "待機画面の文章領域が縮みすぎないこと");
 assert.ok(css.includes(".waiting-card .submitted-image-wrap { grid-column: 1 / -1"), "待機中の絵はカード全幅に配置すること");
-assert.ok(html.includes('class="back-link" href="../?v=3.72"'), "戻る操作は親ポータルをフレーム内へ読み込まず、ミニゲーム一覧へ戻すこと");
+assert.ok(html.includes('class="back-link" href="../?v=3.73"'), "戻る操作は親ポータルをフレーム内へ読み込まず、ミニゲーム一覧へ戻すこと");
 assert.ok(!html.includes('href="../../../#games"'), "親ポータルをフレーム内へ入れ子にする旧リンクを残さないこと");
 
 const syntax = spawnSync(process.execPath, ["--check", path.join(base, "app.js")], { encoding: "utf8" });
