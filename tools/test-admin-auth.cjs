@@ -20,5 +20,5 @@ assert.equal(redeemHtml.includes('管理者：isozaki'), false);
 assert.equal(redeem.includes('管理者ログイン中：isozaki'), false);
 assert.ok(redeemHtml.includes('id="adminLogoutBtn"'));
 assert.ok(svsHtml.indexOf('../../assets/admin-auth.js?v=3.38') < svsHtml.indexOf('auth.js?v=3.38'));
-assert.ok(redeemHtml.indexOf('../../assets/admin-auth.js?v=3.40') < redeemHtml.indexOf('./redeem.js?v=3.64'));
+assert.ok(redeemHtml.indexOf('../../assets/admin-auth.js?v=3.40') < redeemHtml.indexOf('./redeem.js?v=3.74'));
 console.log('PASS shared administrator credentials: one immutable source, both apps fail closed');

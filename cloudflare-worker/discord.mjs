@@ -1,3 +1,5 @@
+import '../apps/redeem/protocol.js';
+const {isConditionPlayer,summarizeTargets}=globalThis.WOS_REDEEM_PROTOCOL;
 // Only explicitly labelled codes from an allowlisted source are actionable.
 export function extractCodes(message) {
   const text = [message.content || '', ...(message.embeds || []).flatMap(e => [e.title || '', e.description || '',
@@ -47,19 +49,20 @@ function failureGroup(message = '') {
 }
 
 export function notificationText(job) {
-  const summary=job.summary || {total:job.targets.length,success:job.targets.filter(p=>['done','skipped'].includes(p.status)).length,
-    failed:job.targets.filter(p=>p.status==='failed').length,unknown:job.targets.filter(p=>p.status==='unknown').length};
+  const summary=summarizeTargets(job.targets,true);
   if(job.status==='expired')return `🎁 ${job.code}：交換受付終了\n成功${summary.success}人／期限切れ確認${summary.expired||0}人／未実行${summary.unprocessed||0}人`;
   if(job.status==='invalid')return `⚠️ ${job.code}：無効なコード\n成功${summary.success}人／未実行${summary.unprocessed||0}人`;
-  const unresolved=job.targets.filter(p=>['failed','unknown'].includes(p.status));
+  const unresolved=job.targets.filter(p=>['failed','unknown'].includes(p.status)&&!isConditionPlayer(p));
   const groups=new Map();
   for(const player of unresolved){const label=failureGroup(player.msg);groups.set(label,(groups.get(label)||0)+1);}
-  const headline=`⚠️ ${job.code}：${summary.total}人中${summary.success}人成功、${summary.failed+summary.unknown}人失敗`;
+  const headline=`⚠️ ${job.code}：${summary.total}人中${summary.success}人成功、${summary.failed+summary.unknown}人失敗`+(summary.condition?`、${summary.condition}人条件未達`:'');
   const reasons=[...groups].map(([label,count])=>`${label}：${count}人`).join('／');
   return reasons ? `${headline}\n${reasons}` : headline;
 }
 
 export async function notifyDiscord(env, job) {
+  const summary=summarizeTargets(job.targets,true);
+  if(!['expired','invalid'].includes(job.status)&&summary.failed+summary.unknown===0)return null;
   const channel=env.DISCORD_NOTIFY_CHANNEL_ID || env.DISCORD_CHANNEL_ID;
   const response=await fetch(`https://discord.com/api/v10/channels/${channel}/messages`, {
     method:'POST',headers:{Authorization:`Bot ${env.DISCORD_BOT_TOKEN}`,'Content-Type':'application/json'},

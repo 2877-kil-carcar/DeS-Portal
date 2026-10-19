@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {RedeemQueue,normalizeCode} from '../cloudflare-worker/batch-queue.mjs';
 import worker from '../cloudflare-worker/automation-worker.mjs';
-import {extractCodes,trustedMessage,notificationText} from '../cloudflare-worker/discord.mjs';
+import {extractCodes,trustedMessage,notificationText,notifyDiscord} from '../cloudflare-worker/discord.mjs';
 import {verifyFirebaseToken,secretMatches,loadTargets,writeHistory} from '../cloudflare-worker/services.mjs';
 
 function fixture(overrides={}) {
@@ -19,7 +19,7 @@ function fixture(overrides={}) {
     notifyDiscord:async(_env,job)=>notifications.push(notificationText(job)),...overrides
   });
   async function tick(){const row=queue.rows("SELECT code FROM gift_codes WHERE status IN ('pending','processing') LIMIT 1")[0];if(row){const job=queue.get(row.code);job.next_at=0;queue.save(job);}await queue.alarm();}
-  async function drain(){for(let i=0;i<20;i++){if(!queue.rows("SELECT code FROM gift_codes WHERE status IN ('pending','processing') LIMIT 1").length)return;await tick();}throw Error('queue did not finish');}
+  async function drain(){for(let i=0;i<500;i++){if(!queue.rows("SELECT code FROM gift_codes WHERE status IN ('pending','processing') LIMIT 1").length)return;await tick();}throw Error('queue did not finish');}
   return {queue,ctx,db,exchanges,history,notifications,players,tick,drain,alarm:()=>alarm};
 }
 
@@ -38,6 +38,13 @@ assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40014}).code_sta
 assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40008}).done,true);
 assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40004}).failure_kind,'busy');
 assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40017}).failure_kind,'condition');
+for(const code of [40006,40012,40017,40018])assert.equal(globalThis.WOS_REDEEM_PROTOCOL.isConditionResult(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:code})),true);
+for(const code of [40004,40005,40007,40014,40019,40020])assert.equal(globalThis.WOS_REDEEM_PROTOCOL.isConditionResult(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:code})),false);
+{
+  let sends=0;const previousFetch=globalThis.fetch;globalThis.fetch=async()=>{sends++;throw Error('Conditions must not send a Discord notification');};
+  await notifyDiscord({}, {status:'failed',targets:[{status:'failed',msg:'交換条件を満たしていません',result:{err_code:40017}}]});
+  assert.equal(sends,0);globalThis.fetch=previousFetch;
+}
 
 {
   const f=fixture();
@@ -52,12 +59,12 @@ assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40017}).failure_
 {
   const f=fixture();
   await f.queue.submit('LATEUSER123',{type:'discord'});await f.drain();
-  assert.equal(f.exchanges.length,2);assert.deepEqual(f.queue.get('LATEUSER123').summary,{total:2,success:2,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0});
+  assert.equal(f.exchanges.length,2);assert.deepEqual(f.queue.get('LATEUSER123').summary,{total:2,success:2,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0});
   f.players.push({fid:'789',kid:'2856',name:'C',status:'pending',attempts:0});
   const receipt=await f.queue.submit('LATEUSER123',{type:'manual'});
   assert.equal(receipt.duplicate,true);assert.equal(receipt.added,1);assert.equal(receipt.job.status,'pending');
   await f.drain();assert.deepEqual(f.exchanges,[['LATEUSER123','123'],['LATEUSER123','456'],['LATEUSER123','789']]);
-  assert.deepEqual(f.queue.get('LATEUSER123').summary,{total:3,success:3,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0});
+  assert.deepEqual(f.queue.get('LATEUSER123').summary,{total:3,success:3,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0});
   const unchanged=await f.queue.submit('LATEUSER123',{type:'manual'});assert.equal(unchanged.added,0);await f.drain();assert.equal(f.exchanges.length,3);
 }
 {
@@ -67,25 +74,92 @@ assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40017}).failure_
   await assert.rejects(f.queue.submit('CODE123',{type:'manual'},true),/再実行できません/);assert.deepEqual(f.exchanges,[['CODE123','456']]);
 }
 {
+  const f=fixture();
+  f.players.splice(0,f.players.length,...Array.from({length:130},(_,i)=>({fid:String(i+1),kid:'2856',name:`P${i+1}`,status:'pending',attempts:0})));
+  await f.queue.submit('MANUALLATE134',{type:'manual'});await f.drain();assert.equal(f.exchanges.length,130);
+  f.players.push(...Array.from({length:4},(_,i)=>({fid:String(i+131),kid:'2856',name:`New${i}`,status:'pending',attempts:0})));
+  // Concurrent repeat clicks must not overwrite targets or create repeated exchanges.
+  const receipts=await Promise.all(Array.from({length:20},()=>f.queue.submit('MANUALLATE134',{type:'manual'})));
+  assert.equal(receipts.reduce((sum,r)=>sum+r.added,0),4);
+  assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,0);
+  await f.drain();
+  assert.equal(f.exchanges.length,134);assert.deepEqual(f.exchanges.slice(130).map(p=>p[1]),['131','132','133','134']);
+  assert.equal(new Set(f.exchanges.map(p=>p[1])).size,134);
+  assert.equal(f.queue.get('MANUALLATE134').summary.success,134);assert.equal(f.notifications.length,0);
+}
+{
+  const f=fixture({redeemPlayer:async(_env,code,p)=>{
+    f.exchanges.push([code,p.fid]);if(p.fid==='456')throw Error('uncertain');
+    return {done:true,msg:'交換成功'};
+  }});
+  await f.queue.submit('FAILEDADD',{type:'manual'});await f.drain();assert.equal(f.queue.get('FAILEDADD').status,'failed');
+  f.players.push({fid:'789',kid:'2856',name:'C',status:'pending',attempts:0});
+  assert.equal((await f.queue.submit('FAILEDADD',{type:'discord'})).added,0);
+  const receipt=await f.queue.submit('FAILEDADD',{type:'manual'});assert.equal(receipt.added,1);await f.drain();
+  assert.deepEqual(f.exchanges,[['FAILEDADD','123'],['FAILEDADD','456'],['FAILEDADD','789']]);
+  const job=f.queue.get('FAILEDADD');assert.equal(job.summary.success,2);assert.equal(job.summary.unknown,1);
+  assert.equal(job.targets.find(p=>p.fid==='456').status,'unknown');await f.tick();assert.equal(f.notifications.length,0);
+}
+for(const type of ['manual','discord','integration']){
+  const f=fixture({redeemPlayer:async(_env,code,p)=>{
+    f.exchanges.push([code,p.fid]);return globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:[40006,40012,40017,40018][Number(p.fid)-1]});
+  }});
+  f.players.splice(0,2,...[1,2,3,4].map(i=>({fid:String(i),kid:'2856',name:`P${i}`,status:'pending',attempts:0})));
+  await f.queue.submit('CONDITION'+type,{type});await f.drain();await f.tick();
+  const job=f.queue.get('CONDITION'+type);assert.equal(job.status,'completed');assert.equal(job.summary.condition,4);assert.equal(job.summary.failed,0);
+  assert.equal(job.summary.success,0);assert.equal(job.summary.unknown,0);assert.equal(f.history.length,0);assert.equal(f.notifications.length,0);assert.equal(job.notification,null);
+  assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,0);
+  f.players.push({fid:'5',kid:'2856',name:'New',status:'pending',attempts:0});
+  f.queue.services.redeemPlayer=async(_env,code,p)=>{f.exchanges.push([code,p.fid]);return {done:true,msg:'成功'};};
+  assert.equal((await f.queue.submit('CONDITION'+type,{type:'manual'})).added,1);await f.drain();
+  assert.equal(f.exchanges.length,5);assert.equal(f.queue.get('CONDITION'+type).summary.condition,4);
+}
+{
+  let busy=true;
+  const f=fixture({redeemPlayer:async(_env,code,p)=>{
+    f.exchanges.push([code,p.fid]);return globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:p.fid==='123'?40017:busy?40004:20000});
+  }});
+  await f.queue.submit('MIXEDCONDITION',{type:'discord'});await f.drain();await f.tick();
+  assert.equal(f.queue.get('MIXEDCONDITION').summary.failed,1);assert.equal(f.queue.get('MIXEDCONDITION').summary.condition,1);
+  assert.equal(f.notifications[0],'⚠️ MIXEDCONDITION：2人中0人成功、1人失敗、1人条件未達\nサーバービジー：1人');
+  assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,1);
+  busy=false;await f.queue.submit('MIXEDCONDITION',{type:'manual'},true);await f.drain();await f.tick();
+  assert.equal(f.exchanges.filter(p=>p[1]==='123').length,1);assert.equal(f.queue.get('MIXEDCONDITION').summary.success,1);assert.equal(f.notifications.length,1);
+}
+{
+  const f=fixture();await f.queue.submit('LEGACYCONDITION',{type:'manual'});await f.drain();
+  const legacy=f.queue.get('LEGACYCONDITION');legacy.status='failed';legacy.source={type:'discord'};
+  legacy.targets[1]={...legacy.targets[1],status:'failed',result:undefined,msg:'交換条件を満たしていません'};
+  legacy.notification={status:'pending',attempts:0,next_at:Date.now(),sent_at:null,last_error:''};f.queue.save(legacy);
+  // Simulate a previously deployed payload with a stale failed count and pending notification.
+  const payload=JSON.parse(f.queue.rows('SELECT payload FROM gift_codes WHERE code=?','LEGACYCONDITION')[0].payload);
+  payload.summary.failed=1;payload.notification.status='pending';
+  f.queue.sql.exec('UPDATE gift_codes SET payload=? WHERE code=?',JSON.stringify(payload),'LEGACYCONDITION');
+  f.queue.sql.exec("DELETE FROM metadata WHERE key='migration.conditions-v1'");
+  const migrated=new RedeemQueue(f.ctx,{},f.queue.services),job=migrated.get('LEGACYCONDITION');
+  assert.equal(job.status,'completed');assert.equal(job.targets[1].status,'condition');assert.equal(job.summary.condition,1);assert.equal(job.summary.failed,0);assert.equal(job.notification.status,'suppressed');
+  assert.equal((await (await migrated.fetch(new Request('https://test/jobs'))).json()).unresolved,0);await migrated.alarm();assert.equal(f.notifications.length,0);
+}
+{
   let count=0;
   const f=fixture({redeemPlayer:async()=>{count++;return {done:false,retry:true,msg:'頻度制限'};}});
   await f.queue.submit('RATE123',{type:'discord'});await f.drain();assert.equal(count,6);assert.equal(f.queue.get('RATE123').status,'failed');
-  const summary=f.queue.get('RATE123').summary;assert.deepEqual(summary,{total:2,success:0,failed:2,unknown:0,expired:0,invalid:0,unprocessed:0});
+  const summary=f.queue.get('RATE123').summary;assert.deepEqual(summary,{total:2,success:0,failed:2,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0});
   await f.tick();assert.equal(f.notifications.length,1);assert.equal(f.notifications[0],'⚠️ RATE123：2人中0人成功、2人失敗\nサーバービジー：2人');
   await f.queue.submit('RATE123',{type:'manual'},true);await f.drain();await f.tick();assert.equal(f.notifications.length,1);
 }
 {
   let fail=true;
-  const f=fixture({redeemPlayer:async(_env,code,p)=>{f.exchanges.push([code,p.fid]);return p.fid==='456'&&fail?{done:false,retry:false,msg:'条件未達：レベル不足'}:{done:true,retry:false,msg:'交換成功'};}});
+  const f=fixture({redeemPlayer:async(_env,code,p)=>{f.exchanges.push([code,p.fid]);return p.fid==='456'&&fail?{done:false,retry:false,msg:'ID・王国が不正です。'}:{done:true,retry:false,msg:'交換成功'};}});
   await f.queue.submit('PARTIAL123',{type:'manual'});await f.drain();
-  let job=f.queue.get('PARTIAL123');assert.deepEqual(job.summary,{total:2,success:1,failed:1,unknown:0,expired:0,invalid:0,unprocessed:0});
+  let job=f.queue.get('PARTIAL123');assert.deepEqual(job.summary,{total:2,success:1,failed:1,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0});
   assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,1);
   assert.equal(job.targets.find(p=>p.fid==='456').name,'B');await f.tick();
   assert.equal(f.notifications.length,0);assert.equal(f.queue.get('PARTIAL123').notification,null);
   fail=false;await f.queue.submit('PARTIAL123',{type:'manual'},true);
   assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,1);
   await f.drain();job=f.queue.get('PARTIAL123');
-  assert.deepEqual(job.summary,{total:2,success:2,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0});
+  assert.deepEqual(job.summary,{total:2,success:2,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0});
   assert.deepEqual(f.exchanges,[['PARTIAL123','123'],['PARTIAL123','456'],['PARTIAL123','456']]);
 }
 {
@@ -93,7 +167,7 @@ assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40017}).failure_
   const f=fixture({redeemPlayer:async()=>{count++;return {done:false,bad_cdk:true,code_state:'expired',msg:'交換期限切れ'};}});
   await f.queue.submit('BAD123',{type:'discord'});await f.drain();assert.equal(count,1);
   const job=f.queue.get('BAD123');assert.equal(job.status,'expired');
-  assert.deepEqual(job.summary,{total:2,success:0,failed:0,unknown:0,expired:1,invalid:0,unprocessed:1});
+  assert.deepEqual(job.summary,{total:2,success:0,failed:0,unknown:0,expired:1,invalid:0,unprocessed:1,condition:0});
   assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,0);
   await f.tick();assert.equal(f.notifications[0],'🎁 BAD123：交換受付終了\n成功0人／期限切れ確認1人／未実行1人');
   await assert.rejects(f.queue.submit('BAD123',{type:'manual'},true),/期限切れ/);
@@ -102,7 +176,7 @@ assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40017}).failure_
   const f=fixture({redeemPlayer:async()=>({done:false,bad_cdk:true,code_state:'invalid',msg:'交換コードが存在しません'})});
   await f.queue.submit('INVALID123',{type:'manual'});await f.drain();
   const job=f.queue.get('INVALID123');assert.equal(job.status,'invalid');
-  assert.deepEqual(job.summary,{total:2,success:0,failed:0,unknown:0,expired:0,invalid:1,unprocessed:1});
+  assert.deepEqual(job.summary,{total:2,success:0,failed:0,unknown:0,expired:0,invalid:1,unprocessed:1,condition:0});
   await f.tick();assert.equal(f.notifications.length,0);assert.equal(job.notification,null);
 }
 {
@@ -180,6 +254,9 @@ assert.equal(globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:40017}).failure_
   const valid=await token('des-portal-gift-code');assert.equal(await verifyFirebaseToken(valid),true);assert.equal(await verifyFirebaseToken(await token('other-project')),false);
   const manual=await worker.fetch(new Request('https://worker/api/gift-code/manual',{method:'POST',headers:{Origin:origin,Authorization:'Bearer '+valid},body:'{"code":"AUTH123"}'}),env);
   assert.equal(manual.status,202);assert.equal((await manual.json()).duplicate,true);await f.drain();assert.equal(f.exchanges.length,2);
+  f.players.push({fid:'789',kid:'2856',name:'C',status:'pending',attempts:0});
+  const appended=await worker.fetch(new Request('https://worker/api/gift-code/manual',{method:'POST',headers:{Origin:origin,Authorization:'Bearer '+valid},body:'{"code":"AUTH123"}'}),env);
+  assert.equal(appended.status,202);assert.equal((await appended.json()).added,1);await f.drain();assert.equal(f.exchanges.length,3);
 }
 {
   const env={FIREBASE_API_KEY:'test-api-key'};

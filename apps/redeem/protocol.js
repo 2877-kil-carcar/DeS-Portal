@@ -26,5 +26,23 @@
     return {err_code: Number.isFinite(code) ? code : null, msg, done:doneCodes.has(code), retry:retryCodes.has(code),
       bad_cdk:badCodeCodes.has(code), code_state, failure_kind};
   }
-  globalThis.WOS_REDEEM_PROTOCOL = {md5, signed, interpret};
+  function isConditionResult(result) {
+    if (!result || result.done) return false;
+    if (result.err_code !== null && result.err_code !== undefined && Number.isFinite(Number(result.err_code))) return conditionCodes.has(Number(result.err_code));
+    if (result.failure_kind) return result.failure_kind === 'condition';
+    // Old saved results predate err_code/failure_kind. Match only known condition messages.
+    return /条件未達|交換条件を満たしていません|(?:大)?溶鉱炉レベル不足|アカウント登録期間が条件外|領主バトラー利用中アカウント専用コード/.test(String(result.msg || ''));
+  }
+  function isConditionPlayer(player) {
+    return player.status === 'condition' || (player.status === 'failed' && isConditionResult({...player.result,msg:player.result?.msg || player.msg}));
+  }
+  function summarizeTargets(targets = [], final = false) {
+    const finished = new Set(['done','skipped','failed','unknown','condition','expired','invalid','closed']);
+    return {total:targets.length,success:targets.filter(p=>['done','skipped'].includes(p.status)).length,
+      failed:targets.filter(p=>p.status==='failed'&&!isConditionPlayer(p)).length,
+      unknown:targets.filter(p=>p.status==='unknown'||(final&&!finished.has(p.status))).length,
+      expired:targets.filter(p=>p.status==='expired').length,invalid:targets.filter(p=>p.status==='invalid').length,
+      unprocessed:targets.filter(p=>p.status==='closed').length,condition:targets.filter(isConditionPlayer).length};
+  }
+  globalThis.WOS_REDEEM_PROTOCOL = {md5, signed, interpret, isConditionResult, isConditionPlayer, summarizeTargets};
 })();

@@ -8,13 +8,8 @@ export function normalizeCode(input) {
 }
 const terminal = new Set(['completed', 'failed', 'cancelled', 'expired', 'invalid']);
 const retriableJob = new Set(['failed', 'cancelled']);
-const finishedPlayer = new Set(['done', 'skipped', 'failed', 'unknown', 'expired', 'invalid', 'closed']);
-const summarize = (targets, final = false) => ({total:targets.length,success:targets.filter(p=>['done','skipped'].includes(p.status)).length,
-  failed:targets.filter(p=>p.status==='failed').length,
-  unknown:targets.filter(p=>p.status==='unknown'||(final&&!finishedPlayer.has(p.status))).length,
-  expired:targets.filter(p=>p.status==='expired').length,
-  invalid:targets.filter(p=>p.status==='invalid').length,
-  unprocessed:targets.filter(p=>p.status==='closed').length});
+const finishedPlayer = new Set(['done', 'skipped', 'failed', 'unknown', 'condition', 'expired', 'invalid', 'closed']);
+const {isConditionResult,isConditionPlayer,summarizeTargets:summarize} = globalThis.WOS_REDEEM_PROTOCOL;
 const shouldNotify = job => ['discord','integration'].includes(job.source?.type);
 
 export class RedeemQueue {
@@ -32,6 +27,7 @@ export class RedeemQueue {
     this.sql.exec('CREATE INDEX IF NOT EXISTS jobs_status ON gift_codes(status, detected_at)');
     this.sql.exec('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
     this.migrateLegacyClosedJobs();
+    this.migrateConditionJobs();
   }
   rows(query, ...args) { return Array.from(this.sql.exec(query, ...args)); }
   get(code) {
@@ -43,7 +39,10 @@ export class RedeemQueue {
     let {notification} = job;
     const summary=summarize(targets||[],terminal.has(job.status));job.summary=summary;
     if(!shouldNotify(job)){notification=null;job.notification=null;}
-    if(shouldNotify(job)&&((job.status==='failed'&&summary.failed+summary.unknown>0)||['expired','invalid'].includes(job.status))&&!notification){
+    const needsNotification=shouldNotify(job)&&((job.status==='failed'&&summary.failed+summary.unknown>0)||['expired','invalid'].includes(job.status));
+    if(!needsNotification&&['pending','failed'].includes(notification?.status))notification={...notification,status:'suppressed'};
+    job.notification=notification;
+    if(needsNotification&&!notification){
       notification={status:'pending',attempts:0,next_at:Date.now(),sent_at:null,last_error:''};
       job.notification=notification;
     }
@@ -77,13 +76,28 @@ export class RedeemQueue {
     const alarm = await this.ctx.storage.getAlarm();
     if (alarm === null || alarm > Date.now() + delay) await this.ctx.storage.setAlarm(Date.now() + delay);
   }
+  migrateConditionJobs() {
+    const key='migration.conditions-v1';
+    if(this.meta(key))return;
+    for(const row of this.rows('SELECT code FROM gift_codes')){
+      const job=this.get(row.code);
+      const conditions=(job.targets||[]).filter(p=>p.status==='failed'&&isConditionPlayer(p));
+      if(!conditions.length)continue;
+      for(const player of conditions)player.status='condition';
+      if(job.status==='failed'&&job.initialized&&job.targets.every(p=>finishedPlayer.has(p.status))&&!job.targets.some(p=>['failed','unknown'].includes(p.status))){
+        job.status='completed';job.error='';
+      }
+      this.save(job);
+    }
+    this.setMeta(key,String(Date.now()));
+  }
   async submit(code, source, retry = false, acknowledgeUnknown = false) {
     code = normalizeCode(code);
     let job = this.get(code), duplicate = Boolean(job), added = 0;
     if (job && retry && !retriableJob.has(job.status)) throw Error(job.status==='expired'?'このコードは交換期限切れです。':job.status==='invalid'?'無効なコードのため再実行できません。':'この処理は再実行できません。');
     if (job && retry && retriableJob.has(job.status)) {
       if (job.targets.some(p => p.status === 'unknown') && !acknowledgeUnknown) throw Error('結果未確認のプレイヤーがいます。ゲーム内確認後に再実行してください。');
-      job.targets = job.targets.map(p => ['failed','unknown','pending'].includes(p.status) ? {...p,status:'pending',attempts:0,msg:''} : p);
+      job.targets = job.targets.map(p => ['failed','unknown','pending'].includes(p.status) ? {...p,status:'pending',attempts:0,msg:'',retrying:true} : p);
       job.status = 'pending'; job.finished_at = null; job.started_at = null;
       // Retry exactly the unresolved players from this run; do not add players registered later.
       job.initialized = true; job.errors = 0; job.error = ''; job.next_at = 0; job.attempt++;
@@ -91,10 +105,15 @@ export class RedeemQueue {
       job.notification = null;
       this.sql.exec('UPDATE gift_codes SET stop_requested=0 WHERE code=?',code);
       this.save(job);
-    } else if (job && !retry && job.status === 'completed' && source?.type === 'manual') {
-      const known = new Set(job.targets.map(player => player.fid));
+    } else if (job && !retry && ['completed','failed'].includes(job.status) && source?.type === 'manual') {
       const incoming = await this.services.loadTargets(this.env,code);
-      const newlyRegistered = incoming.filter(player => !known.has(player.fid));
+      // Loading Firestore can yield to another submission/alarm. Never overwrite a newer run.
+      job = this.get(code);
+      if(!['completed','failed'].includes(job.status)){await this.wake();return {duplicate:true,added:0,job};}
+      const known = new Set(job.targets.map(player => String(player.fid)));
+      const newlyRegistered = incoming.filter(player => {
+        const fid=String(player.fid);if(known.has(fid))return false;known.add(fid);return true;
+      });
       added = newlyRegistered.filter(player => player.status === 'pending').length;
       if (added > 0) {
         const count = this.rows("SELECT COUNT(*) AS n FROM gift_codes WHERE status IN ('pending','processing')")[0].n;
@@ -126,12 +145,13 @@ export class RedeemQueue {
       }
       if (url.pathname === '/jobs') {
         this.migrateLegacyClosedJobs();
+        this.migrateConditionJobs();
         const code = url.searchParams.get('code');
         if (code) return Response.json({job:this.get(normalizeCode(code))});
         const jobs = this.rows('SELECT code FROM gift_codes ORDER BY detected_at DESC LIMIT 20').map(r => this.get(r.code));
         const unresolved=this.rows("SELECT code FROM gift_codes WHERE status IN ('failed','pending','processing')").map(r=>this.get(r.code))
           .reduce((count,value)=>count+(value.status==='failed'?(value.summary?.failed||0)+(value.summary?.unknown||0):
-            value.attempt>1?value.targets.filter(player=>!['done','skipped'].includes(player.status)).length:0),0);
+            value.targets.filter(player=>!isConditionPlayer(player)&&(['failed','unknown'].includes(player.status)||(player.retrying&&['pending','sending','recording'].includes(player.status)))).length),0);
         return Response.json({jobs,unresolved,discord:{enabled:this.env.DISCORD_ENABLED==='true',...JSON.parse(this.meta('discord_status') || '{}')}});
       }
       if (url.pathname === '/cancel') {
@@ -205,6 +225,8 @@ export class RedeemQueue {
             player.status='recording'; this.save(job);
             await this.services.writeHistory(this.env,job.code,player,result);
             player.status='done';
+          } else if (isConditionResult(result)) {
+            player.status='condition';
           } else if (result.retry && player.attempts < 3) {
             player.status='pending'; job.next_at=Date.now()+5000;
           } else player.status='failed';

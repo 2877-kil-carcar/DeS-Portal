@@ -9,9 +9,10 @@
   let isAdmin=false;
   const results=new Map();
   const jobs=globalThis.WOS_REDEEM_JOBS;
+  const {isConditionPlayer,summarizeTargets}=globalThis.WOS_REDEEM_PROTOCOL;
   let serverBatch=false,jobTimer=null,selectedCode='',currentJob=null;
   const statusNames={pending:'待機中',processing:'交換中',completed:'完了',failed:'要確認',cancelled:'中止',expired:'受付終了',invalid:'無効なコード'};
-  const summaryOf=job=>job?.summary||{total:job?.targets?.length||0,success:(job?.targets||[]).filter(p=>['done','skipped'].includes(p.status)).length,failed:(job?.targets||[]).filter(p=>p.status==='failed').length,unknown:(job?.targets||[]).filter(p=>p.status==='unknown').length,expired:(job?.targets||[]).filter(p=>p.status==='expired').length,invalid:(job?.targets||[]).filter(p=>p.status==='invalid').length,unprocessed:(job?.targets||[]).filter(p=>p.status==='closed').length};
+  const summaryOf=job=>summarizeTargets(job?.targets||[],!['pending','processing'].includes(job?.status));
   function notifyShell(count){if(globalThis.parent&&globalThis.parent!==globalThis.window)globalThis.parent.postMessage({type:'wos:redeem-alert',count},location.origin==='null'?'*':location.origin);}
   function showJob(job) {
     currentJob=job;
@@ -23,15 +24,19 @@
     selectedCode=job.code;
     running=['pending','processing'].includes(job.status);busy=running;stop=Boolean(job.stop_requested);
     results.clear();
-    for(const p of job.targets)results.set(p.fid,{cls:['done','skipped'].includes(p.status)?'ok':['failed','unknown'].includes(p.status)?'ng':['expired','invalid'].includes(p.status)?'warn':'muted',msg:p.msg||({pending:'待機中',sending:'交換中…',recording:'交換結果を保存中…',closed:'未実行'}[p.status]||'')});
-    const finished=job.targets.filter(p=>['done','skipped','failed','unknown','expired','invalid','closed'].includes(p.status)).length;
+    for(const p of job.targets)results.set(p.fid,{cls:['done','skipped'].includes(p.status)?'ok':isConditionPlayer(p)?'muted':['failed','unknown'].includes(p.status)?'ng':['expired','invalid'].includes(p.status)?'warn':'muted',msg:p.msg||({pending:'待機中',sending:'交換中…',recording:'交換結果を保存中…',condition:'条件未達',closed:'未実行'}[p.status]||'')});
+    const finished=job.targets.filter(p=>['done','skipped','failed','unknown','condition','expired','invalid','closed'].includes(p.status)).length;
     $('batch-progress').max=Math.max(1,job.targets.length);$('batch-progress').value=finished;
     const closed=job.status==='expired'?` / 期限切れ ${summary.expired||0} / 未実行 ${summary.unprocessed||0}`:job.status==='invalid'?` / 無効 ${summary.invalid||0} / 未実行 ${summary.unprocessed||0}`:'';
-    $('progress').textContent=`${statusNames[job.status]||job.status}：${finished}/${job.targets.length}人（成功 ${summary.success} / 失敗 ${summary.failed} / 未確認 ${summary.unknown}${closed}）`+(job.error?' '+job.error:'');
-    const final=!['pending','processing'].includes(job.status),failures=job.targets.filter(p=>['failed','unknown'].includes(p.status));
+    const condition=summary.condition?` / 条件未達 ${summary.condition}`:'';
+    $('progress').textContent=`${statusNames[job.status]||job.status}：${finished}/${job.targets.length}人（成功 ${summary.success} / 失敗 ${summary.failed} / 未確認 ${summary.unknown}${condition}${closed}）`+(job.error?' '+job.error:'');
+    const final=!['pending','processing'].includes(job.status),failures=job.targets.filter(p=>['failed','unknown'].includes(p.status)&&!isConditionPlayer(p));
     $('job-summary').hidden=!final;
-    $('job-summary-counts').textContent=final?(job.status==='expired'?`${job.code}：成功${summary.success}／期限切れ確認${summary.expired||0}／未実行${summary.unprocessed||0}`:job.status==='invalid'?`${job.code}：成功${summary.success}／無効なコード／未実行${summary.unprocessed||0}`:`${job.code}：成功${summary.success}／失敗${summary.failed}／未確認${summary.unknown}`):'';
+    $('job-summary').className='job-summary'+(unresolved?'':' informational');
+    $('job-summary-counts').textContent=final?(job.status==='expired'?`${job.code}：成功${summary.success}／期限切れ確認${summary.expired||0}／未実行${summary.unprocessed||0}`:job.status==='invalid'?`${job.code}：成功${summary.success}／無効なコード／未実行${summary.unprocessed||0}`:`${job.code}：成功${summary.success}／失敗${summary.failed}／未確認${summary.unknown}`)+(summary.condition?`／条件未達${summary.condition}（失敗に含めません）`:''):'';
     $('job-failures').innerHTML=failures.length?failures.map(p=>`<div class="failure-row"><strong>${esc(p.name||p.fid||'名前なし')}</strong><span>${esc(p.msg||'理由を確認できません')}</span></div>`).join(''):'<p class="empty compact">未解決の失敗はありません。</p>';
+    const conditions=job.targets.filter(isConditionPlayer);
+    $('job-conditions').innerHTML=conditions.length?'<h3>条件未達（失敗件数には含みません）</h3>'+conditions.map(p=>`<div class="failure-row condition-row"><strong>${esc(p.name||p.fid||'名前なし')}</strong><span>${esc(p.msg||'交換条件を満たしていません')}</span></div>`).join(''):'';
     render();
   }
   async function refreshJobs() {
@@ -59,7 +64,7 @@
     const message=retry?`失敗した${unresolved}人だけ再実行しますか？`+(unknown?'\n結果未確認分があります。ゲーム内の受取状況を確認してから進めてください。':''):`コード「${code}」の一括交換を開始しますか？\n登録済み全員を対象に、記録済みのプレイヤーはスキップします。`;
     if(!confirm(message))return;
     busy=true;render();
-    try{const response=await jobs.start(code,retry,Boolean(unknown));selectedCode=code;showJob(response.job);await refreshJobs();}
+    try{const response=await jobs.start(code,retry,Boolean(unknown));selectedCode=code;showJob(response.job);await refreshJobs();if(!retry&&response.duplicate&&!response.added&&!['pending','processing'].includes(response.job.status))$('progress').textContent+=['expired','invalid'].includes(response.job.status)?' このコードは受付終了のため追加交換できません。':' 追加の未交換プレイヤーはいません。失敗分は「失敗した人だけ再実行」から実行できます。';}
     catch(error){status('受付結果を確認できません',error.message+' 同じコードで再送しても処理は重複登録されません。','error');}
     finally{busy=running;render();}
   }
@@ -111,10 +116,10 @@
     if(serverBatch)return startServer();
     if(busy||!connected||!directApi||preview)return;const cdk=$('cdk').value.trim();if(!cdk){$('cdk').focus();return;}const done=state.history[cdk]||{},targets=state.players.filter(player=>!done[player.fid]);
     if(!targets.length){$('progress').textContent=state.players.length?'全員分が記録済みです。':'先にプレイヤーを登録してください。';return;}if(!confirm(`コード「${cdk}」を ${targets.length}人へ送信して交換しますか？\n受取済み ${state.players.length-targets.length}人はスキップします。`))return;
-    busy=running=true;stop=false;results.clear();render();let success=0,failed=0,aborted=false;$('batch-progress').max=targets.length;$('batch-progress').value=0;
-    try{for(let index=0;index<targets.length&&!stop;index++){const player=targets[index];$('progress').textContent=`${index+1}/${targets.length} 人目を交換中…`;results.set(player.fid,{cls:'muted',msg:'交換中…'});render();let result;for(let attempt=0;attempt<3;attempt++){if(stop)break;result=await directApi.redeem(player.fid,player.kid||state.kingdom,cdk);if(!result.retry||attempt===2)break;results.set(player.fid,{cls:'warn',msg:result.msg+'（再試行待ち）'});render();for(let tick=0;tick<10&&!stop;tick++)await sleep(500);}if(!result)break;results.set(player.fid,{cls:result.done?'ok':'ng',msg:result.msg||'結果不明'});if(result.done){success++;await cloud.recordHistory(cdk,player.fid,result);}else failed++;$('batch-progress').value=index+1;render();if(result.bad_cdk){stop=true;status('コードを確認してください',result.msg,'error');break;}if(index+1<targets.length&&!stop)await sleep(2200);}}
+    busy=running=true;stop=false;results.clear();render();let success=0,failed=0,condition=0,aborted=false;$('batch-progress').max=targets.length;$('batch-progress').value=0;
+    try{for(let index=0;index<targets.length&&!stop;index++){const player=targets[index];$('progress').textContent=`${index+1}/${targets.length} 人目を交換中…`;results.set(player.fid,{cls:'muted',msg:'交換中…'});render();let result;for(let attempt=0;attempt<3;attempt++){if(stop)break;result=await directApi.redeem(player.fid,player.kid||state.kingdom,cdk);if(!result.retry||attempt===2)break;results.set(player.fid,{cls:'warn',msg:result.msg+'（再試行待ち）'});render();for(let tick=0;tick<10&&!stop;tick++)await sleep(500);}if(!result)break;const unmet=globalThis.WOS_REDEEM_PROTOCOL.isConditionResult(result);results.set(player.fid,{cls:result.done?'ok':unmet?'muted':'ng',msg:result.msg||'結果不明'});if(result.done){success++;await cloud.recordHistory(cdk,player.fid,result);}else if(unmet)condition++;else failed++;$('batch-progress').value=index+1;render();if(result.bad_cdk){stop=true;status('コードを確認してください',result.msg,'error');break;}if(index+1<targets.length&&!stop)await sleep(2200);}}
     catch(error){aborted=true;stop=true;status('通信が中断しました',error.message,'error');for(const [id,result]of results)if(result.msg==='交換中…')results.set(id,{cls:'warn',msg:'結果未確認。共有履歴とゲーム内を確認してください。'});}
-    finally{running=false;busy=false;render();$('progress').textContent=`${stop?'中止':'完了'}：成功・記録済 ${success} / 失敗 ${failed}`+(aborted?'（通信結果未確認あり）':'');}
+    finally{running=false;busy=false;render();$('progress').textContent=`${stop?'中止':'完了'}：成功・記録済 ${success} / 失敗 ${failed}`+(condition?` / 条件未達 ${condition}（失敗に含めません）`:'')+(aborted?'（通信結果未確認あり）':'');}
   });
   $('resumeBtn').addEventListener('click',()=>startServer(true));
   $('adminLoginBtn').addEventListener('click',loginAdmin);$('adminPassword').addEventListener('keydown',event=>{if(event.key==='Enter')loginAdmin();});$('adminLogoutBtn').addEventListener('click',logoutAdmin);renderAdmin();
