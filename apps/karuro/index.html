@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#17121c">
   <title>Halloween Witch かるろ — 3D Atelier</title>
-  <link rel="stylesheet" href="./style.css?v=3.77">
+  <link rel="stylesheet" href="./style.css?v=3.78">
   <script src="../bridge.js" defer></script>
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/"}}</script>
 </head>
@@ -34,7 +34,7 @@
     const fail=message=>{document.getElementById('loading').hidden=true;document.getElementById('error').hidden=false;document.getElementById('error-message').textContent=message;};
     document.getElementById('retry').onclick=()=>location.reload();
     if(location.protocol==='file:')fail('このページはHTMLの直接起動には対応していません。DeSポータルをHTTPまたはHTTPSで開いてください。');
-    else import('./viewer.js?v=3.77').catch(error=>{console.error(error);if(document.getElementById('error').hidden)fail('表示用プログラムを読み込めません。vendorフォルダーを含むwebフォルダー全体が配置されているか確認してください。');});
+    else import('./viewer.js?v=3.78').catch(error=>{console.error(error);if(document.getElementById('error').hidden)fail('表示用プログラムを読み込めません。vendorフォルダーを含むwebフォルダー全体が配置されているか確認してください。');});
   </script>
 </body>
 </html>

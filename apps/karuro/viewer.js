@@ -44,7 +44,8 @@ let currentFocus='full';
 const witchAreas={face:{target:[0,1.64,0],height:.48,width:.44},hat:{target:[.02,1.93,0],height:.57,width:.95},outfit:{target:[0,1.13,0],height:.73,width:.89},staff:{target:[.38,1.64,.056],height:.54,width:.38},waist:{target:[0,1.045,.08],height:.37,width:.55}};
 const models=[
   {id:'witch',file:'meshy-witch.glb',name:'halloween witch かるろ',eyebrow:'01 — halloween witch かるろ',title:'Halloween<br><span class="title-line"><em>Witch</em><span class="character-name">かるろ</span></span>',reference:'reference.png',referenceDescription:'提供された魔女のキャラクターシートです。',areas:witchAreas,propLabel:'杖の束'},
-  {id:'reporter',file:'meshy-reporter.glb',name:'かるろ',eyebrow:'02 — かるろ',title:'かるろ',reference:'reporter-character-sheet.png',referenceDescription:'全身3方向・細部・表情・360°ビューをまとめたキャラクターイラスト資料です。',areas:{face:{target:[0,1.82,0],height:.48,width:.45},outfit:{target:[0,1.15,0],height:.95,width:.75},staff:{target:[-.24,1.53,.10],height:.57,width:.42}},propLabel:'マイク'}
+  {id:'reporter',file:'meshy-reporter.glb',name:'かるろ',eyebrow:'02 — かるろ',title:'かるろ',reference:'reporter-character-sheet.png',referenceDescription:'全身3方向・細部・表情・360°ビューをまとめたキャラクターイラスト資料です。',areas:{face:{target:[0,1.82,0],height:.48,width:.45},outfit:{target:[0,1.15,0],height:.95,width:.75},staff:{target:[-.24,1.53,.10],height:.57,width:.42}},propLabel:'マイク'},
+  {id:'penguin',file:'meshy-penguin.glb',name:'でんぴー',eyebrow:'03 — でんぴー',title:'でんぴー',reference:'penguin-character-sheet.png',referenceDescription:'全身3方向・細部・表情・360°ビューをまとめたペンギンのキャラクターシートです。',areas:{face:{target:[-.06,1.48,.10],height:.70,width:.80},outfit:{target:[-.04,.77,.12],height:.94,width:.84}},outfitLabel:'お腹'}
 ];
 let currentIndex=0,detailAreas=models[0].areas,loadSequence=0,activeAbort=null;
 const modelCache=new Map();
@@ -124,7 +125,11 @@ function updateModelContent(entry){
   $('reference-image').src='./assets/'+entry.reference;$('reference-image').alt=entry.name+'のキャラクターシート';
   $('reference-description').textContent=entry.referenceDescription;$('reference-title').textContent=entry.name+' — キャラクターシート';
   detailAreas=entry.areas;
-  document.querySelectorAll('[data-focus]').forEach(button=>{button.hidden=button.dataset.focus!=='full'&&!detailAreas[button.dataset.focus];if(button.dataset.focus==='staff')button.textContent=entry.propLabel;});
+  document.querySelectorAll('[data-focus]').forEach(button=>{
+    button.hidden=button.dataset.focus!=='full'&&!detailAreas[button.dataset.focus];
+    if(button.dataset.focus==='staff'&&entry.propLabel)button.textContent=entry.propLabel;
+    if(button.dataset.focus==='outfit')button.textContent=entry.outfitLabel||'衣装';
+  });
   $('previous-model').setAttribute('aria-label','前のモデル：'+models[(currentIndex+models.length-1)%models.length].name);
   $('next-model').setAttribute('aria-label','次のモデル：'+models[(currentIndex+1)%models.length].name);
 }
