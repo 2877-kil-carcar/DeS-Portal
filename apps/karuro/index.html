@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#17121c">
+  <title>Halloween Witch かるろ — 3D Atelier</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="../bridge.js" defer></script>
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/"}}</script>
+</head>
+<body>
+  <main class="atelier">
+    <section class="exhibition" aria-labelledby="title">
+      <div id="stage" class="stage" aria-label="魔女の3Dモデル。ドラッグで回転、ホイールまたはピンチで拡大縮小。" tabindex="0"></div>
+      <div class="title-block"><p class="eyebrow">01 — halloween witch かるろ</p><h1 id="title">Halloween<br><span class="title-line"><em>Witch</em><span class="character-name">かるろ</span></span></h1></div>
+      <div class="guide"><span class="guide-icon" aria-hidden="true">↔</span><span>ドラッグで回転<span class="guide-sub">ホイール・ピンチでズーム</span></span></div>
+      <div id="loading" class="loading" role="status" aria-live="polite"><span class="spinner"></span><strong id="loading-text">3Dアトリエを準備しています</strong><progress id="load-progress" max="100" value="0" aria-label="モデルの読込進捗"></progress></div>
+      <section id="error" class="error-card" role="alert" hidden><p class="eyebrow">VIEWER UNAVAILABLE</p><h2>モデルを表示できませんでした</h2><p id="error-message"></p><button id="retry" type="button">もう一度読み込む</button></section>
+      <div class="stage-actions"><button id="theme" type="button" aria-pressed="false" title="明るい背景へ切り替え">◐ <span>背景</span></button></div>
+      <nav class="detail-focus" aria-label="ディテールへ近づく"><button data-focus="full" aria-pressed="true">全身</button><button data-focus="face" aria-pressed="false">顔</button><button data-focus="hat" aria-pressed="false">帽子</button><button data-focus="outfit" aria-pressed="false">衣装</button><button data-focus="staff" aria-pressed="false">杖の束</button><button data-focus="waist" aria-pressed="false">腰の束</button></nav>
+      <div class="viewport-controls" aria-label="3Dモデル操作">
+        <div class="views" role="group" aria-label="視点を切り替え"><button data-view="front" aria-pressed="true"><span>01</span>正面</button><button data-view="side" aria-pressed="false"><span>02</span>側面</button><button data-view="back" aria-pressed="false"><span>03</span>背面</button></div>
+        <span class="control-rule"></span><button id="auto" type="button" aria-pressed="false"><span class="rotation-icon" aria-hidden="true">↻</span><span id="auto-label">自動回転</span></button>
+        <div class="zoom-controls"><button id="zoom-out" type="button" aria-label="縮小">−</button><button id="zoom-in" type="button" aria-label="拡大">＋</button><button id="reset" type="button" aria-label="視点と拡大率を初期状態に戻す">↺</button></div>
+      </div>
+    </section>
+    <div class="reference-link"><button id="reference" type="button">キャラクターシート <span aria-hidden="true">↗</span></button></div>
+  </main>
+  <dialog id="reference-dialog"><div class="dialog-heading"><div><p class="eyebrow">DESIGN REFERENCE</p><h2>キャラクターシート</h2></div><button id="reference-close" aria-label="資料を閉じる">×</button></div><img src="./assets/reference.png" loading="lazy" alt="制作参照：魔女の正面・側面・背面と衣装、帽子、杖の詳細"><p>提供された制作資料です。モデルの表面にこの画像を貼り付けているわけではありません。</p></dialog>
+  <script type="module">
+    const fail=message=>{document.getElementById('loading').hidden=true;document.getElementById('error').hidden=false;document.getElementById('error-message').textContent=message;};
+    document.getElementById('retry').onclick=()=>location.reload();
+    if(location.protocol==='file:')fail('このページはHTMLの直接起動には対応していません。DeSポータルをHTTPまたはHTTPSで開いてください。');
+    else import('./viewer.js').catch(error=>{console.error(error);if(document.getElementById('error').hidden)fail('表示用プログラムを読み込めません。vendorフォルダーを含むwebフォルダー全体が配置されているか確認してください。');});
+  </script>
+</body>
+</html>

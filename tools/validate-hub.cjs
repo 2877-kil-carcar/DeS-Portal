@@ -42,7 +42,7 @@ test('all inline and local scripts parse without executing remote services',()=>
  function walk(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())walk(file);else if(/\.(html|js)$/.test(file)){
    const content=fs.readFileSync(file,'utf8');
    if(file.endsWith('.js')){const isModule=/^\s*(import\s|export\s)/m.test(content);if(isModule)new vm.SourceTextModule(content,{identifier:file});else new vm.Script(content,{filename:file});scripts++;}
-   else{htmls++;for(const m of content.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)){if(/\bsrc\s*=/.test(m[1])||!m[2].trim())continue;if(/type=["']module["']/.test(m[1]))new vm.SourceTextModule(m[2],{identifier:file});else if(!/type=["'](?:application\/ld\+json|application\/json)/.test(m[1]))new vm.Script(m[2],{filename:file});scripts++;}}
+   else{htmls++;for(const m of content.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)){if(/\bsrc\s*=/.test(m[1])||!m[2].trim())continue;if(/type=["']importmap["']/.test(m[1]))JSON.parse(m[2]);else if(/type=["']module["']/.test(m[1]))new vm.SourceTextModule(m[2],{identifier:file});else if(!/type=["'](?:application\/ld\+json|application\/json)/.test(m[1]))new vm.Script(m[2],{filename:file});scripts++;}}
  }} }
  walk(path.join(root,'apps'));console.log('Checked',htmls,'HTML files and',scripts,'scripts');
 });

@@ -131,6 +131,14 @@ v3.14ではロゴ横の表記を「DeSポータル」へ変更し、アイコン
 
 ## GitHub Pages
 
+### 禁断のかるろ（2026-10-28）
+
+メニューの「かるろすのメモ帳」の直下に追加した、完成したMeshyモデルの360°ビューアです。直接リンクは `#karuro`、ファイルは `apps/karuro/` にあります。元GLBの形状・テクスチャを変更せず、照明と露出を調整した独立ビューアを統合しています。
+
+約63MBのGLBは、この機能を初めて開いたときだけ読み込みます。他のメニューへ移ると描画を停止し、戻ると同じiframeで再開します。Three.jsと全テクスチャを同梱しており、外部CDNや生成APIへは接続しません。高精細モデルのためスマホ実機での性能は未検証です。
+
+統合ブラウザ確認は `tools/test-karuro-browser.cjs` でPC・スマホ幅、メニュー順、遅延読み込み、回転・拡大・キャラクターシート、描画停止・復帰、重複iframeなしを確認しています。ローカルでのGLB配信にも対応しています。
+
 HTML/CSS/JSを配信する構成なのでGitHub Pagesへ配置可能です。[GitHub公式説明](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)（2026-10-04確認）。ギフトコードはCloudflare Worker経由で送信するため、利用者PCのPythonは不要です。
 
 公開前に必ず確認：

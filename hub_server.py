@@ -12,7 +12,7 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parent
 PREFIX = '/api/redeem-tool/'
 LOCK = threading.Lock()
-PUBLIC_EXTENSIONS = {'.html', '.css', '.js', '.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg', '.mp4', '.mov', '.woff', '.woff2', '.ico'}
+PUBLIC_EXTENSIONS = {'.html', '.css', '.js', '.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg', '.mp4', '.mov', '.woff', '.woff2', '.ico', '.glb'}
 
 
 def load_backend(folder):

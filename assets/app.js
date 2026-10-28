@@ -39,7 +39,8 @@
     { id: 'svs', label:'2856SvS補助ツール', icon:'⚑', path:'./apps/svs/index.html?v=3.45', title:'2856SvS補助ツール', eyebrow:'SVS OPERATIONS', subtitle:'参加管理・集結設定・振り分け・カウントアップ' },
     { id: 'forms', label:'申請フォーム一覧', icon:'▧', path:'./apps/forms/index.html?v=3.27', title:'申請フォーム一覧', eyebrow:'APPLICATION DESK', subtitle:'各種申請・スプレッドシート・端末メモ' },
     { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.74', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' },
-    { id: 'notes', label:'かるろすのメモ帳', icon:'▤', eyebrow:'KARUROSU NOTES', title:'かるろすのメモ帳', subtitle:'戦闘の仕組みとイベント攻略をまとめて確認。' }
+    { id: 'notes', label:'かるろすのメモ帳', icon:'▤', eyebrow:'KARUROSU NOTES', title:'かるろすのメモ帳', subtitle:'戦闘の仕組みとイベント攻略をまとめて確認。' },
+    { id: 'karuro', label:'禁断のかるろ', icon:'✦', path:'./apps/karuro/index.html?v=3.75', title:'禁断のかるろ', eyebrow:'HALLOWEEN WITCH', subtitle:'' }
   ].filter(m => !window.WOS_STANDALONE || !m.path);
   const primaryNavigationIds = ['redeem', 'gallery', 'forms', 'bear', 'games', 'formation', 'svs'];
   const navigationModules=(window.WOS_STANDALONE?modules:[...primaryNavigationIds.map(id=>modules.find(m=>m.id===id)),...modules.filter(m=>!primaryNavigationIds.includes(m.id))]).filter(m=>!m.memoOnly);
@@ -214,7 +215,7 @@
   }
 
   // Register new modules here; shell, routes and navigation are shared.
-  $('navigation').innerHTML=navigationModules.map((m,i)=>`<button class="nav-button" data-nav="${m.id}"><span class="nav-icon" aria-hidden="true">${m.icon}</span>${m.label}${m.id==='redeem'?'<span class="nav-alert" data-redeem-alert hidden>0</span>':''}<span class="nav-num">0${i+1}</span></button>`).join('');
+  $('navigation').innerHTML=navigationModules.map((m,i)=>`<button class="nav-button" data-nav="${m.id}"><span class="nav-icon" aria-hidden="true">${m.icon}</span>${m.label}${m.id==='redeem'?'<span class="nav-alert" data-redeem-alert hidden>0</span>':''}<span class="nav-num">${String(i+1).padStart(2,'0')}</span></button>`).join('');
   const dockIds=window.WOS_STANDALONE?['joiners','library','battle','sources']:['redeem','gallery','forms','bear'];
   $('mobile-dock').innerHTML=dockIds.map(id=>{const m=modules.find(x=>x.id===id);return `<button data-nav="${id}" aria-pressed="false"><span aria-hidden="true">${m.icon}</span>${id==='gallery'?'ギャラリー':m.label}${id==='redeem'?'<span class="nav-alert" data-redeem-alert hidden>0</span>':''}</button>`;}).join('')+'<button id="dock-menu"><span aria-hidden="true">☰</span>一覧</button>';
   renderRedeemAlert();
