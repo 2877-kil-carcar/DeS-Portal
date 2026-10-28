@@ -9,3 +9,5 @@
 @media(max-width:600px){h1{font-size:clamp(24px,7.2vw,31px)}.detail-focus{top:100px}.reference-link{padding:12px 0 20px}.reference-link button{font-size:11px}}
 .exhibition{height:calc(100svh - 56px)}.reference-link{height:56px;padding:8px 0;align-items:center}.reference-link button{min-height:40px}
 @media(max-width:600px){.exhibition{height:calc(100svh - 56px);max-height:none}}
+.model-arrow{position:absolute;top:48%;transform:translateY(-50%);z-index:3;display:grid;place-items:center;width:48px;height:56px;border:1px solid #c59b7c55;border-radius:14px;background:#201923c9;color:#f1e6d8;font:38px/1 Georgia,serif;backdrop-filter:blur(10px)}.model-arrow:hover{background:#59404c}.model-arrow.previous{left:0}.model-arrow.next{right:0}.screen-reader-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:600px){.model-arrow{width:40px;height:48px;top:47%;font-size:32px}.model-arrow.previous{left:-12px}.model-arrow.next{right:-12px}}

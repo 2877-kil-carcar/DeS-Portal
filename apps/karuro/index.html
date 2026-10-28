@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#17121c">
   <title>Halloween Witch かるろ — 3D Atelier</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css?v=3.76">
   <script src="../bridge.js" defer></script>
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/"}}</script>
 </head>
@@ -14,6 +14,8 @@
     <section class="exhibition" aria-labelledby="title">
       <div id="stage" class="stage" aria-label="魔女の3Dモデル。ドラッグで回転、ホイールまたはピンチで拡大縮小。" tabindex="0"></div>
       <div class="title-block"><p class="eyebrow">01 — halloween witch かるろ</p><h1 id="title">Halloween<br><span class="title-line"><em>Witch</em><span class="character-name">かるろ</span></span></h1></div>
+      <nav class="model-navigation" aria-label="3Dモデルを切り替える"><button id="previous-model" class="model-arrow previous" type="button" aria-label="前のモデル" aria-controls="stage">‹</button><button id="next-model" class="model-arrow next" type="button" aria-label="次のモデル" aria-controls="stage">›</button></nav>
+      <span id="model-announcement" class="screen-reader-only" role="status" aria-live="polite"></span>
       <div class="guide"><span class="guide-icon" aria-hidden="true">↔</span><span>ドラッグで回転<span class="guide-sub">ホイール・ピンチでズーム</span></span></div>
       <div id="loading" class="loading" role="status" aria-live="polite"><span class="spinner"></span><strong id="loading-text">3Dアトリエを準備しています</strong><progress id="load-progress" max="100" value="0" aria-label="モデルの読込進捗"></progress></div>
       <section id="error" class="error-card" role="alert" hidden><p class="eyebrow">VIEWER UNAVAILABLE</p><h2>モデルを表示できませんでした</h2><p id="error-message"></p><button id="retry" type="button">もう一度読み込む</button></section>
@@ -27,12 +29,12 @@
     </section>
     <div class="reference-link"><button id="reference" type="button">キャラクターシート <span aria-hidden="true">↗</span></button></div>
   </main>
-  <dialog id="reference-dialog"><div class="dialog-heading"><div><p class="eyebrow">DESIGN REFERENCE</p><h2>キャラクターシート</h2></div><button id="reference-close" aria-label="資料を閉じる">×</button></div><img src="./assets/reference.png" loading="lazy" alt="制作参照：魔女の正面・側面・背面と衣装、帽子、杖の詳細"><p>提供された制作資料です。モデルの表面にこの画像を貼り付けているわけではありません。</p></dialog>
+  <dialog id="reference-dialog"><div class="dialog-heading"><div><p class="eyebrow">DESIGN REFERENCE</p><h2 id="reference-title">キャラクターシート</h2></div><button id="reference-close" aria-label="資料を閉じる">×</button></div><img id="reference-image" src="./assets/reference.png" loading="lazy" alt="魔女のキャラクターシート"><p id="reference-description">提供された制作資料です。</p></dialog>
   <script type="module">
     const fail=message=>{document.getElementById('loading').hidden=true;document.getElementById('error').hidden=false;document.getElementById('error-message').textContent=message;};
     document.getElementById('retry').onclick=()=>location.reload();
     if(location.protocol==='file:')fail('このページはHTMLの直接起動には対応していません。DeSポータルをHTTPまたはHTTPSで開いてください。');
-    else import('./viewer.js').catch(error=>{console.error(error);if(document.getElementById('error').hidden)fail('表示用プログラムを読み込めません。vendorフォルダーを含むwebフォルダー全体が配置されているか確認してください。');});
+    else import('./viewer.js?v=3.76').catch(error=>{console.error(error);if(document.getElementById('error').hidden)fail('表示用プログラムを読み込めません。vendorフォルダーを含むwebフォルダー全体が配置されているか確認してください。');});
   </script>
 </body>
 </html>

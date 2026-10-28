@@ -40,7 +40,7 @@
     { id: 'forms', label:'申請フォーム一覧', icon:'▧', path:'./apps/forms/index.html?v=3.27', title:'申請フォーム一覧', eyebrow:'APPLICATION DESK', subtitle:'各種申請・スプレッドシート・端末メモ' },
     { id: 'redeem', label:'ギフトコード', icon:'◇', path:'./apps/redeem/index.html?v=3.74', title:'ギフトコード', eyebrow:'GIFT CODE REDEMPTION', subtitle:'登録と履歴を共有・まとめて交換' },
     { id: 'notes', label:'かるろすのメモ帳', icon:'▤', eyebrow:'KARUROSU NOTES', title:'かるろすのメモ帳', subtitle:'戦闘の仕組みとイベント攻略をまとめて確認。' },
-    { id: 'karuro', label:'禁断のかるろ', icon:'✦', path:'./apps/karuro/index.html?v=3.75', title:'禁断のかるろ', eyebrow:'HALLOWEEN WITCH', subtitle:'' }
+    { id: 'karuro', label:'禁断のかるろ', icon:'✦', path:'./apps/karuro/index.html?v=3.76', title:'禁断のかるろ', eyebrow:'HALLOWEEN WITCH', subtitle:'' }
   ].filter(m => !window.WOS_STANDALONE || !m.path);
   const primaryNavigationIds = ['redeem', 'gallery', 'forms', 'bear', 'games', 'formation', 'svs'];
   const navigationModules=(window.WOS_STANDALONE?modules:[...primaryNavigationIds.map(id=>modules.find(m=>m.id===id)),...modules.filter(m=>!primaryNavigationIds.includes(m.id))]).filter(m=>!m.memoOnly);
