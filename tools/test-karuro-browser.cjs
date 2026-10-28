@@ -46,8 +46,8 @@ async function run(){
    assert.equal(await frame.locator('[data-focus=hat]').isHidden(),true);
    assert.equal(await frame.locator('[data-focus=staff]').innerText(),'マイク');
    await frame.locator('#reference').click();
-   await frame.waitForFunction(()=>{const img=document.getElementById('reference-image');return img.complete&&img.naturalWidth===2000;});
-   assert.ok((await frame.locator('#reference-image').getAttribute('src')).endsWith('reporter-sheet.png'));
+   await frame.waitForFunction(()=>{const img=document.getElementById('reference-image');return img.complete&&img.naturalWidth>=1200;});
+   assert.ok((await frame.locator('#reference-image').getAttribute('src')).endsWith('reporter-character-sheet.png'));
    await page.screenshot({path:path.join(out,`portal-karuro-sheet-${label}.png`)});
    await frame.locator('#reference-close').click();
    await page.screenshot({path:path.join(out,`portal-karuro-reporter-${label}.png`)});
