@@ -147,9 +147,11 @@ v3.14ではロゴ横の表記を「DeSポータル」へ変更し、アイコン
 
 2026-11-04：でんぴーの背中に付いていた灰色と黄色を、キャラクターシートに合わせて黒へ補正しました。GLBに背面用の頂点色を追加し、側面へ滑らかにつなげています。元の形状・UV・画像・光沢用マップは保持し、正面のお腹・顔・足を保護しています。修正済みモデルには専用のキャッシュ更新番号を付けています。再作成は `tools/blacken-penguin-back.cjs`（元GLBと別出力を指定、sharp使用）、検証は `tools/test-penguin-model.cjs` で行えます。
 
-左右の矢印で「01 — halloween witch かるろ」「02 — かるろ」「03 — でんぴー」を循環して切り替えます。モデルは初回選択時に読み込み、この画面内では再利用します。タイトル、拡大対象、キャラクターシートも選択中のモデルに連動します。でんぴーには提供された `Meshy_AI_Waving_Penguin_1028144624_texture.glb` を基本に背面の色を補正し、直前に生成したペンギンのシートを `apps/karuro/assets/penguin-character-sheet.png` に同梱しています。小物用の拡大ボタンは隠し、「全身」「顔」「お腹」を表示します。かるろのシートは `apps/karuro/assets/reporter-character-sheet.png` です。提供された魔女のシートを構成・画風の参考に、元のスーツ姿の画像と完成GLBの描画を人物の参考にしたAI生成イラストです。全身3方向・細部・表情・360°ビュー・サイズ感をまとめています。GLB自体の形状・表情は変更していません。生成時の指示は `tools/karuro-sheet-prompt.txt` に保存しています。比較用の実モデル描画 `reporter-sheet.png` は `tools/render-karuro-sheet.cjs` で再生成できますが、公開シートとしては使用していません（Playwrightを `WOS_PLAYWRIGHT_MODULE` で指定）。
+左右の矢印で「01 — halloween witch かるろ」「02 — かるろ」「03 — でんぴー」「04 — 本物」を循環して切り替えます。モデルは初回選択時に読み込み、この画面内では再利用します。タイトル、拡大対象、キャラクターシートも選択中のモデルに連動します。でんぴーには提供された `Meshy_AI_Waving_Penguin_1028144624_texture.glb` を基本に背面の色を補正し、直前に生成したペンギンのシートを `apps/karuro/assets/penguin-character-sheet.png` に同梱しています。小物用の拡大ボタンは隠し、「全身」「顔」「お腹」を表示します。かるろのシートは `apps/karuro/assets/reporter-character-sheet.png` です。提供された魔女のシートを構成・画風の参考に、元のスーツ姿の画像と完成GLBの描画を人物の参考にしたAI生成イラストです。全身3方向・細部・表情・360°ビュー・サイズ感をまとめています。GLB自体の形状・表情は変更していません。生成時の指示は `tools/karuro-sheet-prompt.txt` に保存しています。比較用の実モデル描画 `reporter-sheet.png` は `tools/render-karuro-sheet.cjs` で再生成できますが、公開シートとしては使用していません（Playwrightを `WOS_PLAYWRIGHT_MODULE` で指定）。
 
-魔女は約63MB、かるろは約32MB、でんぴーは約29MBのGLBです。それぞれ初めて選択したときだけ読み込みます。他のメニューへ移ると描画を停止し、戻ると同じiframeで再開します。Three.jsと全テクスチャを同梱しており、外部CDNや生成APIへは接続しません。高精細モデルのためスマホ実機での性能は未検証です。
+2026-11-05：「04 — 本物」を追加しました。提供された `Meshy_AI_Modern_Pinga_1104070051_texture.glb` を形状・材質・テクスチャを変更せず `apps/karuro/assets/meshy-honmono.glb` として同梱しています。棒とピンクの格子柄の包みを担いだ実モデルの4方向の描画を参考に、従来のペンギンのシートと同じ構成のAI生成キャラクターシートを `apps/karuro/assets/honmono-character-sheet.png` に追加しました。生成指示は `tools/honmono-sheet-prompt.txt`、実モデルの参照描画は `tools/capture-karuro-model.cjs` で再生成できます。左右の矢印は4モデルを循環し、タイトル「本物」とシートも連動します。
+
+魔女は約63MB、かるろは約32MB、でんぴーは約29MB、本物は約38MBのGLBです。それぞれ初めて選択したときだけ読み込みます。他のメニューへ移ると描画を停止し、戻ると同じiframeで再開します。Three.jsと全テクスチャを同梱しており、外部CDNや生成APIへは接続しません。高精細モデルのためスマホ実機での性能は未検証です。
 
 統合ブラウザ確認は `tools/test-karuro-browser.cjs` でPC・スマホ幅、メニュー順、遅延読み込み、回転・拡大・モデル別キャラクターシート、矢印の循環切り替え、読み込み中の連続切り替え、失敗からの再試行、描画停止・復帰、重複iframeなしを確認しています。ローカルでのGLB配信にも対応しています。
 
