@@ -45,7 +45,7 @@ const witchAreas={face:{target:[0,1.64,0],height:.48,width:.44},hat:{target:[.02
 const models=[
   {id:'witch',file:'meshy-witch.glb',name:'halloween witch かるろ',eyebrow:'01 — halloween witch かるろ',title:'Halloween<br><span class="title-line"><em>Witch</em><span class="character-name">かるろ</span></span>',reference:'reference.png',referenceDescription:'提供された魔女のキャラクターシートです。',areas:witchAreas,propLabel:'杖の束'},
   {id:'reporter',file:'meshy-reporter.glb',name:'かるろ',eyebrow:'02 — かるろ',title:'かるろ',reference:'reporter-character-sheet.png',referenceDescription:'全身3方向・細部・表情・360°ビューをまとめたキャラクターイラスト資料です。',areas:{face:{target:[0,1.82,0],height:.48,width:.45},outfit:{target:[0,1.15,0],height:.95,width:.75},staff:{target:[-.24,1.53,.10],height:.57,width:.42}},propLabel:'マイク'},
-  {id:'penguin',file:'meshy-penguin.glb',name:'でんぴー',eyebrow:'03 — でんぴー',title:'でんぴー',reference:'penguin-character-sheet.png',referenceDescription:'全身3方向・細部・表情・360°ビューをまとめたペンギンのキャラクターシートです。',areas:{face:{target:[-.06,1.48,.10],height:.70,width:.80},outfit:{target:[-.04,.77,.12],height:.94,width:.84}},outfitLabel:'お腹'}
+  {id:'penguin',file:'meshy-penguin.glb',revision:'3.80',name:'でんぴー',eyebrow:'03 — でんぴー',title:'でんぴー',reference:'penguin-character-sheet.png',referenceDescription:'全身3方向・細部・表情・360°ビューをまとめたペンギンのキャラクターシートです。',areas:{face:{target:[-.06,1.48,.10],height:.70,width:.80},outfit:{target:[-.04,.77,.12],height:.94,width:.84}},outfitLabel:'お腹'}
 ];
 let currentIndex=0,detailAreas=models[0].areas,loadSequence=0,activeAbort=null;
 const modelCache=new Map();
@@ -146,7 +146,7 @@ async function selectModel(index){
   try{
     let object=modelCache.get(entry.id);
     if(!object){
-      const response=await fetch('./assets/'+entry.file,{signal:abort.signal});
+      const response=await fetch('./assets/'+entry.file+(entry.revision?'?v='+encodeURIComponent(entry.revision):''),{signal:abort.signal});
       if(!response.ok)throw Error('モデルファイルを取得できません（HTTP '+response.status+'）。');
       const total=Number(response.headers.get('content-length'));let data;
       if(response.body){const reader=response.body.getReader(),chunks=[];let bytes=0;

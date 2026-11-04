@@ -12,7 +12,7 @@ async function run(){
    const errors=[],modelRequests=[];
    await context.route('**/*',route=>route.request().url().startsWith(base)?route.continue():route.abort());
    const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
-   page.on('request',request=>{if(request.url().endsWith('.glb'))modelRequests.push(request.url());});
+   page.on('request',request=>{if(new URL(request.url()).pathname.endsWith('.glb'))modelRequests.push(request.url());});
    await page.goto(base+'?preview=1#notes');
    await page.locator('#view-notes').waitFor({state:'visible'});
    const order=await page.locator('#navigation [data-nav]').evaluateAll(nodes=>nodes.map(n=>({id:n.dataset.nav,label:n.textContent})));
@@ -67,6 +67,10 @@ async function run(){
    assert.equal(await frame.locator('[data-focus=hat]').isHidden(),true);
    assert.equal(await frame.locator('[data-focus=outfit]').innerText(),'お腹');
    await page.screenshot({path:path.join(out,`portal-karuro-penguin-${label}.png`)});
+   await frame.locator('[data-view=back]').click();
+   await page.screenshot({path:path.join(out,`portal-karuro-penguin-back-${label}.png`)});
+   assert.ok(modelRequests.some(url=>url.endsWith('meshy-penguin.glb?v=3.80')),'Corrected back must bypass the old model cache');
+   await frame.locator('[data-view=front]').click();
    await frame.locator('[data-focus=face]').click();
    await page.screenshot({path:path.join(out,`portal-karuro-penguin-face-${label}.png`)});
    await frame.locator('#reset').click();
