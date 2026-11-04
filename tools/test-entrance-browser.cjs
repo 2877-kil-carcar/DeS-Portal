@@ -45,7 +45,7 @@ async function main(){
       await page.evaluate(()=>window.postMessage({type:'des:portal-enter'},location.origin));
       assert.equal(await page.evaluate(()=>DES_PORTAL_ENTRANCE.active),true,'Only the entrance frame may open the portal');
       await frame.waitForFunction(()=>window.DES_ENTRANCE_VIEW?.ready&&parseFloat(getComputedStyle(document.getElementById('model-stage')).opacity)>.99,{},{timeout:60000});
-      assert.equal(await frame.evaluate(()=>DES_ENTRANCE_VIEW.triangles),1223704);
+      assert.equal(await frame.evaluate(()=>DES_ENTRANCE_VIEW.triangles),1546746);
       const angle=await frame.evaluate(()=>DES_ENTRANCE_VIEW.angle);
       await frame.waitForFunction(value=>Math.abs(DES_ENTRANCE_VIEW.angle-value)>.035,angle);
       const button=await frame.locator('#enter-portal').boundingBox();assert.ok(button.y>=0&&button.y+button.height<=height+1,label+' entry button must fit');
@@ -59,14 +59,14 @@ async function main(){
     }
     {
       const ctx=await context({viewport:{width:390,height:844}});let release;
-      await ctx.route('**/frozen-lord.glb',async route=>{await new Promise(resolve=>release=resolve);try{await route.abort();}catch{}});
+      await ctx.route('**/frozen-lord.glb*',async route=>{await new Promise(resolve=>release=resolve);try{await route.abort();}catch{}});
       const {page,frame}=await open(ctx);await frame.locator('#enter-portal').waitFor();
       await enter(page,frame);release?.();await ctx.close();
       results.push({enterBeforeModelLoaded:true});console.log('PASS entrance: enter immediately during model download');
     }
     for(const failure of ['model404','noWebGL']){
       const ctx=await context({viewport:{width:390,height:844}});
-      if(failure==='model404')await ctx.route('**/frozen-lord.glb',route=>route.fulfill({status:404,body:'missing'}));
+      if(failure==='model404')await ctx.route('**/frozen-lord.glb*',route=>route.fulfill({status:404,body:'missing'}));
       else await ctx.addInitScript(()=>{const get=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){return /webgl/.test(type)?null:get.call(this,type,...args);};});
       const {page,frame}=await open(ctx);
       await frame.locator('#load-error').waitFor({state:'visible'});assert.equal(await frame.locator('#fallback-image').isVisible(),true);
@@ -81,7 +81,7 @@ async function main(){
     }
     {
       const ctx=await context(),page=await ctx.newPage();
-      await ctx.route('**/frozen-lord.glb',route=>route.fulfill({status:404,body:'not loaded for route test'}));
+      await ctx.route('**/frozen-lord.glb*',route=>route.fulfill({status:404,body:'not loaded for route test'}));
       await page.goto(base+'?v=qa');await page.locator('#portal-entrance iframe').waitFor();
       assert.equal(await page.evaluate(()=>DES_PORTAL_ENTRANCE.active),true,'The normal public URL must show the entrance');
       assert.equal(await page.locator('.module-frame').count(),0);

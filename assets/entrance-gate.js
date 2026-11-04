@@ -30,7 +30,7 @@
     for(const id of ['sidebar','mobile-dock']){const node=document.getElementById(id);if(node)node.inert=true;}
     const workspace=document.querySelector('.workspace');if(workspace)workspace.inert=true;
     frame=document.createElement('iframe');frame.title='ようこそDeSポータルへ';frame.className='portal-entrance-frame';
-    frame.src=new URL('./apps/entrance/index.html?v=3.81',location.href).href;
+    frame.src=new URL('./apps/entrance/index.html?v=3.82',location.href).href;
     frame.setAttribute('referrerpolicy','same-origin');host.hidden=false;host.append(frame);
   });
 })();

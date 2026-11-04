@@ -80,7 +80,7 @@ async function loadModel(){
     const rim=new THREE.DirectionalLight(0xe0f5ff,2.2);rim.position.set(0,4,-4);scene.add(rim);
     renderer.domElement.addEventListener('webglcontextlost',event=>{event.preventDefault();abort.abort();fallback(Error('WebGL context lost'));});
     resize();
-    const response=await fetch('./assets/frozen-lord.glb',{signal:abort.signal});if(!response.ok)throw Error('Model HTTP '+response.status);
+    const response=await fetch('./assets/frozen-lord.glb?v=3.82',{signal:abort.signal});if(!response.ok)throw Error('Model HTTP '+response.status);
     const total=Number(response.headers.get('content-length'));let data;
     if(response.body){const reader=response.body.getReader(),chunks=[];let received=0;
       while(true){const part=await reader.read();if(part.done)break;received+=part.value.length;chunks.push(part.value);if(total){const percent=Math.min(90,received/total*90);$('loading-progress').value=percent;$('loading-label').textContent='雪山へ… '+Math.round(percent)+'%';}}

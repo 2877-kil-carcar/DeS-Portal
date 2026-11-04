@@ -137,7 +137,7 @@ v3.14ではロゴ横の表記を「DeSポータル」へ変更し、アイコン
 
 実装は `assets/entrance-gate.js` と `apps/entrance/`。トップ側は入場前に各ツールを読み込みません。既存の `#redeem`・`#notes`・`#karuro` 等の直接リンク、通常の `?preview=1`、単一HTML版は入場画面を通さず従来の画面を開きます。入場画面自体のローカル確認は `?preview=1&entrance=1` です。入場後の再読み込みは `#redeem` が残るためポータル内に留まります。
 
-モデルは提供された `Meshy_AI_Lord_of_the_Frozen_Te_1104105826_texture.glb`（約58MB）を `apps/entrance/assets/frozen-lord.glb` として形状・材質を変更せず同梱。Three.jsは既存ローカル配信のものを再利用します。背景 `apps/entrance/assets/blizzard-background.png` は、添付の雪山画像から人物を取り除いて画像生成ツールで作成した背景です。指示全文は同フォルダーの `background-prompt.txt`。雪は2Dキャンバスで動かし、非表示時は描画を止め、OSの「動きを減らす」設定にも対応しています。
+モデルは提供された `Meshy_AI_Stormborn_Ascendant_1104114816_texture.glb`（約67MB）を `apps/entrance/assets/frozen-lord.glb` として形状・材質を変更せず同梱。Three.jsは既存ローカル配信のものを再利用します。背景 `apps/entrance/assets/blizzard-background.png` は、添付の雪山画像から人物を取り除いて画像生成ツールで作成した背景です。指示全文は同フォルダーの `background-prompt.txt`。雪は2Dキャンバスで動かし、非表示時は描画を止め、OSの「動きを減らす」設定にも対応しています。
 
 読み込み途中でも入場できます。WebGL非対応やモデル取得失敗では提供の元画像へ切り替え、入場操作を残します。`tools/test-entrance-browser.cjs` でPC・スマホ・小画面・横向きの表示、自動回転、入場、描画の破棄、読み込み中の入場、失敗時の代替表示、直接リンク・プレビュー・単一HTML版の維持を確認します。実機スマホの性能と実際のゲーム操作はこのブラウザ検査の対象外です。
 
