@@ -1,0 +1,7 @@
+Generated with the built-in image generation tool, using the user-provided snowy mountain image as reference.
+
+Use case: background-extraction / lighting-weather.
+Edit this snowy mountain reference into a high-quality cinematic BACKGROUND PLATE for a 3D website landing page.
+Remove the central man completely, including all hair, all human body parts, white cloth, and every trace of the figure. Reconstruct continuous snow, the mountain valley and blowing spindrift behind him. No people, no figures, no statues, no silhouettes, no animals.
+Keep the same enormous rugged icy mountain walls, dense driving blizzard, pale blue-white glacial palette and cold wind. Improve atmospheric depth: distant peaks and luminous cloud light through dense snow haze, dark blue slate ridges on the left and right framing a calmer light misty central area for a separate 3D character to be overlaid. Dense fine diagonal blowing snow, snow-covered rock in the lower foreground. Centre should remain naturally clear enough to display a model, with NO object inserted there. Moody majestic high-altitude snowstorm, cinematic photoreal landscape, subtle cold blue tone and natural light, no warm sunset. No text, logos or watermark.
+Landscape 16:9 composition, mountains extend across the whole frame; it should also crop gracefully to a portrait viewport at centre. Output only the snowy landscape background plate, not a poster or a character sheet.

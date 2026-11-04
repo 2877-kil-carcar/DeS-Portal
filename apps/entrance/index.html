@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#142638">
+  <title>ようこそDeSポータルへ</title>
+  <link rel="stylesheet" href="./entrance.css?v=3.81">
+  <script type="importmap">{"imports":{"three":"../karuro/vendor/three.module.js","three/addons/":"../karuro/vendor/"}}</script>
+</head>
+<body>
+  <main class="entrance" aria-labelledby="welcome-title">
+    <div class="mountains" aria-hidden="true"></div>
+    <div class="mountain-shade" aria-hidden="true"></div>
+    <div class="storm-mist" aria-hidden="true"></div>
+    <div id="model-stage" class="model-stage" role="img" aria-label="吹雪の雪山でゆっくり回転する3Dモデル"></div>
+    <img id="fallback-image" class="fallback-image" alt="雪山に立つ白髪の人物" hidden>
+    <canvas id="snow" aria-hidden="true"></canvas>
+    <div class="edge-vignette" aria-hidden="true"></div>
+    <div id="loading" class="loading" role="status"><span class="ice-spinner" aria-hidden="true"></span><span id="loading-label">雪山へ…</span><progress id="loading-progress" value="0" max="100" aria-label="3Dモデルの読み込み"></progress></div>
+    <div class="welcome-copy">
+      <div class="welcome-ornament" aria-hidden="true"><span></span><b>✧</b><span></span></div>
+      <h1 id="welcome-title"><span class="welcome-line">ようこそ</span><span class="portal-line">DeSポータルへ</span></h1>
+      <a id="enter-portal" class="enter-button" href="../../index.html#redeem" target="_top"><span>入場</span><span class="enter-arrow" aria-hidden="true">⟶</span></a>
+      <p id="load-error" role="status" hidden>3Dを読み込めませんでした。そのまま入場できます。</p>
+    </div>
+  </main>
+  <script type="module">
+    import('./entrance.js?v=3.81').catch(error=>{
+      console.error(error);document.getElementById('model-stage').hidden=true;
+      document.getElementById('loading').hidden=true;document.getElementById('load-error').hidden=false;
+      const image=document.getElementById('fallback-image');image.src='./assets/frozen-reference.jpg';image.hidden=false;
+    });
+  </script>
+</body>
+</html>

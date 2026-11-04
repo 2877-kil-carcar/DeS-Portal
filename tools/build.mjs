@@ -8,6 +8,9 @@ const data = JSON.parse(await read('wos_rally_joiner_gen1-8.json'));
 const dataScript = 'window.WOS_DATA = ' + JSON.stringify(data).replaceAll('</', '<\\/') + ';\n';
 await writeFile(path.join(root, 'assets/data.js'), dataScript, 'utf8');
 let html = await read('index.html');
+// The offline single-file tool remains independent of the online 3D entrance.
+html=html.replace(/<script src="\.\/assets\/entrance-gate\.js(?:\?[^\"]*)?"><\/script>/,'')
+  .replace(/<section id="portal-entrance"[^>]*><\/section>/,'');
 html = html.replace('<link rel="stylesheet" href="./assets/app.css">', '<style>' + await read('assets/app.css') + '</style>');
 for (const [filename, mime] of [
   ['pepper-portal.jpg', 'image/jpeg'],

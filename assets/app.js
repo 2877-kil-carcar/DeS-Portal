@@ -168,6 +168,7 @@
   const mobileQuery = window.matchMedia('(max-width: 760px)');
   function closeMenu() { $('sidebar').classList.remove('open'); $('sidebar').inert = mobileQuery.matches; $('scrim').hidden = true; $('menu-toggle').setAttribute('aria-expanded','false'); }
   function navigate(id) {
+    if(window.DES_PORTAL_ENTRANCE?.active)return;
     const selected = modules.find(m=>m.id===id) || navigationModules[0];
     if(currentView==='games'&&selected.id!=='games'&&/-game\.html$/.test(gamePath)&&!navigationLock){
       if(!confirm('対戦画面を離れます。進行中のゲームは残りますが、必要なら先にゲーム内で退室してください。別の機能へ移動しますか？')){navigationLock=true;location.hash='games';queueMicrotask(()=>navigationLock=false);return;}
@@ -257,7 +258,8 @@
   mobileQuery.addEventListener('change',closeMenu);
   $('scrim').addEventListener('click',()=>{closeMenu();$('menu-toggle').focus();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('sidebar').classList.contains('open')){closeMenu();$('menu-toggle').focus();}});
-  window.addEventListener('hashchange',()=>{navigate(location.hash.slice(1));window.scrollTo({top:0,behavior:'instant'});});
+  window.addEventListener('hashchange',()=>{if(window.DES_PORTAL_ENTRANCE?.active){window.DES_PORTAL_ENTRANCE.enter();return;}navigate(location.hash.slice(1));window.scrollTo({top:0,behavior:'instant'});});
+  window.addEventListener('des:portal-entered',()=>navigate(location.hash.slice(1)));
   $('battle-next').addEventListener('click',nextBattle);$('battle-reset').addEventListener('click',resetBattle);
   $('battle-play').addEventListener('click',()=>{if(battleTimer!==null){stopBattle();return;}if(battleDone())return;$('battle-play').textContent='一時停止';$('battle-play').setAttribute('aria-pressed','true');battleTimer=setInterval(nextBattle,Number($('battle-speed').value));});
   $('battle-speed').addEventListener('change',()=>{if(battleTimer!==null){clearInterval(battleTimer);battleTimer=setInterval(nextBattle,Number($('battle-speed').value));}});
