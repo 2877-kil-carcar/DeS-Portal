@@ -44,5 +44,10 @@ async function scenario(unavailable=false){
   assert.ok(node('job-summary').className.includes('informational'));assert.ok(!node('jobs-list').innerHTML.includes('要確認'));
   current={...current,targets:[...current.targets,{fid:'456',name:'混雑した人',status:'failed',msg:'サーバービジー'}]};
   await [...timers.values()].find(t=>t.ms===8000).fn();assert.equal(badges.at(-1),1);assert.equal(node('resumeBtn').textContent,'失敗した1人だけ再実行');assert.ok(node('job-failures').innerHTML.includes('混雑した人'));assert.ok(!node('job-failures').innerHTML.includes('条件だけの人'));
+  current={...current,status:'completed',targets:[current.targets[0],{fid:'456',name:'削除済みの人',status:'removed',msg:'登録から削除されたため未実行'}]};
+  await [...timers.values()].find(t=>t.ms===8000).fn();
+  assert.equal(badges.at(-1),0);assert.equal(node('resumeBtn').hidden,true);
+  assert.ok(node('progress').textContent.includes('2/2人'));assert.ok(node('job-summary-counts').textContent.includes('登録削除1（未実行）'));
+  assert.ok(!node('job-failures').innerHTML.includes('削除済みの人'));assert.ok(!node('jobs-list').innerHTML.includes('要確認'));
 }
 (async()=>{await scenario();await scenario(true);console.log('PASS shared server UI: submit, live results, stop, retry, uncertain-result confirmation, fail-closed on unavailable server');})().catch(error=>{console.error(error);process.exitCode=1;});

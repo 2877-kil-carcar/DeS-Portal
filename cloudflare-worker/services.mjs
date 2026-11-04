@@ -65,6 +65,16 @@ async function firestore(env, suffix, method = 'GET', body) {
 function fields(doc) {
   return Object.fromEntries(Object.entries(doc.fields || {}).map(([k,v]) => [k, v.stringValue ?? v.integerValue ?? v.timestampValue]));
 }
+export async function loadPlayer(env, fid) {
+  if (!/^\d{1,20}$/.test(String(fid))) throw Error('登録IDが不正です。');
+  try {
+    const player=fields(await firestore(env, '/redeemPlayers/' + encodeURIComponent(fid)));
+    return {fid:String(fid),kid:String(player.kid || '2856'),name:String(player.name || '')};
+  } catch (error) {
+    if (error.status === 404) return null;
+    throw error; // A connection/authentication failure must never count as deletion.
+  }
+}
 export async function loadTargets(env, code) {
   const players = [];
   let pageToken = '';
@@ -98,4 +108,4 @@ export async function redeemPlayer(_env, code, player) {
     headers:{Origin:'https://wos-giftcode.centurygame.com', Referer:'https://wos-giftcode.centurygame.com/', Accept:'application/json', 'User-Agent':'Mozilla/5.0'}}));
 }
 
-export const services = {loadTargets, writeHistory, redeemPlayer};
+export const services = {loadTargets, loadPlayer, writeHistory, redeemPlayer};

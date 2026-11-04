@@ -4,7 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {RedeemQueue,normalizeCode} from '../cloudflare-worker/batch-queue.mjs';
 import worker from '../cloudflare-worker/automation-worker.mjs';
 import {extractCodes,trustedMessage,notificationText,notifyDiscord} from '../cloudflare-worker/discord.mjs';
-import {verifyFirebaseToken,secretMatches,loadTargets,writeHistory} from '../cloudflare-worker/services.mjs';
+import {verifyFirebaseToken,secretMatches,loadTargets,loadPlayer,writeHistory} from '../cloudflare-worker/services.mjs';
 
 function fixture(overrides={}) {
   const db=new DatabaseSync(':memory:');let alarm=null;
@@ -14,6 +14,7 @@ function fixture(overrides={}) {
   const players=[{fid:'123',kid:'2856',name:'A',status:'pending',attempts:0},{fid:'456',kid:'2856',name:'B',status:'pending',attempts:0}];
   const queue=new RedeemQueue(ctx,{}, {
     loadTargets:async()=>structuredClone(players),
+    loadPlayer:async(_env,fid)=>structuredClone(players.find(player=>player.fid===String(fid))||null),
     redeemPlayer:async(_env,code,p)=>{exchanges.push([code,p.fid]);return {done:true,msg:'交換成功',retry:false};},
     writeHistory:async(_env,code,p,result)=>history.push([code,p.fid,result]),
     notifyDiscord:async(_env,job)=>notifications.push(notificationText(job)),...overrides
@@ -59,12 +60,12 @@ for(const code of [40004,40005,40007,40014,40019,40020])assert.equal(globalThis.
 {
   const f=fixture();
   await f.queue.submit('LATEUSER123',{type:'discord'});await f.drain();
-  assert.equal(f.exchanges.length,2);assert.deepEqual(f.queue.get('LATEUSER123').summary,{total:2,success:2,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0});
+  assert.equal(f.exchanges.length,2);assert.deepEqual(f.queue.get('LATEUSER123').summary,{total:2,success:2,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0,removed:0});
   f.players.push({fid:'789',kid:'2856',name:'C',status:'pending',attempts:0});
   const receipt=await f.queue.submit('LATEUSER123',{type:'manual'});
   assert.equal(receipt.duplicate,true);assert.equal(receipt.added,1);assert.equal(receipt.job.status,'pending');
   await f.drain();assert.deepEqual(f.exchanges,[['LATEUSER123','123'],['LATEUSER123','456'],['LATEUSER123','789']]);
-  assert.deepEqual(f.queue.get('LATEUSER123').summary,{total:3,success:3,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0});
+  assert.deepEqual(f.queue.get('LATEUSER123').summary,{total:3,success:3,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0,removed:0});
   const unchanged=await f.queue.submit('LATEUSER123',{type:'manual'});assert.equal(unchanged.added,0);await f.drain();assert.equal(f.exchanges.length,3);
 }
 {
@@ -158,7 +159,7 @@ for(const type of ['manual','discord','integration']){
   let count=0;
   const f=fixture({redeemPlayer:async()=>{count++;return {done:false,retry:true,msg:'頻度制限'};}});
   await f.queue.submit('RATE123',{type:'discord'});await f.drain();assert.equal(count,6);assert.equal(f.queue.get('RATE123').status,'failed');
-  const summary=f.queue.get('RATE123').summary;assert.deepEqual(summary,{total:2,success:0,failed:2,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0});
+  const summary=f.queue.get('RATE123').summary;assert.deepEqual(summary,{total:2,success:0,failed:2,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0,removed:0});
   await f.tick();assert.equal(f.notifications.length,1);assert.equal(f.notifications[0],'⚠️ RATE123：2人中0人成功、2人失敗\nサーバービジー：2人');
   await f.queue.submit('RATE123',{type:'manual'},true);await f.drain();await f.tick();assert.equal(f.notifications.length,1);
 }
@@ -166,22 +167,99 @@ for(const type of ['manual','discord','integration']){
   let fail=true;
   const f=fixture({redeemPlayer:async(_env,code,p)=>{f.exchanges.push([code,p.fid]);return p.fid==='456'&&fail?{done:false,retry:false,msg:'ID・王国が不正です。'}:{done:true,retry:false,msg:'交換成功'};}});
   await f.queue.submit('PARTIAL123',{type:'manual'});await f.drain();
-  let job=f.queue.get('PARTIAL123');assert.deepEqual(job.summary,{total:2,success:1,failed:1,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0});
+  let job=f.queue.get('PARTIAL123');assert.deepEqual(job.summary,{total:2,success:1,failed:1,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0,removed:0});
   assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,1);
   assert.equal(job.targets.find(p=>p.fid==='456').name,'B');await f.tick();
   assert.equal(f.notifications.length,0);assert.equal(f.queue.get('PARTIAL123').notification,null);
   fail=false;await f.queue.submit('PARTIAL123',{type:'manual'},true);
   assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,1);
   await f.drain();job=f.queue.get('PARTIAL123');
-  assert.deepEqual(job.summary,{total:2,success:2,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0});
+  assert.deepEqual(job.summary,{total:2,success:2,failed:0,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0,removed:0});
   assert.deepEqual(f.exchanges,[['PARTIAL123','123'],['PARTIAL123','456'],['PARTIAL123','456']]);
+}
+// Deleting a failed player must exclude the saved target from a retry, without
+// deleting the original run's audit trail or counting removal as a success.
+for (const type of ['manual','discord']) {
+  const f=fixture({redeemPlayer:async(_env,code,p)=>{
+    f.exchanges.push([code,p.fid]);return globalThis.WOS_REDEEM_PROTOCOL.interpret({err_code:p.fid==='456'?40020:20000});
+  }});
+  await f.queue.submit('DELETEFAILED'+type,{type});await f.drain();
+  assert.equal(f.queue.get('DELETEFAILED'+type).summary.failed,1);
+  f.players.splice(1,1);
+  await f.queue.submit('DELETEFAILED'+type,{type:'manual'},true);await f.drain();await f.tick();
+  const job=f.queue.get('DELETEFAILED'+type);
+  assert.deepEqual(f.exchanges.map(p=>p[1]),['123','456']);
+  assert.equal(job.status,'completed');assert.equal(job.summary.success,1);assert.equal(job.summary.removed,1);
+  assert.equal(job.summary.failed,0);assert.equal(job.summary.unknown,0);
+  assert.equal(job.targets[1].status,'removed');assert.match(job.targets[1].msg,/登録から削除/);
+  assert.equal(job.targets[1].result.err_code,40020);
+  assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,0);
+  assert.equal(f.notifications.length,0);
+}
+{
+  let fail=true;
+  const f=fixture({redeemPlayer:async(_env,code,p)=>{f.exchanges.push([code,p.fid,p.kid,p.name]);return {done:!fail,msg:fail?'王国が不正':'成功'};}});
+  await f.queue.submit('FRESHRETRY',{type:'manual'});await f.drain();
+  f.players[0].kid='9999';f.players[0].name='変更後';
+  f.players.push({fid:'789',kid:'2856',name:'新規',status:'pending',attempts:0});
+  fail=false;
+  const receipts=await Promise.all(Array.from({length:20},()=>f.queue.submit('FRESHRETRY',{type:'manual'},true)));
+  assert.ok(receipts.every(r=>r.duplicate));assert.equal(f.queue.get('FRESHRETRY').attempt,2);
+  f.players.splice(1,1); // Removed after retry acceptance, before its provider send.
+  await f.drain();
+  assert.deepEqual(f.exchanges.map(p=>p[1]),['123','456','123']);
+  assert.deepEqual(f.exchanges[2],['FRESHRETRY','123','9999','変更後']);
+  assert.equal(f.queue.get('FRESHRETRY').summary.removed,1);
+}
+{
+  const f=fixture();await f.queue.submit('DELETEQUEUED',{type:'manual'});
+  await f.tick();f.players.splice(1,1);await f.drain();
+  assert.deepEqual(f.exchanges,[['DELETEQUEUED','123']]);
+  assert.equal(f.queue.get('DELETEQUEUED').summary.removed,1);
+}
+{
+  const f=fixture({redeemPlayer:async(_env,code,p)=>{f.exchanges.push([code,p.fid]);if(p.fid==='456')throw Error('Unknown provider result');return {done:true,msg:'成功'};}});
+  await f.queue.submit('DELETEUNKNOWN',{type:'manual'});await f.drain();
+  f.players.splice(1,1);
+  await f.queue.submit('DELETEUNKNOWN',{type:'manual'},true,false);await f.drain();
+  assert.equal(f.exchanges.length,2);assert.equal(f.queue.get('DELETEUNKNOWN').summary.unknown,0);
+  assert.equal(f.queue.get('DELETEUNKNOWN').summary.removed,1);
+}
+{
+  let entered,release;const started=new Promise(resolve=>entered=resolve);
+  const f=fixture({loadPlayer:async()=>{entered();await new Promise(resolve=>release=resolve);return {fid:'123',kid:'2856',name:'A'};}});
+  await f.queue.submit('CANCELLOOKUP',{type:'manual'});const ticking=f.tick();await started;
+  await f.queue.fetch(new Request('https://test/cancel',{method:'POST',body:JSON.stringify({code:'CANCELLOOKUP'})}));
+  release();await ticking;
+  assert.equal(f.exchanges.length,0);assert.equal(f.queue.get('CANCELLOOKUP').status,'cancelled');
+}
+{
+  const f=fixture({loadPlayer:async()=>{throw Error('Firestore unavailable');}});
+  await f.queue.submit('LOOKUPFAIL',{type:'manual'});await f.drain();
+  const job=f.queue.get('LOOKUPFAIL');assert.equal(job.status,'failed');assert.equal(f.exchanges.length,0);
+  assert.equal(job.summary.removed,0);assert.ok(job.targets.every(p=>p.attempts===0));
+}
+{
+  const f=fixture({redeemPlayer:async()=>({done:false,msg:'王国が不正'})});
+  await f.queue.submit('RETRYLOADFAIL',{type:'manual'});await f.drain();
+  f.queue.services.loadTargets=async()=>{throw Error('Firestore unavailable');};
+  await assert.rejects(()=>f.queue.submit('RETRYLOADFAIL',{type:'manual'},true),/Firestore unavailable/);
+  assert.equal(f.queue.get('RETRYLOADFAIL').status,'failed');assert.equal(f.queue.get('RETRYLOADFAIL').attempt,1);
+}
+{
+  let writes=0;const f=fixture({writeHistory:async()=>{if(++writes===1)throw Error('Temporary save failure');}});
+  await f.queue.submit('DELETERECORDING',{type:'manual'});await f.tick();
+  assert.equal(f.queue.get('DELETERECORDING').targets[0].status,'recording');
+  f.players.splice(0,1);await f.drain();
+  assert.equal(f.exchanges.filter(p=>p[1]==='123').length,1);
+  assert.equal(f.queue.get('DELETERECORDING').targets[0].status,'done');
 }
 {
   let count=0;
   const f=fixture({redeemPlayer:async()=>{count++;return {done:false,bad_cdk:true,code_state:'expired',msg:'交換期限切れ'};}});
   await f.queue.submit('BAD123',{type:'discord'});await f.drain();assert.equal(count,1);
   const job=f.queue.get('BAD123');assert.equal(job.status,'expired');
-  assert.deepEqual(job.summary,{total:2,success:0,failed:0,unknown:0,expired:1,invalid:0,unprocessed:1,condition:0});
+  assert.deepEqual(job.summary,{total:2,success:0,failed:0,unknown:0,expired:1,invalid:0,unprocessed:1,condition:0,removed:0});
   assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,0);
   await f.tick();assert.equal(f.notifications[0],'🎁 BAD123：交換受付終了\n成功0人／期限切れ確認1人／未実行1人');
   await assert.rejects(f.queue.submit('BAD123',{type:'manual'},true),/期限切れ/);
@@ -190,7 +268,7 @@ for(const type of ['manual','discord','integration']){
   const f=fixture({redeemPlayer:async()=>({done:false,bad_cdk:true,code_state:'invalid',msg:'交換コードが存在しません'})});
   await f.queue.submit('INVALID123',{type:'manual'});await f.drain();
   const job=f.queue.get('INVALID123');assert.equal(job.status,'invalid');
-  assert.deepEqual(job.summary,{total:2,success:0,failed:0,unknown:0,expired:0,invalid:1,unprocessed:1,condition:0});
+  assert.deepEqual(job.summary,{total:2,success:0,failed:0,unknown:0,expired:0,invalid:1,unprocessed:1,condition:0,removed:0});
   await f.tick();assert.equal(f.notifications.length,0);assert.equal(job.notification,null);
 }
 {
@@ -280,12 +358,18 @@ for(const type of ['manual','discord','integration']){
     if(String(url).includes('identitytoolkit.googleapis.com'))return Response.json({idToken:'mock-anonymous-token',expiresIn:'3600'});
     assert.equal(options.headers.Authorization,'Bearer mock-anonymous-token');
     if(options.method==='PATCH'){saved={url,body:JSON.parse(options.body)};return Response.json(saved.body);}
+    if(String(url).endsWith('/redeemPlayers/456'))return Response.json(doc({fid:'456',name:'最新名',kid:'9999'}));
+    if(String(url).endsWith('/redeemPlayers/999'))return Response.json({error:{message:'not found'}},{status:404});
+    if(String(url).endsWith('/redeemPlayers/888'))return Response.json({error:{message:'forbidden'}},{status:403});
     if(String(url).endsWith(':runQuery')){assert.equal(JSON.parse(options.body).structuredQuery.where.fieldFilter.value.stringValue,'AbC123');return Response.json([{document:doc({fid:'123',cdk:'AbC123'})}]);}
     if(String(url).includes('pageToken=page2'))return Response.json({documents:[doc({fid:'456',name:'B',kid:'2'})]});
     return Response.json({documents:[doc({fid:'123',name:'A',kid:'1'})],nextPageToken:'page2'});
   };
   const targets=await loadTargets(env,'AbC123');assert.equal(targets.length,2);assert.equal(targets[0].status,'skipped');assert.equal(targets[1].status,'pending');
   await writeHistory(env,'AbC123',targets[1],{msg:'交換成功'});assert.ok(saved.url.endsWith('/redeemHistory/AbC123--456'));assert.equal(saved.body.fields.fid.stringValue,'456');assert.ok(saved.body.fields.updatedAt.timestampValue);
+  assert.deepEqual(await loadPlayer(env,'456'),{fid:'456',name:'最新名',kid:'9999'});
+  assert.equal(await loadPlayer(env,'999'),null);
+  await assert.rejects(()=>loadPlayer(env,'888'),error=>error.status===403);
 }
 // Fail the test if any later test accidentally attempts an unmocked external call.
 globalThis.fetch=async()=>{throw Error('Unexpected network request');};

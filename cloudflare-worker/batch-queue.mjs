@@ -8,7 +8,8 @@ export function normalizeCode(input) {
 }
 const terminal = new Set(['completed', 'failed', 'cancelled', 'expired', 'invalid']);
 const retriableJob = new Set(['failed', 'cancelled']);
-const finishedPlayer = new Set(['done', 'skipped', 'failed', 'unknown', 'condition', 'expired', 'invalid', 'closed']);
+const finishedPlayer = new Set(['done', 'skipped', 'failed', 'unknown', 'condition', 'expired', 'invalid', 'closed', 'removed']);
+const removedPlayer = player => ({...player,status:'removed',retrying:false,msg:'登録から削除されたため未実行'});
 const {isConditionResult,isConditionPlayer,summarizeTargets:summarize} = globalThis.WOS_REDEEM_PROTOCOL;
 const shouldNotify = job => ['discord','integration'].includes(job.source?.type);
 
@@ -96,8 +97,20 @@ export class RedeemQueue {
     let job = this.get(code), duplicate = Boolean(job), added = 0;
     if (job && retry && !retriableJob.has(job.status)) throw Error(job.status==='expired'?'このコードは交換期限切れです。':job.status==='invalid'?'無効なコードのため再実行できません。':'この処理は再実行できません。');
     if (job && retry && retriableJob.has(job.status)) {
-      if (job.targets.some(p => p.status === 'unknown') && !acknowledgeUnknown) throw Error('結果未確認のプレイヤーがいます。ゲーム内確認後に再実行してください。');
-      job.targets = job.targets.map(p => ['failed','unknown','pending'].includes(p.status) ? {...p,status:'pending',attempts:0,msg:'',retrying:true} : p);
+      const incoming = await this.services.loadTargets(this.env,code);
+      // Another retry/alarm can advance this job while Firestore is responding.
+      job = this.get(code);
+      if (!retriableJob.has(job.status)) { await this.wake(); return {duplicate:true,added:0,job}; }
+      const registered = new Map(incoming.map(player=>[String(player.fid),player]));
+      const targets = job.initialized ? job.targets : incoming;
+      if (targets.some(p => p.status === 'unknown' && registered.has(String(p.fid))) && !acknowledgeUnknown) throw Error('結果未確認のプレイヤーがいます。ゲーム内確認後に再実行してください。');
+      job.targets = targets.map(p => {
+        if (!['failed','unknown','pending'].includes(p.status) || isConditionPlayer(p)) return p;
+        const current=registered.get(String(p.fid));
+        if (!current) return removedPlayer(p);
+        if (current.status === 'skipped') return {...p,...current,retrying:false};
+        return {...p,kid:current.kid,name:current.name,status:'pending',attempts:0,msg:'',retrying:true};
+      });
       job.status = 'pending'; job.finished_at = null; job.started_at = null;
       // Retry exactly the unresolved players from this run; do not add players registered later.
       job.initialized = true; job.errors = 0; job.error = ''; job.next_at = 0; job.attempt++;
@@ -217,34 +230,44 @@ export class RedeemQueue {
       } else {
         const player = job.targets.find(p => p.status === 'pending');
         if (player) {
-          player.status='sending'; player.attempts++; this.save(job);
-          let result;
-          try { result = await this.services.redeemPlayer(this.env,job.code,player); }
-          catch {
-            player.status='unknown'; player.msg='通信エラーで結果未確認。ゲーム内を確認してください。';
-            this.save(job); return;
+          const current = await this.services.loadPlayer(this.env,player.fid);
+          if (this.get(job.code).stop_requested) {
+            job.status='cancelled';job.finished_at=Date.now();this.save(job);return;
           }
-          player.result=result; player.msg=result.msg;
-          if (result.done) {
-            player.status='recording'; this.save(job);
-            await this.services.writeHistory(this.env,job.code,player,result);
-            player.status='done';
-          } else if (isConditionResult(result)) {
-            player.status='condition';
-          } else if (result.retry && player.attempts < 3) {
-            player.status='pending'; job.next_at=Date.now()+5000;
-          } else player.status='failed';
-          if (result.code_state==='expired'||result.code_state==='invalid') {
-            player.status=result.code_state;
-            const label=result.code_state==='expired'?'期限切れ':'無効なコード';
-            for(const pending of job.targets.filter(value=>value.status==='pending')){pending.status='closed';pending.msg=`${label}のため未実行`;}
-            job.status=result.code_state;job.error=result.msg;job.finished_at=Date.now();job.notification=null;
-          } else if (result.bad_cdk) {
-            // Unknown future provider responses remain visible as a code-level failure.
-            for(const pending of job.targets.filter(value=>value.status==='pending')){pending.status='failed';pending.msg=result.msg;}
-            job.status='failed';job.error=result.msg;job.finished_at=Date.now();
+          if (!current) {
+            Object.assign(player,removedPlayer(player));this.save(job);
+          } else {
+            // Use the current kingdom/name, never an old saved retry snapshot.
+            player.kid=current.kid;player.name=current.name;
+            player.status='sending'; player.attempts++; this.save(job);
+            let result;
+            try { result = await this.services.redeemPlayer(this.env,job.code,player); }
+            catch {
+              player.status='unknown'; player.msg='通信エラーで結果未確認。ゲーム内を確認してください。';
+              this.save(job); return;
+            }
+            player.result=result; player.msg=result.msg;
+            if (result.done) {
+              player.status='recording'; this.save(job);
+              await this.services.writeHistory(this.env,job.code,player,result);
+              player.status='done';
+            } else if (isConditionResult(result)) {
+              player.status='condition';
+            } else if (result.retry && player.attempts < 3) {
+              player.status='pending'; job.next_at=Date.now()+5000;
+            } else player.status='failed';
+            if (result.code_state==='expired'||result.code_state==='invalid') {
+              player.status=result.code_state;
+              const label=result.code_state==='expired'?'期限切れ':'無効なコード';
+              for(const pending of job.targets.filter(value=>value.status==='pending')){pending.status='closed';pending.msg=`${label}のため未実行`;}
+              job.status=result.code_state;job.error=result.msg;job.finished_at=Date.now();job.notification=null;
+            } else if (result.bad_cdk) {
+              // Unknown future provider responses remain visible as a code-level failure.
+              for(const pending of job.targets.filter(value=>value.status==='pending')){pending.status='failed';pending.msg=result.msg;}
+              job.status='failed';job.error=result.msg;job.finished_at=Date.now();
+            }
+            this.save(job);
           }
-          this.save(job);
         }
       }
       if (job.status === 'processing' && job.targets.every(p => finishedPlayer.has(p.status))) {

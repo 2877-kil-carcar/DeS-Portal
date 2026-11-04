@@ -37,12 +37,13 @@
     return player.status === 'condition' || (player.status === 'failed' && isConditionResult({...player.result,msg:player.result?.msg || player.msg}));
   }
   function summarizeTargets(targets = [], final = false) {
-    const finished = new Set(['done','skipped','failed','unknown','condition','expired','invalid','closed']);
+    const finished = new Set(['done','skipped','failed','unknown','condition','expired','invalid','closed','removed']);
     return {total:targets.length,success:targets.filter(p=>['done','skipped'].includes(p.status)).length,
       failed:targets.filter(p=>p.status==='failed'&&!isConditionPlayer(p)).length,
       unknown:targets.filter(p=>p.status==='unknown'||(final&&!finished.has(p.status))).length,
       expired:targets.filter(p=>p.status==='expired').length,invalid:targets.filter(p=>p.status==='invalid').length,
-      unprocessed:targets.filter(p=>p.status==='closed').length,condition:targets.filter(isConditionPlayer).length};
+      unprocessed:targets.filter(p=>p.status==='closed').length,condition:targets.filter(isConditionPlayer).length,
+      removed:targets.filter(p=>p.status==='removed').length};
   }
   globalThis.WOS_REDEEM_PROTOCOL = {md5, signed, interpret, isConditionResult, isConditionPlayer, summarizeTargets};
 })();

@@ -49,9 +49,14 @@ async function main(){
       assert.equal(await page.locator('#resumeBtn').isHidden(),true);
       assert.ok((await page.locator('#job-summary-counts').innerText()).includes('成功3／失敗0／未確認0／条件未達1'));
       assert.equal(await page.locator('#job-summary').evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(245, 248, 250)');
+      await page.evaluate(async()=>{qa.current.targets[2]={...qa.current.targets[2],status:'removed',msg:'登録から削除されたため未実行'};qa.state.players.splice(qa.state.players.findIndex(p=>p.fid==='789'),1);await qa.poll();});
+      assert.ok((await page.locator('#job-summary-counts').innerText()).includes('成功2／失敗0／未確認0／条件未達1（失敗に含めません）／登録削除1（未実行）'));
+      assert.ok((await page.locator('#progress').innerText()).includes('4/4人'));
+      assert.equal(await page.locator('#resumeBtn').isHidden(),true);
+      assert.ok(!(await page.locator('#job-failures').innerText()).includes('混雑した人'));
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
       if(process.env.WOS_REDEEM_QA_DIR){fs.mkdirSync(process.env.WOS_REDEEM_QA_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.WOS_REDEEM_QA_DIR,`redeem-${width}.png`),fullPage:true});}
-      console.log(`PASS redeem browser ${width}px: late-user manual submission, separate conditions, accurate failures, neutral completion, no horizontal overflow`);
+      console.log(`PASS redeem browser ${width}px: late-user manual submission, separate conditions/removals, accurate failures, neutral completion, no horizontal overflow`);
       await context.close();
     }
     assert.deepEqual(errors,[]);
