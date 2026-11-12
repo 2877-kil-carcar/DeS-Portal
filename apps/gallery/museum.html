@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>もふもふ美術館 | The Fluffy Hall</title>
+<script type="importmap">{"imports":{"three":"../karuro/vendor/three.module.js"}}</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; background: #0e0806; color: #F0E0C0; font-family: 'Zen Maru Gothic', sans-serif; }
+  canvas#c { display: block; width: 100%; height: 100%; touch-action: none; }
+  .ui { position: fixed; z-index: 2; }
+  .pill {
+    background: rgba(13,4,6,0.78); border: 1px solid rgba(212,175,55,0.45); border-radius: 999px;
+    color: #FFE566; font: inherit; font-size: 14px; padding: 10px 18px; text-decoration: none; cursor: pointer;
+  }
+  #back { top: 12px; left: 12px; }
+  #help { top: 60px; left: 14px; font-size: 12px; color: rgba(240,224,192,0.7); pointer-events: none; text-shadow: 0 1px 3px #000; }
+  #map {
+    top: 12px; right: 12px; width: 170px; height: 150px; pointer-events: none;
+    background: rgba(13,4,6,0.72); border: 1px solid rgba(212,175,55,0.45); border-radius: 8px;
+  }
+  #stick {
+    left: 24px; bottom: 24px; width: 120px; height: 120px; border-radius: 50%; touch-action: none;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(212,175,55,0.4);
+  }
+  #knob {
+    position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%;
+    background: rgba(255,248,231,0.75); pointer-events: none;
+  }
+  #caption {
+    left: 50%; bottom: 28px; transform: translateX(-50%); max-width: min(60vw, 420px);
+    display: none; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+  }
+  @media (max-width: 600px) { #caption { bottom: 160px; } #help { display: none; } }   /* スマホではスティックと重ならない位置へ */
+  #capTitle { font-size: 15px; text-shadow: 0 1px 4px #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  #viewer {
+    inset: 0; z-index: 5; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+    background: rgba(5,2,3,0.95); cursor: pointer;
+  }
+  #viewer img { max-width: 92vw; max-height: 82vh; object-fit: contain; box-shadow: 0 0 80px #000; }
+  #msg { inset: 0; z-index: 6; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 20px; text-align: center; padding: 24px; line-height: 1.8; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<a class="ui pill" id="back" href="index.html?v=3.84">← ギャラリーへ</a>
+<div class="ui" id="help">移動：WASD / 左下スティック<br>視点：画面をドラッグ<br>階段：中央ホール</div>
+<canvas class="ui" id="map" width="340" height="300" aria-label="美術館のマップ"></canvas>
+<div class="ui" id="stick" aria-label="移動スティック"><div id="knob"></div></div>
+<div class="ui" id="caption"><div id="capTitle"></div><button class="pill" id="capBtn">🔍 拡大する</button></div>
+<div class="ui" id="viewer" role="dialog" aria-label="作品の拡大表示"><img id="viewImg" alt=""><div id="viewTitle"></div></div>
+<div class="ui" id="msg"><p id="msgText"></p><a class="pill" href="index.html">ギャラリーを開く</a></div>
+
+<script src="checked-image.js?v=3.84"></script>
+<script src="../bridge.js"></script>
+<script type="module">
+import * as THREE from 'three';
+
+const $ = id => document.getElementById(id);
+const fail = text => { $('msgText').textContent = text; $('msg').style.display = 'flex'; };
+
+/* 間取り（3 階とも同じ）。実在の美術館に多い「中央ホール＋大階段を、展示室がぐるりと囲む回遊型」。
+   展示室どうしの出入口は一直線に並べてある（エンフィラード）。1 文字 = 2.5m 四方。
+   # 壁 / g 展示室 / b 展示室のベンチ / . 中央ホール / A 階段 1F⇔2F（西が下） / B 階段 2F⇔3F（東が下） */
+const PLAN = [
+  '#################',
+  '#ggg#ggggggg#ggg#',
+  '#ggg#gbgggbg#ggg#',
+  '#ggggggggggggggg#',
+  '##g#####.#####g##',
+  '#ggg#.......#ggg#',
+  '#ggg#.AAAAA.#ggg#',
+  '#ggg.........ggg#',
+  '#ggg#.BBBBB.#ggg#',
+  '#ggg#.......#ggg#',
+  '##g#####.#####g##',
+  '#ggggggggggggggg#',
+  '#ggg#gbgggbg#ggg#',
+  '#ggg#ggggggg#ggg#',
+  '#################',
+];
+const COLS = 17, ROWS = 15, LEVELS = 3;
+const C = 2.5, H = 4.4, R = 0.35;                       // マス幅・階高・キャラの半径（m）
+const cx = c => (c - 8) * C, cz = r => (r - 7) * C;     // マスの中心 → 座標
+const cellAt = (x, z) => PLAN[Math.floor(z / C + 7.5)]?.[Math.floor(x / C + 8.5)] ?? '#';
+// 階段 k は k 階と k+1 階をつなぐ。x0 が下の端、x1 が上の端
+const STAIRS = [
+  { z: cz(6), x0: cx(6) - C / 2, x1: cx(10) + C / 2 },
+  { z: cz(8), x0: cx(10) + C / 2, x1: cx(6) - C / 2 },
+];
+const stairOf = ch => 'AB'.indexOf(ch);
+console.assert(PLAN.length === ROWS && PLAN.every(r => r.length === COLS), '間取りの大きさが不正');
+
+// 展示データはギャラリーページ（index.html の loadGallery）が localStorage に保存したものを使う
+const httpUrl = v => { try { const u = new URL(v); return /^https?:$/.test(u.protocol) ? u.href : ''; } catch (_) { return ''; } };
+let items = [];
+try { items = JSON.parse(localStorage.getItem('gallery_museum_items') || '[]'); } catch (_) {}
+items = (Array.isArray(items) ? items : [])
+  .map(i => ({ title: String(i?.title || ''), thumb: httpUrl(i?.thumb), full: httpUrl(i?.full) }))
+  .filter(i => i.thumb);
+// ?preview=1 では本番の画像に触れず、同梱のサンプルを飾る（ギャラリー本体のプレビューと同じ考え方）
+if (new URLSearchParams(location.search).get('preview') === '1') {
+  items = Array.from({ length: 24 }, (_, i) => {
+    const url = new URL(`frames/f_${String(1 + i * 5).padStart(3, '0')}.jpg`, location.href).href;
+    return { title: `表示確認用サンプル ${i + 1}`, thumb: url, full: url };
+  });
+}
+
+if (!items.length) {
+  fail('展示する作品がまだ読み込まれていません。先にギャラリーを開いてから、もう一度お入りください。');
+} else {
+  try { start(); } catch (e) { console.error(e); fail('この端末では3D表示を開始できませんでした。'); }
+}
+
+function start() {
+  const renderer = new THREE.WebGLRenderer({ canvas: $('c'), antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0e0806);
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 120);
+  const resize = () => { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); };
+  addEventListener('resize', resize); resize();
+
+  // 全体は暗めにして、絵ごとのスポットライト（壁の光だまり）を目立たせる
+  scene.add(new THREE.HemisphereLight(0xfff1dc, 0x6a5a50, 1.9));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.7); sun.position.set(3, 8, 5); scene.add(sun);
+
+  const std = (color, roughness = 0.9) => new THREE.MeshStandardMaterial({ color, roughness });
+  const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S = new THREE.Vector3(), E = new THREE.Euler();
+  // たくさん並ぶ同じ形はまとめて描く（list: [{x,y,z, ry?, sy?}]）
+  const instanced = (geo, material, list, parent = scene) => {
+    const m = new THREE.InstancedMesh(geo, material, list.length);
+    list.forEach((o, i) => {
+      m.setMatrixAt(i, M4.compose(V.set(o.x, o.y, o.z), Q.setFromEuler(E.set(0, o.ry || 0, 0)), S.set(1, o.sy || 1, 1)));
+      if (o.color) m.setColorAt(i, o.color);
+    });
+    parent.add(m); return m;
+  };
+  // 模様は画像ファイルを使わず、その場で描く
+  const paint = (w, h, draw) => {
+    const cvs = document.createElement('canvas'); cvs.width = w; cvs.height = h;
+    draw(cvs.getContext('2d'), w, h);
+    const tex = new THREE.CanvasTexture(cvs); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; return tex;
+  };
+  const veins = (g, x, y, w, h, color, n) => {                        // 大理石の筋
+    g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.strokeStyle = color; g.lineWidth = 1;
+    for (let i = 0; i < n; i++) {
+      let px = x + Math.random() * w, py = y + Math.random() * h;
+      g.beginPath(); g.moveTo(px, py);
+      for (let j = 0; j < 6; j++) { px += (Math.random() - 0.3) * 40; py += (Math.random() - 0.5) * 30; g.lineTo(px, py); }
+      g.stroke();
+    }
+    g.restore();
+  };
+  const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+  const eachCell = fn => { for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) fn(PLAN[r][c], c, r); };
+
+  // ── 建物 ──
+  // 壁：通れるマスに接している壁マスだけ箱を置く。-1 階は床の映り込み用（下の階が鏡の中の世界になる）
+  const wallCells = [];
+  eachCell((ch, c, r) => {
+    if (ch !== '#') return;
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+      if ((PLAN[r + dr]?.[c + dc] ?? '#') !== '#') { wallCells.push({ c, r }); return; }
+    }
+  });
+  const walls = [];
+  for (let f = -1; f < LEVELS; f++) wallCells.forEach(w => walls.push({ x: cx(w.c), y: f * H + H / 2, z: cz(w.r) }));
+  instanced(new THREE.BoxGeometry(C, H, C), std(0xe9e0d2), walls);
+
+  // 床：磨いた石。少し透けさせて、下に置いた「逆さまの絵」を映り込みに見せる。階段の吹き抜けは開ける
+  const floorGeo = new THREE.PlaneGeometry(C, C).rotateX(-Math.PI / 2);
+  const ceilGeo = new THREE.PlaneGeometry(C, C).rotateX(Math.PI / 2);
+  // 部屋の番号（0〜8、4 が中央ホール）。柄は部屋と階から決め、隣り合う部屋で同じ柄にならないようにする
+  const roomOf = (c, r) => (r <= 3 ? 0 : r <= 9 ? 1 : 2) * 3 + (c <= 3 ? 0 : c <= 12 ? 1 : 2);
+  const isHall = ch => ch === '.' || stairOf(ch) >= 0;
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  // 床の柄 4 種：大理石の市松／寄木／斜め格子の大理石／テラゾー
+  const floorMats = [
+    (g) => {
+      for (let i = 0; i < 4; i++) {
+        const x = (i % 2) * 128, y = (i >> 1) * 128, dark = (i % 2) ^ (i >> 1);
+        g.fillStyle = dark ? '#34302c' : '#cfc4b2'; g.fillRect(x, y, 128, 128);
+        veins(g, x, y, 128, 128, dark ? 'rgba(255,255,255,0.16)' : 'rgba(90,70,50,0.22)', 5);
+      }
+      g.strokeStyle = '#b8964a'; g.lineWidth = 3; g.strokeRect(0, 0, 256, 256); g.strokeRect(0, 0, 128, 128); g.strokeRect(128, 128, 128, 128);
+    },
+    (g) => {                                                          // 寄木（細い板を縦横交互に組む）
+      for (let i = 0; i < 16; i++) for (let k = 0; k < 4; k++) {
+        const x = (i % 4) * 64, y = (i >> 2) * 64, across = ((i % 4) + (i >> 2)) % 2;
+        g.fillStyle = pick(['#8f6238', '#7d5430', '#9c6e42', '#86592f', '#a37848']);
+        g.fillRect(across ? x : x + k * 16, across ? y + k * 16 : y, across ? 64 : 16, across ? 16 : 64);
+        g.strokeStyle = 'rgba(40,22,10,0.55)'; g.lineWidth = 1;
+        g.strokeRect(across ? x : x + k * 16, across ? y + k * 16 : y, across ? 64 : 16, across ? 16 : 64);
+      }
+    },
+    (g) => {                                                          // 生成りの大理石に真鍮の斜め格子、交点に墨色の菱
+      g.fillStyle = '#d8cdbb'; g.fillRect(0, 0, 256, 256); veins(g, 0, 0, 256, 256, 'rgba(90,70,50,0.2)', 14);
+      g.strokeStyle = 'rgba(160,125,60,0.75)'; g.lineWidth = 2;
+      for (let d = -256; d <= 512; d += 64) { g.beginPath(); g.moveTo(d, 0); g.lineTo(d + 256, 256); g.moveTo(d, 0); g.lineTo(d - 256, 256); g.stroke(); }
+      g.fillStyle = '#2f2b28';
+      for (let y = 0; y <= 256; y += 32) for (let x = (y / 32) % 2 ? 32 : 0; x <= 256; x += 64) {
+        g.beginPath(); g.moveTo(x, y - 9); g.lineTo(x + 9, y); g.lineTo(x, y + 9); g.lineTo(x - 9, y); g.fill();
+      }
+    },
+    (g) => {                                                          // テラゾー（色石のかけらを散らした研ぎ出し）
+      g.fillStyle = '#bdb4a6'; g.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 380; i++) {
+        g.fillStyle = pick(['#7d2e35', '#2f4f4a', '#efe6d6', '#34425e', '#c9a44a', '#3a3632', '#efe6d6']);
+        g.beginPath(); g.ellipse(Math.random() * 256, Math.random() * 256, 2 + Math.random() * 6, 1.5 + Math.random() * 4, Math.random() * 3, 0, 7); g.fill();
+      }
+      g.strokeStyle = '#b8964a'; g.lineWidth = 3; g.strokeRect(0, 0, 256, 256);
+    },
+  ].map(draw => new THREE.MeshStandardMaterial({ roughness: 0.25, transparent: true, opacity: 0.82, map: paint(256, 256, draw) }));
+  const floorMat = floorMats[0];
+  // 天井は格天井。展示室は生成りに金の縁、ホールは群青に金の星
+  const coffer = (bg, inner, line, stars) => new THREE.MeshStandardMaterial({ roughness: 0.9, map: paint(256, 256, (g) => {
+    g.fillStyle = bg; g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 4; i++) {
+      const x = (i % 2) * 128 + 14, y = (i >> 1) * 128 + 14;
+      const gr = g.createLinearGradient(x, y, x + 100, y + 100); gr.addColorStop(0, inner[0]); gr.addColorStop(1, inner[1]);
+      g.fillStyle = gr; g.fillRect(x, y, 100, 100);
+      g.strokeStyle = line; g.lineWidth = 3; g.strokeRect(x, y, 100, 100); g.lineWidth = 1; g.strokeRect(x + 9, y + 9, 82, 82);
+      g.fillStyle = line;
+      if (stars) for (let s = 0; s < 7; s++) { g.beginPath(); g.arc(x + 14 + Math.random() * 72, y + 14 + Math.random() * 72, 0.8 + Math.random() * 1.6, 0, 7); g.fill(); }
+      else { g.beginPath(); g.arc(x + 50, y + 50, 7, 0, 7); g.fill(); }
+    }
+  }) });
+  const ceilMat = coffer('#efe8da', ['#d6ccba', '#e6ddcc'], '#c2a45a', false);
+  const ceilMats = [ceilMat, coffer('#3a2a1e', ['#4a3626', '#5c4532'], '#c9a44a', false), coffer('#dfe6e8', ['#c3d0d6', '#d6e0e4'], '#ffffff', false)];   // 生成り／胡桃色の木／淡い青灰
+  const hallCeilMat = coffer('#141c36', ['#1b2750', '#27376e'], '#e2c46a', true);
+  for (let f = 0; f < LEVELS; f++) {
+    const fl = floorMats.map(() => []), ce = ceilMats.map(() => []), ceHall = [];
+    eachCell((ch, c, r) => {
+      if (ch === '#') return;
+      const k = stairOf(ch), hall = isHall(ch), room = roomOf(c, r);
+      if (k < 0 || f !== k + 1) fl[hall ? 0 : (room + f) % 4].push({ x: cx(c), y: f * H, z: cz(r) });
+      if (k < 0 || f !== k) (hall ? ceHall : ce[(room + 2 * f) % 3]).push({ x: cx(c), y: (f + 1) * H - 0.02, z: cz(r) });
+    });
+    fl.forEach((list, i) => { if (list.length) instanced(floorGeo, floorMats[i], list).renderOrder = f * 10 + 5; });   // 下の階の床から順に描く
+    ce.forEach((list, i) => { if (list.length) instanced(ceilGeo, ceilMats[i], list); });
+    instanced(ceilGeo, hallCeilMat, ceHall);
+  }
+  const under = new THREE.Mesh(new THREE.PlaneGeometry(COLS * C, ROWS * C).rotateX(-Math.PI / 2), ceilMat);
+  under.position.y = -H + 0.02; scene.add(under);                     // 1 階の床に映る「天井」
+
+  // 調度：ホールの赤絨毯、展示室の敷物、鑑賞用ベンチ。床より少し上に置く（敷いた所は映り込まない）
+  const carpet = [], benches = [], cushions = [];
+  // 敷物 3 種：臙脂に金の縁／紺に円い紋／深緑に菱つなぎ
+  const rugMats = [['#4a1420', '#5e1b2a', '#c9a44a', 0], ['#141c36', '#1f2c58', '#e6dcc6', 1], ['#123329', '#1b4a3b', '#c9a44a', 2]].map(([edge, field, line, kind]) =>
+    new THREE.MeshStandardMaterial({ roughness: 1, map: paint(256, 256, (g) => {
+      g.fillStyle = edge; g.fillRect(0, 0, 256, 256);
+      g.strokeStyle = line; g.lineWidth = 6; g.strokeRect(12, 12, 232, 232); g.lineWidth = 2; g.strokeRect(26, 26, 204, 204);
+      g.fillStyle = field; g.fillRect(34, 34, 188, 188);
+      g.save(); g.beginPath(); g.rect(34, 34, 188, 188); g.clip(); g.lineWidth = 2;
+      if (kind === 1) for (const rad of [70, 56, 30, 10]) { g.beginPath(); g.arc(128, 128, rad, 0, 7); g.stroke(); }
+      if (kind === 2) for (let d = -256; d <= 512; d += 32) { g.beginPath(); g.moveTo(d, 0); g.lineTo(d + 256, 256); g.moveTo(d, 0); g.lineTo(d - 256, 256); g.stroke(); }
+      g.restore();
+    }) }));
+  const RUGS = [[2, 2, 4.4, 4.4], [14, 2, 4.4, 4.4], [2, 12, 4.4, 4.4], [14, 12, 4.4, 4.4],   // [列, 行, 幅, 奥行]
+                [2, 7, 4.4, 8], [14, 7, 4.4, 8], [8, 2, 13, 4.4], [8, 12, 13, 4.4]];
+  for (let f = 0; f < LEVELS; f++) {
+    eachCell((ch, c, r) => {
+      const k = stairOf(ch);
+      if (ch === '.' || (k >= 0 && f !== k && f !== k + 1)) carpet.push({ x: cx(c), y: f * H + 0.012, z: cz(r) });
+      if (ch === 'b') { benches.push({ x: cx(c), y: f * H + 0.2, z: cz(r) }); cushions.push({ x: cx(c), y: f * H + 0.44, z: cz(r) }); }
+    });
+    for (const [c, r, w, d] of RUGS) {
+      const rug = new THREE.Mesh(floorGeo, rugMats[(roomOf(c, r) + f) % 3]);
+      rug.position.set(cx(c), f * H + 0.012, cz(r)); rug.scale.set(w / C, 1, d / C); scene.add(rug);
+    }
+  }
+  instanced(floorGeo, std(0x7a1624, 1), carpet);
+  instanced(new THREE.BoxGeometry(1.8, 0.4, 0.6), std(0x2e2018, 0.6), benches);
+  instanced(new THREE.BoxGeometry(1.7, 0.08, 0.52), std(0x6e1a28, 0.9), cushions);
+
+  // 階段：段々と手すり
+  // 白い大理石の段に赤い絨毯、ガラスの柵に真鍮の手すり
+  const STEPS = 25;
+  const glass = new THREE.MeshStandardMaterial({ color: 0xbfdde6, roughness: 0.1, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xc9a44a, roughness: 0.35, metalness: 0.5 });
+  const box = (material, w, h, d, x, y, z, rz = 0) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+    m.position.set(x, y, z); m.rotation.z = rz; m.renderOrder = 60; scene.add(m);
+  };
+  const fence = (w, d, x, y, z, rz) => {                              // y は柵の下端。ガラス板の上に真鍮の手すりを載せる
+    box(glass, w, 0.9, d, x, y + 0.45, z, rz);
+    box(brass, w, 0.07, d + 0.04, x, y + 0.93, z, rz);
+  };
+  STAIRS.forEach((s, k) => {
+    const len = Math.abs(s.x1 - s.x0), dir = Math.sign(s.x1 - s.x0), xm = (s.x0 + s.x1) / 2, steps = [], runner = [];
+    for (let i = 0; i < STEPS; i++) {
+      const o = { x: s.x0 + dir * (i + 0.5) * len / STEPS, y: k * H + (i + 1) * H / STEPS - 0.35, z: s.z };
+      steps.push(o); runner.push({ ...o, y: o.y + 0.012 });
+    }
+    instanced(new THREE.BoxGeometry(len / STEPS, 0.7, C - 0.16), std(0xe6dfd2, 0.4), steps);
+    instanced(new THREE.BoxGeometry(len / STEPS + 0.01, 0.7, 1.3), std(0x7a1624, 1), runner);
+    for (const side of [-1, 1]) {
+      const z = s.z + side * (C / 2 - 0.04);
+      fence(Math.hypot(len, H), 0.04, xm, k * H + H / 2, z, dir * Math.atan2(H, len));          // 斜めの柵
+      fence(len, 0.04, xm, (k + 1) * H, z, 0);                                                    // 上の階の吹き抜けの柵
+    }
+    fence(0.04, C, s.x0, (k + 1) * H, s.z, 0);
+  });
+
+  // ── 絵 ──
+  // 展示室の壁面を「絵を掛けられる場所」として数え、各階に均等に並べる
+  const slots = [];
+  eachCell((ch, c, r) => {
+    if (ch !== 'g') return;
+    for (const [dc, dr] of DIRS) {
+      if (PLAN[r + dr][c + dc] === '#') slots.push({ x: cx(c) + dc * (C / 2 - 0.03), z: cz(r) + dr * (C / 2 - 0.03), ry: Math.atan2(-dc, -dr) });
+    }
+  });
+  // shortcut: 壁面の数（3 階ぶん）を超える作品は飾らない。超えたら間取りを広げるか階を増やす
+  items = items.slice(0, slots.length * LEVELS);
+  const perLevel = Math.ceil(items.length / LEVELS);
+  console.assert(perLevel <= slots.length, '壁面が足りない');
+
+  const frameGeo = new THREE.BoxGeometry(1.46, 1.46, 0.06), picGeo = new THREE.PlaneGeometry(1.3, 1.3);
+  const gold = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.35, metalness: 0.8 });
+  // スポットライトの光だまり（上が明るい、にじんだ楕円）
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+  const g2 = cv.getContext('2d'), grad = g2.createRadialGradient(64, 46, 2, 64, 46, 62);
+  grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.55, 'rgba(255,255,255,0.45)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g2.fillStyle = grad; g2.fillRect(0, 0, 128, 128);
+  const washGeo = new THREE.PlaneGeometry(2.7, 3.7);
+  const washMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), color: 0xffdca8, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const lampGeo = new THREE.CylinderGeometry(0.07, 0.09, 0.3, 8), lampMat = std(0x1c1c1c, 0.5);
+
+  // 壁の化粧板：上に廻り縁、下に腰壁と巾木。白っぽく描いておき、部屋ごとの色を掛け合わせる
+  // 壁の柄 4 種：無地の漆喰／地紋（同系色の花菱）／縦縞／額縁飾り
+  const WALL_ART = [
+    () => {},
+    (g) => {
+      g.fillStyle = 'rgba(0,0,0,0.13)';
+      for (let row = 0; row < 7; row++) for (let x = row % 2 ? 32 : 0; x <= 256; x += 64) {
+        const y = 60 + row * 52;
+        for (let a = 0; a < 4; a++) { g.beginPath(); g.ellipse(x + Math.cos(a * Math.PI / 2) * 10, y + Math.sin(a * Math.PI / 2) * 10, 9, 4.5, a * Math.PI / 2, 0, 7); g.fill(); }
+        g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill();
+      }
+    },
+    (g) => { g.fillStyle = 'rgba(0,0,0,0.11)'; for (let x = 0; x < 256; x += 64) g.fillRect(x, 26, 32, 368); },
+    (g) => {
+      g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = 3; g.strokeRect(20, 52, 216, 316);
+      g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 1; g.strokeRect(25, 57, 206, 306);
+    },
+  ];
+  const panelTexs = WALL_ART.map(art => paint(256, 512, (g) => {
+    g.fillStyle = '#f4f0e8'; g.fillRect(0, 0, 256, 512);
+    for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * 0.05})`; g.fillRect(Math.random() * 256, Math.random() * 512, 2, 2); }   // 漆喰のむら
+    art(g);
+    g.fillStyle = '#fffaf0'; g.fillRect(0, 0, 256, 22); g.fillStyle = '#d9bf7a'; g.fillRect(0, 22, 256, 4);          // 廻り縁
+    g.fillStyle = '#c9c2b6'; g.fillRect(0, 398, 256, 114);                                                           // 腰壁
+    g.fillStyle = '#d9bf7a'; g.fillRect(0, 394, 256, 5);
+    g.strokeStyle = 'rgba(0,0,0,0.28)'; g.lineWidth = 3; g.strokeRect(22, 416, 212, 64);
+    g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth = 1; g.strokeRect(27, 421, 202, 54);
+    g.fillStyle = '#8f887c'; g.fillRect(0, 492, 256, 20);                                                            // 巾木
+  }));
+  const panelGeo = new THREE.PlaneGeometry(C, H);
+  const panelMats = panelTexs.map(map => new THREE.MeshStandardMaterial({ map, roughness: 0.95 }));
+  const panelMirMats = panelTexs.map(map => new THREE.MeshStandardMaterial({ map, roughness: 0.95, side: THREE.DoubleSide }));   // 逆さに置くと裏返るので両面
+  // 展示室ごとに壁の色を変える（実在の美術館でよく使われる、深く落ち着いた色）。階が変わると色もずれる
+  const ROOM_COLORS = ['#7d2e35', '#2f4f4a', '#34425e', '#5b6b4a', '#8a6a3a', '#5a3d5c', '#2f5a3e', '#4a5f78'].map(h => new THREE.Color(h));
+  const HALL_COLOR = new THREE.Color('#efe6d4');
+
+  const levels = [], mirrors = [], arts = [];           // 階ごとの絵のまとまり／床に映す逆さまのまとまり
+  for (let f = 0; f < LEVELS; f++) {
+    const L = new THREE.Group(), Mi = new THREE.Group();
+    L.visible = Mi.visible = false; scene.add(L, Mi); levels.push(L); mirrors.push(Mi);
+    const pan = panelMats.map(() => []), panM = panelMats.map(() => []), panHall = [];
+    eachCell((ch, c, r) => {
+      if (ch === '#') return;
+      const hall = isHall(ch), room = roomOf(c, r), art = (room * 3 + f) % 4;
+      const color = hall ? HALL_COLOR : ROOM_COLORS[(room + f * 3) % ROOM_COLORS.length];
+      for (const [dc, dr] of DIRS) {
+        if (PLAN[r + dr][c + dc] !== '#') continue;
+        const o = { x: cx(c) + dc * (C / 2 - 0.006), z: cz(r) + dr * (C / 2 - 0.006), ry: Math.atan2(-dc, -dr), color };
+        if (hall) panHall.push({ ...o, y: f * H + H / 2 });                          // ホールは絨毯で映り込まないので常に出す
+        else { pan[art].push({ ...o, y: f * H + H / 2 }); panM[art].push({ ...o, y: f * H - H / 2, sy: -1 }); }
+      }
+    });
+    instanced(panelGeo, panelMats[3], panHall);                                      // ホールは額縁飾りの壁
+    pan.forEach((list, i) => { if (list.length) { instanced(panelGeo, panelMats[i], list, L); instanced(panelGeo, panelMirMats[i], panM[i], Mi); } });
+    const mine = items.slice(f * perLevel, (f + 1) * perLevel), wash = [], washM = [], lamps = [];
+    L.userData.load = [];
+    mine.forEach((item, i) => {
+      const s = slots[Math.floor(i * slots.length / mine.length)], y = f * H + 1.5;    // 絵の中心は床から 1.5m（美術館の標準的な高さ）
+      // 絵の大きさは作品ごとに 4 段階（URL から決めるので、同じ作品はいつも同じ大きさ）
+      let hash = 0; for (const chr of item.thumb) hash = (hash * 31 + chr.charCodeAt(0)) >>> 0;
+      const size = [0.7, 0.9, 1.1, 1.35][hash % 4];
+      const g = new THREE.Group(); g.position.set(s.x, y, s.z); g.rotation.y = s.ry; g.scale.set(size, size, 1);
+      g.add(new THREE.Mesh(frameGeo, gold));
+      const pic = new THREE.Mesh(picGeo, new THREE.MeshBasicMaterial({ color: 0x2a1a1a }));
+      pic.position.z = 0.035; g.add(pic); L.add(g);
+      const mir = new THREE.Mesh(picGeo, pic.material);                              // 床の下の逆さまの絵
+      mir.position.set(s.x + Math.sin(s.ry) * 0.035, 2 * f * H - y, s.z + Math.cos(s.ry) * 0.035); mir.rotation.y = s.ry; mir.scale.set(size, -size, 1); Mi.add(mir);
+      const nx = Math.sin(s.ry), nz = Math.cos(s.ry);
+      wash.push({ x: s.x + nx * 0.012, y: f * H + 2.35, z: s.z + nz * 0.012, ry: s.ry });
+      washM.push({ x: s.x + nx * 0.012, y: f * H - 2.35, z: s.z + nz * 0.012, ry: s.ry, sy: -1 });
+      lamps.push({ x: s.x + nx * 1.1, y: (f + 1) * H - 0.17, z: s.z + nz * 1.1 });
+      arts.push({ item, pos: g.position, lvl: f });
+      // 読み込みは checked-image.js に任せる（同時 5 枚まで・代わりの青い画像なら取り直し）。その階に初めて入ったときに始める
+      // shortcut: 最後まで読めなかった絵は暗い額のまま／一度読んだ階の画像は持ち続ける。重ければ離れた階の画像を捨てる
+      L.userData.load.push(() => {
+        const im = new Image(); im.crossOrigin = 'anonymous';                       // i.ibb.co は CORS 許可済み
+        loadCheckedImage(im, item.thumb, thumbSide(item.thumb), () => {
+          const tex = new THREE.Texture(im); tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
+          pic.material.map = tex; pic.material.color.set(0xffffff); pic.material.needsUpdate = true;
+          // 縦横比に合わせる。横幅が壁 1 面（2.5m）に収まるよう、広すぎる絵は全体を縮める
+          const aspect = Math.min(1.5, Math.max(0.6, im.naturalWidth / im.naturalHeight));
+          const fit = Math.min(size, 2.1 / (1.46 * aspect));
+          g.scale.set(fit * aspect, fit, 1); mir.scale.set(fit * aspect, -fit, 1);
+        }, () => {});
+      });
+    });
+    instanced(washGeo, washMat, wash, L).renderOrder = f * 10 + 7;
+    instanced(washGeo, washMat, washM, Mi).renderOrder = f * 10 + 2;                 // 床より先に描いて、床越しに見せる
+    instanced(lampGeo, lampMat, lamps, L);
+  }
+
+  // ── 白くて丸いキャラ（ローカル +z が前）。床に映す用にもう 1 体作る ──
+  const white = std(0xffffff, 0.55);
+  function makeFigure() {
+    // 大きな丸い頭・ぽってりした胴・細い手足に丸い手先足先、の 3 頭身。b は歩くときに弾ませる中身
+    const g = new THREE.Group(), b = new THREE.Group(); g.add(b);
+    const part = (geo, y) => { const o = new THREE.Mesh(geo, white); o.position.y = y; b.add(o); return o; };
+    part(new THREE.CapsuleGeometry(0.24, 0.16, 8, 20), 0.66);                         // 胴
+    const head = part(new THREE.SphereGeometry(0.31, 32, 24), 1.2);                   // 頭
+    const limb = (x, y, len, rad, lean) => {                                          // 付け根を軸に振れる手足。根元から先まで同じ太さで、先は丸い
+      const pivot = new THREE.Group(); pivot.position.set(x, y, 0); pivot.rotation.z = lean;
+      const o = new THREE.Mesh(new THREE.CapsuleGeometry(rad, len, 8, 16), white); o.position.y = -(len / 2 + rad);
+      pivot.add(o); b.add(pivot); return pivot;
+    };
+    const arms = [limb(-0.28, 0.88, 0.28, 0.078, -0.3), limb(0.28, 0.88, 0.28, 0.078, 0.3)];
+    const legs = [limb(-0.12, 0.44, 0.22, 0.1, 0), limb(0.12, 0.44, 0.22, 0.1, 0)];
+    scene.add(g);
+    return { g, b, head, arms, legs };
+  }
+  const hero = makeFigure(), ghost = makeFigure();
+  ghost.g.scale.y = -1;
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.42, 24), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0.35, depthWrite: false }));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.02; shadow.renderOrder = 100; hero.g.add(shadow);
+  const p = hero.g.position;
+  p.set(cx(10), 0, cz(7)); hero.g.rotation.y = -Math.PI / 2;                         // 1 階ホールの東側から、2 本の階段の間を西向きに始める
+  let lvl = 0, ramp = null;                                                           // 今いる階／乗っている階段（なければ null）
+
+  // そこに立てるか（壁と、階段の横・裏からの進入を止める。階段は端から正面でだけ入れる）
+  function free(x, z) {
+    for (const dx of [-R, R]) for (const dz of [-R, R]) {
+      const ch = cellAt(x + dx, z + dz);
+      if (ch === '#') return false;
+      if (ch === 'b' && Math.abs(x + dx - cx(Math.floor((x + dx) / C + 8.5))) < 0.95 && Math.abs(z + dz - cz(Math.floor((z + dz) / C + 7.5))) < 0.35) return false;   // ベンチ
+      const k = stairOf(ch);
+      if (k >= 0 && (lvl === k || lvl === k + 1)) {
+        const s = STAIRS[k], t = (x + dx - s.x0) / (s.x1 - s.x0);
+        if (Math.abs(z - s.z) > C / 2 - R || (lvl === k ? t > 0.5 : t < 0.5)) return false;
+      }
+    }
+    return true;
+  }
+
+  // ── 入力 ──
+  const keys = {}, stickV = { x: 0, y: 0 };
+  let yaw = Math.PI / 2, near = null;
+  addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Escape') closeViewer(); if (e.code === 'Enter' || e.code === 'Space') openViewer(); });
+  addEventListener('keyup', e => { keys[e.code] = false; });
+  addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+  const canvas = $('c');
+  let dragId = null, lastX = 0;
+  canvas.addEventListener('pointerdown', e => { dragId = e.pointerId; lastX = e.clientX; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', e => { if (e.pointerId === dragId) { yaw -= (e.clientX - lastX) * 0.006; lastX = e.clientX; } });
+  const endDrag = e => { if (e.pointerId === dragId) dragId = null; };
+  canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
+
+  const stick = $('stick'), knob = $('knob');
+  const setStick = e => {
+    const r = stick.getBoundingClientRect();
+    let x = (e.clientX - r.left - 60) / 45, y = (e.clientY - r.top - 60) / 45;
+    const len = Math.hypot(x, y); if (len > 1) { x /= len; y /= len; }
+    stickV.x = x; stickV.y = -y; knob.style.transform = `translate(${x * 35}px, ${y * 35}px)`;
+  };
+  const endStick = () => { stickV.x = stickV.y = 0; knob.style.transform = ''; };
+  stick.addEventListener('pointerdown', e => { stick.setPointerCapture(e.pointerId); setStick(e); });
+  stick.addEventListener('pointermove', e => { if (stick.hasPointerCapture(e.pointerId)) setStick(e); });
+  stick.addEventListener('pointerup', endStick); stick.addEventListener('pointercancel', endStick);
+
+  // ── 拡大表示 ──
+  const viewer = $('viewer');
+  function openViewer() {
+    if (!near || viewer.style.display === 'flex') return;
+    $('viewImg').src = near.item.full || near.item.thumb;
+    $('viewImg').alt = $('viewTitle').textContent = near.item.title;
+    viewer.style.display = 'flex';
+  }
+  function closeViewer() { viewer.style.display = 'none'; }
+  $('capBtn').addEventListener('click', openViewer);
+  viewer.addEventListener('click', closeViewer);
+
+  // ── 右上のマップ（今いる階の間取りと現在地。北が上） ──
+  const mc = $('map').getContext('2d'), U = 20;
+  function drawMap(level) {
+    mc.clearRect(0, 0, 340, 300);
+    eachCell((ch, c, r) => {
+      const k = stairOf(ch), isStair = k >= 0 && (level === k || level === k + 1);
+      mc.fillStyle = ch === '#' ? '#2a1418' : isStair ? '#c41e3a' : ch === '.' || k >= 0 ? '#b9a57c' : '#e9dcc0';
+      mc.fillRect(c * U, r * U, U, U);
+      if (ch === 'b') { mc.fillStyle = '#6b4a36'; mc.fillRect(c * U + 2, r * U + 7, U - 4, 6); }   // ベンチ
+    });
+    const px = (p.x / C + 8.5) * U, pz = (p.z / C + 7.5) * U, a = hero.g.rotation.y;
+    mc.fillStyle = '#1e6bff'; mc.strokeStyle = '#fff'; mc.lineWidth = 3;
+    mc.beginPath(); mc.moveTo(px + Math.sin(a) * 20, pz + Math.cos(a) * 20);          // 向きが分かる三角
+    mc.lineTo(px + Math.sin(a + 2.5) * 15, pz + Math.cos(a + 2.5) * 15);
+    mc.lineTo(px + Math.sin(a - 2.5) * 15, pz + Math.cos(a - 2.5) * 15);
+    mc.closePath(); mc.stroke(); mc.fill();
+    mc.fillStyle = '#FFE566'; mc.font = 'bold 26px sans-serif'; mc.fillText(`${level + 1}F`, 8, 28);
+  }
+
+  // ── メインループ ──
+  const clock = new THREE.Clock(), clamp = THREE.MathUtils.clamp;
+  let walkT = 0;
+  renderer.setAnimationLoop(() => {
+    const dt = Math.min(clock.getDelta(), 0.05);
+    if (window.WOS_PANEL_ACTIVE === false) return;                                   // ポータルで他のメニューを見ている間は描画を止める
+    let ix = stickV.x + (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+    let iy = stickV.y + (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+    const len = Math.hypot(ix, iy); if (len > 1) { ix /= len; iy /= len; }
+    const moving = len > 0.05 && viewer.style.display !== 'flex';
+    if (moving) {
+      // カメラの向きを基準に前後左右へ動く
+      const vx = -Math.sin(yaw) * iy + Math.cos(yaw) * ix, vz = -Math.cos(yaw) * iy - Math.sin(yaw) * ix;
+      const mx = vx * 4 * dt, mz = vz * 4 * dt;
+      if (ramp === null) {
+        if (free(p.x + mx, p.z)) p.x += mx;                                           // 壁に当たったら壁沿いに滑る
+        if (free(p.x, p.z + mz)) p.z += mz;
+        const k = stairOf(cellAt(p.x, p.z));
+        if (k >= 0 && (lvl === k || lvl === k + 1)) ramp = k;
+      } else {
+        const s = STAIRS[ramp];
+        p.x += mx; p.z = clamp(p.z + mz, s.z - (C / 2 - R), s.z + (C / 2 - R));
+        const t = (p.x - s.x0) / (s.x1 - s.x0);
+        if (t <= 0) { lvl = ramp; ramp = null; } else if (t >= 1) { lvl = ramp + 1; ramp = null; }
+        p.y = (ramp === null ? lvl : ramp + t) * H;
+      }
+      let d = Math.atan2(vx, vz) - hero.g.rotation.y;                                // 進行方向へ最短で振り向く
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      hero.g.rotation.y += d * Math.min(1, dt * 12);
+      walkT += dt * 11 * Math.min(1, len);
+    }
+    const swing = moving ? Math.sin(walkT) : 0;
+    const breathe = Math.sin(clock.elapsedTime * 2.2);                              // 立っている間もゆっくり呼吸する
+    for (const fig of [hero, ghost]) {
+      fig.arms[0].rotation.x = swing * 1.1; fig.arms[1].rotation.x = -swing * 1.1;  // 腕は大きくぱたぱた振る
+      fig.legs[0].rotation.x = -swing * 0.9; fig.legs[1].rotation.x = swing * 0.9;
+      fig.b.position.y = moving ? Math.abs(swing) * 0.07 : breathe * 0.012;         // ぴょこぴょこ弾む
+      fig.b.rotation.z = swing * 0.07;                                              // 体を左右に揺らす
+      fig.head.position.y = 1.2 + (moving ? Math.abs(Math.cos(walkT)) * 0.03 : breathe * 0.01);
+    }
+
+    // 見せる階の切り替え。床の映り込み（逆さまの絵とキャラ）は、その階の床に立っている間だけ出す
+    const onFloor = ramp === null;
+    for (let f = 0; f < LEVELS; f++) {
+      const L = levels[f];
+      L.visible = Math.abs(f - p.y / H) < 1;
+      if (L.visible && L.userData.load) { L.userData.load.forEach(fn => fn()); L.userData.load = null; }
+      mirrors[f].visible = onFloor && lvl === f;
+    }
+    ghost.g.visible = onFloor;
+    ghost.g.position.set(p.x, lvl * H, p.z); ghost.g.rotation.y = hero.g.rotation.y;
+
+    // 三人称カメラ（壁にめり込まないよう、壁の手前で止める）
+    const sx = Math.sin(yaw), sz = Math.cos(yaw);
+    let dist = 0;
+    while (dist < 4.6 && cellAt(p.x + sx * (dist + 0.5), p.z + sz * (dist + 0.5)) !== '#') dist += 0.2;
+    camera.position.set(p.x + sx * dist, p.y + 1.9, p.z + sz * dist);
+    camera.lookAt(p.x, p.y + 1.2, p.z);
+
+    // いちばん近い絵の題名を出す
+    let best = null, bestD = 2.8;
+    if (onFloor) for (const a of arts) {
+      if (a.lvl !== lvl) continue;
+      const dd = Math.hypot(a.pos.x - p.x, a.pos.z - p.z); if (dd < bestD) { bestD = dd; best = a; }
+    }
+    if (best !== near) {
+      near = best;
+      $('caption').style.display = near ? 'flex' : 'none';
+      if (near) $('capTitle').textContent = near.item.title || '無題';
+    }
+    drawMap(Math.round(p.y / H));
+    renderer.render(scene, camera);
+  });
+
+  window.__museum = { get lvl() { return lvl; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, p, free };   // 動作確認用
+}
+</script>
+</body>
+</html>

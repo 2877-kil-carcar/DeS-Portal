@@ -419,6 +419,11 @@
   .gallery-item:hover img {
     transform: scale(1.04);
   }
+  .img-reload {
+    position: absolute; inset: 0; z-index: 3;
+    background: none; border: none; cursor: pointer;
+    color: rgba(212,175,55,0.85); font: inherit; font-size: 12px;
+  }
   .gallery-label {
     position: absolute;
     bottom: 0; left: 0; right: 0;
@@ -1818,6 +1823,7 @@ window.WOS_PANEL_ACTIVE = true;
       <h1 data-blur-text>もふもふの<span>殿堂</span></h1>
       <p class="hero-sub" data-blur-text data-blur-delay="0.9" data-blur-step="0.028">世界一かわいいもふもふたちを<br>厳選収蔵した、至高のギャラリーへようこそ🖼️</p>
       <span class="magnet"><a href="#gallery" class="hero-cta star-border">コレクションを見る →</a></span>
+      <span class="magnet" style="margin-top:16px"><a href="museum.html?v=3.84" class="hero-cta star-border">🏛 美術館に入る</a></span>
     </div>
 
     <div class="scroll-hint">SCROLL</div>
@@ -1931,6 +1937,7 @@ window.WOS_PANEL_ACTIVE = true;
 <!-- React Bits: Click Spark（クリック火花） -->
 <canvas id="sparkCanvas" aria-hidden="true"></canvas>
 
+<script src="checked-image.js?v=3.84"></script>
 <script>
 /* ============================================================
    もふもふの殿堂 — ギャラリー設定
@@ -2267,7 +2274,8 @@ async function loadGallery() {
     images = snap.docs.map(d => ({ ...d.data(), id: d.id })).filter(img => safeImageUrl(img.url));
     // ババ抜きのカード絵柄用にURLをlocalStorageへ保存
     const urls = images.map(img => img.thumbUrl || img.url).filter(Boolean);
-    try { localStorage.setItem('gallery_image_urls', JSON.stringify(urls)); } catch (_) { /* Private browsing/quota must not break rendering. */ }
+    // 美術館（museum.html）の展示用に題名つきの一覧も保存
+    try { localStorage.setItem('gallery_image_urls', JSON.stringify(urls)); localStorage.setItem('gallery_museum_items', JSON.stringify(images.map(img => ({ title: img.title || '', thumb: img.thumbUrl || img.url, full: img.mediumUrl || img.url })))); } catch (_) { /* Private browsing/quota must not break rendering. */ }
   } catch (err) {
     console.error("Firestore読み込みエラー:", err);
     const notice = document.createElement('p'); notice.textContent = 'ギャラリーを読み込めませんでした。通信状態を確認し、再読み込みしてください。'; notice.setAttribute('role','alert'); galleryGrid.before(notice);
@@ -2286,13 +2294,24 @@ function safeImageUrl(value) {
   if (typeof value !== 'string') return '';
   try { const u = new URL(value, location.href); return ['https:','http:'].includes(u.protocol) || (window.WOS_PREVIEW && value.startsWith('frames/')) ? u.href : ''; } catch (_) { return ''; }
 }
-function makeGalleryImage(img, lazy = true) {
+function makeGalleryImage(img) {
   const image = document.createElement('img');
-  image.src = safeImageUrl(img.thumbUrl) || safeImageUrl(img.url);
   image.alt = String(img.title || 'もふもふギャラリーの作品');
-  image.loading = lazy ? 'lazy' : 'eager'; image.decoding = 'async';
-  image.addEventListener('error', () => { image.alt = '画像を読み込めませんでした'; });
+  image.decoding = 'async';
+  loadThumb(image, safeImageUrl(img.thumbUrl) || safeImageUrl(img.url));
   return image;
+}
+/* 読み込みは checked-image.js に任せる（同時 5 枚まで・代わりの青い画像なら取り直し）。
+   正しい画像と確認できるまで見せず、最後まで駄目なら「再読み込み」ボタンを出す。 */
+function loadThumb(image, url) {
+  image.style.visibility = 'hidden';
+  loadCheckedImage(image, url, thumbSide(url), () => { image.style.visibility = ''; }, () => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'img-reload'; b.textContent = '↻ 再読み込み';
+    b.addEventListener('keydown', e => e.stopPropagation());   // 額縁の「Enterで拡大」を発火させない
+    b.addEventListener('click', e => { e.stopPropagation(); b.remove(); loadThumb(image, url); });
+    image.after(b);
+  });
 }
 function buildCard(img, i) {
   const card = document.createElement('div');
@@ -2515,6 +2534,9 @@ async function uploadToImgBB(file) {
     mediumBlob ? postToImgBB(mediumBlob, base + '_m.jpg').catch(() => null) : null,
     thumbBlob  ? postToImgBB(thumbBlob,  base + '_t.jpg').catch(() => null) : null,
   ]);
+  // 縮小版の長辺を URL 末尾（#s=数値）に持たせ、読み込み時に「代わりの画像」を見分ける手がかりにする
+  const tSide = Math.max(+thumb?.width, +thumb?.height);
+  if (thumb?.url && tSide > 0) thumb.url += '#s=' + tSide;
   return {
     url:       orig.url,                                                          // 原寸（ダウンロード用）
     mediumUrl: medium?.url || orig.medium?.url || orig.url,                        // ライトボックス用
