@@ -87,7 +87,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=3.91">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=3.92">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
@@ -466,7 +466,9 @@ function start() {
   STAIRS.forEach((s, k) => {
     const len = Math.abs(s.x1 - s.x0), dir = Math.sign(s.x1 - s.x0), xm = (s.x0 + s.x1) / 2, steps = [], runner = [];
     for (let i = 0; i < STEPS; i++) {
-      const o = { x: s.x0 + dir * (i + 0.5) * len / STEPS, y: k * H + (i + 1) * H / STEPS - 0.35, z: s.z };
+      // 段の厚みは 0.7m。ただし下の段は、その階の床より下（＝下の階の天井）へ突き出さない厚みに縮める
+      const top = (i + 1) * H / STEPS, h = Math.min(0.7, top);
+      const o = { x: s.x0 + dir * (i + 0.5) * len / STEPS, y: k * H + top - h / 2, z: s.z, sy: h / 0.7 };
       steps.push(o); runner.push({ ...o, y: o.y + 0.012 });
     }
     instanced(new THREE.BoxGeometry(len / STEPS, 0.7, C - 0.16), std(0xe6dfd2, 0.4), steps);
@@ -889,7 +891,7 @@ function start() {
 
   // ── 動作：ジャンプ・パンチ・つかむ（対戦の第 2 段階）──
   // 相手に効く動作は「合図」を送り、受けた側の端末が自分の体に反映する（押し流される、持ち上げられる、投げられる）
-  const ACT = { NONE: 0, JAB: 1, REACH: 2, HELD: 3, STRAIGHT: 4, HOOK: 5 };            // 他の人へ伝える見た目の動作
+  const ACT = { NONE: 0, JAB: 1, REACH: 2, HELD: 3, STRAIGHT: 4, HOOK: 5, OUCH: 6 };            // 他の人へ伝える見た目の動作
   // パンチは続けて押すと 左ジャブ → 右ストレート → 右フック の順に出る（0.9 秒あくとジャブへ戻る）
   const COMBO = [ACT.JAB, ACT.STRAIGHT, ACT.HOOK], PUNCH_TIME = 0.28, isPunch = a => COMBO.includes(a);
   let combo = 0, comboT = 9, punchKind = ACT.JAB;
@@ -952,27 +954,42 @@ function start() {
   for (const type of ['pointerup', 'pointercancel']) $('actGrab').addEventListener(type, grabEnd);
 
   // 姿勢（自分、床の映り込み、他の人で共通）。act は ACT のどれか、time は動作の揺れに使う時刻、amount はパンチの伸び具合（0〜1）
-  function pose(fig, moving, t, breathe, act = 0, time = 0, amount = 1) {
-    const swing = moving ? Math.sin(t) : 0, [armL, armR] = fig.arms;
-    armL.rotation.x = swing * 1.1; armR.rotation.x = -swing * 1.1;                    // 腕は大きくぱたぱた振る
-    armL.rotation.z = armL.userData.lean; armR.rotation.z = armR.userData.lean;
-    fig.legs[0].rotation.x = -swing * 0.9; fig.legs[1].rotation.x = swing * 0.9;
-    fig.b.position.y = moving ? Math.abs(swing) * 0.07 : breathe * 0.012;             // ぴょこぴょこ弾む
-    fig.b.rotation.set(0, 0, swing * 0.07);                                           // 体を左右に揺らす
-    fig.head.position.y = 1.2 + (moving ? Math.abs(Math.cos(t)) * 0.03 : breathe * 0.01);
-    if (act === ACT.JAB) {                                                            // 左ジャブ：左腕を素早く前へ。右はガード
-      armL.rotation.x = -1.65 * amount; armR.rotation.x = -0.7; fig.b.rotation.y = 0.3 * amount;
-    } else if (act === ACT.STRAIGHT) {                                                // 右ストレート：腰を入れて右腕を伸ばす
-      armR.rotation.x = -1.7 * amount; armL.rotation.x = -0.7; fig.b.rotation.y = -0.45 * amount; fig.b.rotation.x = 0.12 * amount;
-    } else if (act === ACT.HOOK) {                                                    // 右フック：体を大きくひねり、腕を横から振り抜く
-      armR.rotation.x = -1.35 * amount; armR.rotation.z = armR.userData.lean - 1.1 * amount; armL.rotation.x = -0.7; fig.b.rotation.y = -0.75 * amount;
+  /* ゆるい動き：まず「目標の姿勢」を決め、各関節をそこへ「ばね」で寄せる。行き過ぎて揺れ戻るので、ぐにゃぐにゃして見える。
+     腕・脚の角度は負が前。air は足元から浮いている高さ */
+  function pose(fig, dt, moving, t, breathe, act = 0, time = 0, amount = 1, air = 0) {
+    const s = moving ? Math.sin(t) : 0, sway = Math.sin(time * 1.3), a = amount, w = Math.sin(time * 9);
+    // ふだん：腕をだらんと前に垂らし、前のめりで左右によたよた歩く
+    let aL = moving ? -0.3 + s * 0.6 : sway * 0.08, aR = moving ? -0.3 - s * 0.6 : -sway * 0.08;   // 腕の前後
+    let oL = 0.3 + Math.abs(s) * 0.35, oR = oL;                                                    // 腕の開き
+    let lL = -s, lR = s;                                                                           // 脚の前後
+    let bx = moving ? 0.22 : 0.03, by = s * 0.25, bz = moving ? s * 0.2 : sway * 0.03;             // 体の前傾・ひねり・横揺れ
+    let hx = -s * 0.07, hz = moving ? -0.05 : 0;                                                   // 頭は体に遅れてついてくる
+    if (act === ACT.HELD) {                                                           // つかまれた：力が抜けて、ぶらんぶらん
+      aL = Math.sin(time * 6) * 0.9; aR = Math.sin(time * 6 + 2) * 0.9; oL = oR = 0.7 + Math.sin(time * 4) * 0.3;
+      lL = Math.sin(time * 7 + 1) * 0.7; lR = Math.sin(time * 7 + 3.5) * 0.7;
+      bx = 0.4; bz = Math.sin(time * 3) * 0.35; hx = Math.sin(time * 3 - 0.8) * 0.1;
+    } else if (act === ACT.OUCH) {                                                    // 吹っ飛ばされた：のけぞって万歳
+      aL = aR = -2.6; oL = oR = 1; lL = lR = -0.9; bx = -0.8; bz = w * 0.2; hz = 0.1;
+    } else if (act === ACT.JAB) {                                                     // 左ジャブ：体ごと突っ込み、反対の腕と後ろ脚が跳ね上がる
+      aL = -1.9 * a; aR = 0.9 * a; by = 0.5 * a; bx = 0.35 * a; lR = 0.8 * a; hz = -0.08 * a;
+    } else if (act === ACT.STRAIGHT) {                                                // 右ストレート：前のめりに倒れ込みそうなほど伸ばす
+      aR = -2.1 * a; aL = 1 * a; by = -0.7 * a; bx = 0.5 * a; lL = 0.9 * a; hz = -0.1 * a;
+    } else if (act === ACT.HOOK) {                                                    // 右フック：腕を横に広げて、体ごとぐるんと振り回す
+      aR = -1.5 * a; oR = 0.3 + 1.5 * a; aL = 0.6 * a; oL = 0.3 + a; by = -1.4 * a; bz = 0.3 * a; lL = 0.6 * a;
+    } else if (act === ACT.REACH) {                                                   // つかむ：両腕をまっすぐ前へ突き出し、重さでふらつく
+      aL = -1.9 + w * 0.12; aR = -1.9 - w * 0.12; oL = oR = 0.05; bx = 0.1; bz += Math.sin(time * 5) * 0.12;
+    } else if (air > 0.15) {                                                          // 跳んでいる・落ちている：万歳して脚をばたつかせる
+      aL = -2.6 + w * 0.4; aR = -2.6 - w * 0.4; oL = oR = 0.7; lL = 0.7 * w; lR = -0.7 * w; bx = -0.15;
     }
-    else if (act === ACT.REACH) fig.arms[0].rotation.x = fig.arms[1].rotation.x = -2.5;   // 両腕を上げる（つかむ・持ち上げる）
-    else if (act === ACT.HELD) {                                                      // 持ち上げられてじたばた
-      const w = Math.sin(time * 22);
-      fig.arms[0].rotation.x = -2.2 + w * 0.6; fig.arms[1].rotation.x = -2.2 - w * 0.6;
-      fig.legs[0].rotation.x = w * 0.8; fig.legs[1].rotation.x = -w * 0.8;
-    }
+    const [armL, armR] = fig.arms, [legL, legR] = fig.legs, vel = fig.vel ||= [];
+    [[armL.rotation, 'x', aL], [armR.rotation, 'x', aR], [armL.rotation, 'z', -oL], [armR.rotation, 'z', oR],
+     [legL.rotation, 'x', lL], [legR.rotation, 'x', lR], [fig.b.rotation, 'x', bx], [fig.b.rotation, 'y', by], [fig.b.rotation, 'z', bz],
+     [fig.head.position, 'x', hx], [fig.head.position, 'z', hz]].forEach(([o, key, target], i) => {
+      vel[i] = ((vel[i] || 0) + (target - o[key]) * 260 * dt) * Math.exp(-10 * dt);
+      o[key] += vel[i] * dt;
+    });
+    fig.b.position.y = moving ? Math.abs(s) * 0.09 : breathe * 0.012;                 // ぴょこぴょこ弾む
+    fig.head.position.y = 1.2 + (moving ? Math.abs(Math.cos(t)) * 0.04 : breathe * 0.01);
   }
 
   // ── メインループ ──
@@ -1034,9 +1051,9 @@ function start() {
     shadow.position.y = 0.02 - air;                                                  // 影は足元の面に残す
 
     const breathe = Math.sin(clock.elapsedTime * 2.2);                              // 立っている間もゆっくり呼吸する
-    const act = heldBy ? ACT.HELD : punchT > 0 ? punchKind : holding || reachT > 0 ? ACT.REACH : ACT.NONE;
+    const act = heldBy ? ACT.HELD : Math.hypot(kvx, kvz) > 1.5 ? ACT.OUCH : punchT > 0 ? punchKind : holding || reachT > 0 ? ACT.REACH : ACT.NONE;
     const reach = Math.sin((1 - punchT / PUNCH_TIME) * Math.PI);                     // パンチは突き出して戻す
-    pose(hero, moving, walkT, breathe, act, clock.elapsedTime, reach); pose(ghost, moving, walkT, breathe, act, clock.elapsedTime, reach);
+    pose(hero, dt, moving, walkT, breathe, act, clock.elapsedTime, reach, air); pose(ghost, dt, moving, walkT, breathe, act, clock.elapsedTime, reach, air);
     hero.setLook(hp <= 0 ? 'down' : camoT > 0 ? 'camoSelf' : 'normal'); ghost.setLook(hp <= 0 ? 'down' : camoT > 0 ? 'camo' : 'normal');
     const big = powerT > 0 ? 1.2 : 1; hero.g.scale.setScalar(big); ghost.g.scale.set(big, -big, big);   // パワーアップ中は体が大きい
     $('hpFill').style.width = hp + '%';
@@ -1088,7 +1105,8 @@ function start() {
       if (mv) r.walkT += dt * 11;
       if (ract !== r.lastAct) { r.lastAct = ract; r.actT = 0; }                      // 動作が変わった瞬間からパンチの伸びを数える
       r.actT = (r.actT || 0) + dt;
-      pose(r.fig, !!mv, r.walkT, breathe, id === holding ? ACT.HELD : ract, clock.elapsedTime, isPunch(ract) ? Math.sin(Math.min(1, r.actT / PUNCH_TIME) * Math.PI) : 1);
+      pose(r.fig, dt, !!mv, r.walkT, breathe, id === holding ? ACT.HELD : ract, clock.elapsedTime, isPunch(ract) ? Math.sin(Math.min(1, r.actT / PUNCH_TIME) * Math.PI) : 1,
+        g.position.y - supportAt(g.position.x, g.position.z, g.position.y + 0.01));
       const hidden = (r.buffs & 4) && r.team !== myTeam && r.hp > 0;                  // 同化中の相手チームは名札も HP も出さない
       r.fig.setLook(r.hp <= 0 ? 'down' : r.buffs & 4 ? (r.team === myTeam ? 'camoSelf' : 'camo') : 'normal');
       g.scale.setScalar(r.buffs & 1 && r.hp > 0 ? 1.2 : 1); r.tag.visible = !hidden;
@@ -1134,7 +1152,7 @@ function start() {
   };
   renderer.setAnimationLoop(frame);
 
-  window.__museum = { get lvl() { return lvl; }, set lvl(v) { p.y = v * H; vy = 0; grounded = true; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, reachT, holding, heldBy, kv: [kvx, kvz], hp, team: myTeam, match: match.on, down: hero.down, look: hero.look, buffs: buffBits(), items: [...drops.values()].map(i => [i.t, i.x, i.z, i.l]) }; }, gotItem, p, canBeAt, supportAt, jump, punch, grabStart, grabEnd, get punchKind() { return punchKind; }, tick: frame };   // 動作確認用
+  window.__museum = { get lvl() { return lvl; }, set lvl(v) { p.y = v * H; vy = 0; grounded = true; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, reachT, holding, heldBy, kv: [kvx, kvz], hp, team: myTeam, match: match.on, down: hero.down, look: hero.look, buffs: buffBits(), items: [...drops.values()].map(i => [i.t, i.x, i.z, i.l]) }; }, gotItem, p, canBeAt, supportAt, jump, punch, grabStart, grabEnd, get punchKind() { return punchKind; }, knock(x, z) { kvx = x; kvz = z; }, tick: frame };   // 動作確認用
 }
 </script>
 </body>
