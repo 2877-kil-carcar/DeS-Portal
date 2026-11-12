@@ -18,7 +18,27 @@
     color: #FFE566; font: inherit; font-size: 14px; padding: 10px 18px; text-decoration: none; cursor: pointer;
   }
   #back { top: 12px; left: 12px; }
-  #help { top: 60px; left: 14px; font-size: 12px; color: rgba(240,224,192,0.7); pointer-events: none; text-shadow: 0 1px 3px #000; }
+  [hidden] { display: none !important; }
+  #roomBtn { top: 60px; left: 12px; }
+  #roomHud {
+    top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; white-space: nowrap;
+    background: rgba(13,4,6,0.78); border: 1px solid rgba(212,175,55,0.45); border-radius: 999px; padding: 5px 8px 5px 14px; font-size: 13px;
+  }
+  .pill.small { font-size: 12px; padding: 6px 12px; }
+  #roomPanel { inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; background: rgba(5,2,3,0.8); }
+  #roomPanel .box {
+    width: min(92%, 340px); max-height: 94%; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 18px;
+    background: #1a0a0e; border: 1px solid rgba(212,175,55,0.45); border-radius: 16px;
+  }
+  #roomPanel h2 { font-size: 18px; color: #FFE566; }
+  #roomPanel p { font-size: 12px; line-height: 1.6; color: rgba(240,224,192,0.8); }
+  #roomPanel label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+  #roomPanel input {
+    font: inherit; font-size: 16px; padding: 8px 10px; border-radius: 8px; color: #F0E0C0;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(212,175,55,0.35);
+  }
+  #roomMsg { min-height: 1.6em; color: #FFE566 !important; }
+  #help { top: 108px; left: 14px; font-size: 12px; color: rgba(240,224,192,0.7); pointer-events: none; text-shadow: 0 1px 3px #000; }
   #map {
     top: 12px; right: 12px; width: 170px; height: 150px; pointer-events: none;
     background: rgba(13,4,6,0.72); border: 1px solid rgba(212,175,55,0.45); border-radius: 8px;
@@ -51,7 +71,21 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=3.86">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=3.87">← ギャラリーへ</a>
+<button class="ui pill" id="roomBtn">👥 みんなで入る</button>
+<div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コードをコピー</button><button class="pill small" id="roomLeave">出る</button></div>
+<div class="ui" id="roomPanel" role="dialog" aria-label="みんなで入る" hidden>
+  <div class="box">
+    <h2>👥 みんなで入る</h2>
+    <p>同じ部屋に入った人どうしで、いっしょに美術館を歩けます。部屋は同時に1つだけ、6人までです。</p>
+    <label>なまえ<input id="roomName" maxlength="12" autocomplete="off"></label>
+    <button class="pill" id="roomCreate">部屋を作る</button>
+    <label>部屋のコード（6文字）<input id="roomCode" maxlength="6" autocomplete="off" autocapitalize="characters"></label>
+    <button class="pill" id="roomJoin">コードで入る</button>
+    <p id="roomMsg" role="status"></p>
+    <button class="pill small" id="roomClose">とじる</button>
+  </div>
+</div>
 <div class="ui" id="help">移動：WASD / 左下スティック<br>視点：画面をドラッグ<br>階段：中央ホール</div>
 <canvas class="ui" id="map" width="340" height="300" aria-label="美術館のマップ"></canvas>
 <div class="ui" id="stick" aria-label="移動スティック"><div id="knob"></div></div>
@@ -544,7 +578,8 @@ function start() {
   // ── 入力 ──
   const keys = {}, stickV = { x: 0, y: 0 };
   let yaw = Math.PI / 2, near = null;
-  addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Escape') closeViewer(); if (e.code === 'Enter' || e.code === 'Space') openViewer(); });
+  addEventListener('keydown', e => { if (e.target.closest?.('input')) return;       // 名前やコードの入力中は歩かせない
+    keys[e.code] = true; if (e.code === 'Escape') closeViewer(); if (e.code === 'Enter' || e.code === 'Space') openViewer(); });
   addEventListener('keyup', e => { keys[e.code] = false; });
   addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
@@ -598,7 +633,87 @@ function start() {
     mc.lineTo(px + Math.sin(a + 2.5) * 15, pz + Math.cos(a + 2.5) * 15);
     mc.lineTo(px + Math.sin(a - 2.5) * 15, pz + Math.cos(a - 2.5) * 15);
     mc.closePath(); mc.stroke(); mc.fill();
+    for (const r of remotes.values()) {                                              // 同じ階にいる他の人はチーム色の丸
+      if (Math.round(r.target[1] / H) !== level) continue;
+      mc.fillStyle = TEAM_COLORS[r.team]; mc.lineWidth = 2;
+      mc.beginPath(); mc.arc((r.fig.g.position.x / C + 8.5) * U, (r.fig.g.position.z / C + 7.5) * U, 8, 0, 7); mc.fill(); mc.stroke();
+    }
     mc.fillStyle = '#FFE566'; mc.font = 'bold 26px sans-serif'; mc.fillText(`${level + 1}F`, 8, 28);
+  }
+
+  // ── みんなで入る（対戦の第 1 段階：同じ部屋に入って、いっしょに歩く）。通信は museum-room.js ──
+  const PREVIEW = new URLSearchParams(location.search).get('preview') === '1';
+  const TEAM_COLORS = ['#e2485a', '#3d8bff'];
+  const remotes = new Map();                                                          // 相手の id → { fig, tag, target, walkT, team, name }
+  let room = null, roomApi = null, sendT = 0, lastSent = '';
+  const panel = $('roomPanel'), roomMsg = t => { $('roomMsg').textContent = t; };
+  // 頭の上に出す名札（チーム色の地に白文字）
+  function nameTag(name, team) {
+    const tex = paint(256, 64, g => {
+      g.fillStyle = TEAM_COLORS[team]; g.beginPath(); g.roundRect(4, 8, 248, 48, 24); g.fill();
+      g.fillStyle = '#fff'; g.font = 'bold 28px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(name, 128, 34, 228);
+    });
+    const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+    tag.scale.set(1.1, 0.275, 1); tag.position.y = 1.85; tag.renderOrder = 90;
+    return tag;
+  }
+  function dropRemote(id) { const r = remotes.get(id); scene.remove(r.fig.g); r.tag.material.map.dispose(); r.tag.material.dispose(); remotes.delete(id); }
+  function onRoom(code, players, me) {
+    room = { code };
+    $('roomInfo').textContent = `部屋 ${code}・${Object.keys(players).length}/6人`;
+    $('roomHud').hidden = false; $('roomBtn').hidden = true;
+    for (const id of [...remotes.keys()]) if (!players[id]) dropRemote(id);
+    for (const [id, q] of Object.entries(players)) {
+      if (id === me || !Array.isArray(q.s)) continue;
+      const name = String(q.name || 'ななし').slice(0, 12), team = q.team === 1 ? 1 : 0;
+      let r = remotes.get(id);
+      if (r && (r.name !== name || r.team !== team)) { dropRemote(id); r = null; }
+      if (!r) {
+        r = { fig: makeFigure(), tag: nameTag(name, team), target: q.s, walkT: 0, team, name };
+        r.fig.g.add(r.tag); r.fig.g.position.set(+q.s[0] || 0, +q.s[1] || 0, +q.s[2] || 0); remotes.set(id, r);
+      }
+      r.target = q.s.map(v => +v || 0);
+    }
+  }
+  function leftRoom(message) {
+    for (const id of [...remotes.keys()]) dropRemote(id);
+    room = null; lastSent = ''; $('roomHud').hidden = true; $('roomBtn').hidden = false;
+    if (message) { panel.hidden = false; roomMsg(message); }
+  }
+  async function enterRoom(create) {
+    if (PREVIEW) { roomMsg('プレビューでは接続しません。'); return; }
+    const name = (roomApi?.cleanName ?? (v => String(v).trim().slice(0, 12)))($('roomName').value) || 'ななし';
+    const code = String($('roomCode').value).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
+    roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
+    try {
+      roomApi ||= await import('./museum-room.js?v=3.87');
+      await roomApi.enter({ create, code, name: roomApi.cleanName(name) || 'ななし', onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
+      try { localStorage.setItem('museum:name', name); } catch (_) {}
+      panel.hidden = true; roomMsg('');
+    } catch (e) {
+      console.warn(e); roomMsg(e.userMessage || '接続できませんでした。通信状態を確認してください。');
+    }
+    $('roomCreate').disabled = $('roomJoin').disabled = false;
+  }
+  $('roomBtn').addEventListener('click', () => { panel.hidden = false; roomMsg(''); try { $('roomName').value ||= localStorage.getItem('museum:name') || ''; } catch (_) {} });
+  $('roomClose').addEventListener('click', () => { panel.hidden = true; });
+  $('roomCreate').addEventListener('click', () => enterRoom(true));
+  $('roomJoin').addEventListener('click', () => enterRoom(false));
+  $('roomLeave').addEventListener('click', () => { roomApi.leave(); leftRoom(''); });
+  $('roomCopy').addEventListener('click', () => {
+    navigator.clipboard?.writeText(room.code).then(() => { $('roomCopy').textContent = 'コピーしました'; setTimeout(() => { $('roomCopy').textContent = 'コードをコピー'; }, 1500); }).catch(() => {});
+  });
+  addEventListener('pagehide', () => roomApi?.leave());
+
+  // 歩く・立つの姿勢（自分、床の映り込み、他の人で共通）
+  function pose(fig, moving, t, breathe) {
+    const swing = moving ? Math.sin(t) : 0;
+    fig.arms[0].rotation.x = swing * 1.1; fig.arms[1].rotation.x = -swing * 1.1;      // 腕は大きくぱたぱた振る
+    fig.legs[0].rotation.x = -swing * 0.9; fig.legs[1].rotation.x = swing * 0.9;
+    fig.b.position.y = moving ? Math.abs(swing) * 0.07 : breathe * 0.012;             // ぴょこぴょこ弾む
+    fig.b.rotation.z = swing * 0.07;                                                  // 体を左右に揺らす
+    fig.head.position.y = 1.2 + (moving ? Math.abs(Math.cos(t)) * 0.03 : breathe * 0.01);
   }
 
   // ── メインループ ──
@@ -610,7 +725,7 @@ function start() {
     let ix = stickV.x + (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
     let iy = stickV.y + (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
     const len = Math.hypot(ix, iy); if (len > 1) { ix /= len; iy /= len; }
-    const moving = len > 0.05 && viewer.style.display !== 'flex';
+    const moving = len > 0.05 && viewer.style.display !== 'flex' && panel.hidden;
     if (moving) {
       // カメラの向きを基準に前後左右へ動く
       const vx = -Math.sin(yaw) * iy + Math.cos(yaw) * ix, vz = -Math.cos(yaw) * iy - Math.sin(yaw) * ix;
@@ -632,14 +747,27 @@ function start() {
       hero.g.rotation.y += d * Math.min(1, dt * 12);
       walkT += dt * 11 * Math.min(1, len);
     }
-    const swing = moving ? Math.sin(walkT) : 0;
     const breathe = Math.sin(clock.elapsedTime * 2.2);                              // 立っている間もゆっくり呼吸する
-    for (const fig of [hero, ghost]) {
-      fig.arms[0].rotation.x = swing * 1.1; fig.arms[1].rotation.x = -swing * 1.1;  // 腕は大きくぱたぱた振る
-      fig.legs[0].rotation.x = -swing * 0.9; fig.legs[1].rotation.x = swing * 0.9;
-      fig.b.position.y = moving ? Math.abs(swing) * 0.07 : breathe * 0.012;         // ぴょこぴょこ弾む
-      fig.b.rotation.z = swing * 0.07;                                              // 体を左右に揺らす
-      fig.head.position.y = 1.2 + (moving ? Math.abs(Math.cos(walkT)) * 0.03 : breathe * 0.01);
+    pose(hero, moving, walkT, breathe); pose(ghost, moving, walkT, breathe);
+
+    // 部屋にいる間：自分の位置を 1 秒に 10 回まで送り（動いたときだけ）、他の人を受け取った位置へなめらかに寄せる
+    if (room) {
+      sendT += dt;
+      if (sendT >= 0.1) {
+        sendT = 0;
+        const s = [p.x, p.y, p.z, hero.g.rotation.y].map(v => Math.round(v * 100) / 100).concat(moving ? 1 : 0);
+        if (s.join() !== lastSent) { lastSent = s.join(); roomApi.send(s); }
+      }
+    }
+    for (const r of remotes.values()) {
+      const g = r.fig.g, [tx, ty, tz, tr, mv] = r.target, far = Math.hypot(tx - g.position.x, tz - g.position.z) > 6;
+      const k = far ? 1 : 1 - Math.exp(-dt * 12);
+      g.position.set(g.position.x + (tx - g.position.x) * k, g.position.y + (ty - g.position.y) * k, g.position.z + (tz - g.position.z) * k);
+      const turn = Math.atan2(Math.sin(tr - g.rotation.y), Math.cos(tr - g.rotation.y));
+      g.rotation.y += turn * k;
+      if (mv) r.walkT += dt * 11;
+      pose(r.fig, !!mv, r.walkT, breathe);
+      g.visible = Math.abs(ty - p.y) < H * 0.9;                                      // 違う階の人は描かない
     }
 
     // 見せる階の切り替え。床の映り込み（逆さまの絵とキャラ）は、その階の床に立っている間だけ出す
