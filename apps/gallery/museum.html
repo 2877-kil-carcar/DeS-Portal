@@ -87,7 +87,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=3.94">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=3.95">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
@@ -612,31 +612,40 @@ function start() {
   // 「背景と同化」：色を消してほぼ透明にする。光の当たり方（つや）は残るので、立体の形はうっすら分かる
   const camoMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.15, transparent: true, opacity: 0.13, depthWrite: false });
   const camoSelfMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.15, transparent: true, opacity: 0.4, depthWrite: false });
+  /* 体はラグドール：9 個の粒（左肩・右肩・左股・右股・頭・左手・右手・左足・右足）を、長さの変わらない棒でつないだもの。
+     粒には重力がかかり、床に当たる。pose が決める「目標の姿勢」へは、ばねで引かれるだけ（力の入れ具合は動作ごとに変える）。
+     shortcut: 粒が当たるのは床・階段・ベンチの上面だけ。壁や他の人にはめり込む。体の位置そのもの（当たり判定・通信）は従来どおり 1 点で持つ */
+  const ARM = 0.34, LEG = 0.24;
+  const REST = [[-0.2, 0.84, 0], [0.2, 0.84, 0], [-0.12, 0.36, 0], [0.12, 0.36, 0], [0, 1.2, 0]].map(a => new THREE.Vector3(...a));
+  const RADIUS = [0.2, 0.2, 0.2, 0.2, 0.31, 0.078, 0.078, 0.1, 0.1];
+  const LINKS = [[0, 5, ARM], [1, 6, ARM], [2, 7, LEG], [3, 8, LEG]];
+  for (let i = 0; i < 5; i++) for (let j = 0; j < i; j++) LINKS.push([j, i, REST[i].distanceTo(REST[j])]);   // 胴と頭は、すべての組をつないで形を保つ
+  const DOWN = new THREE.Vector3(0, -1, 0), QB = new THREE.Quaternion(), VA = new THREE.Vector3(), VB = new THREE.Vector3(), VC = new THREE.Vector3();
   function makeFigure() {
-    // 大きな丸い頭・ぽってりした胴・細い手足に丸い手先足先、の 3 頭身。b は歩くときに弾ませる中身
+    // 大きな丸い頭・ぽってりした胴・細い手足に丸い手先足先、の 3 頭身。
+    // 胴 b・頭・手足の置き場所と向きは、毎フレーム pose がラグドールの粒から決める（b の原点は両肩と両股の真ん中）
     const g = new THREE.Group(), b = new THREE.Group(), skin = [], bones = []; g.add(b);
-    const part = (geo, y) => { const o = new THREE.Mesh(geo, white); o.position.y = y; b.add(o); skin.push(o); return o; };
+    const part = (parent, geo, y) => { const o = new THREE.Mesh(geo, white); o.position.y = y; parent.add(o); skin.push(o); return o; };
     const bone = (parent, geo, x, y, z, material = boneMat) => {                      // ふだんは隠しておく骨
       const o = new THREE.Mesh(geo, material); o.position.set(x, y, z); o.visible = false; parent.add(o); bones.push(o); return o;
     };
-    part(new THREE.CapsuleGeometry(0.24, 0.16, 8, 20), 0.66);                         // 胴
-    const head = part(new THREE.SphereGeometry(0.31, 32, 24), 1.2);                   // 頭
+    part(b, new THREE.CapsuleGeometry(0.24, 0.16, 8, 20), 0.06);                      // 胴
+    const head = part(g, new THREE.SphereGeometry(0.31, 32, 24), 1.2);                // 頭
     bone(head, new THREE.SphereGeometry(0.2, 16, 12), 0, 0, 0);                       // 頭蓋骨と目の穴
     for (const x of [-0.075, 0.075]) bone(head, new THREE.SphereGeometry(0.05, 8, 6), x, 0.03, 0.165, socketMat);
-    bone(b, new THREE.CylinderGeometry(0.035, 0.035, 0.44, 8), 0, 0.68, 0);           // 背骨とあばら
-    for (const y of [0.6, 0.7, 0.8]) bone(b, new THREE.TorusGeometry(0.15, 0.022, 6, 16), 0, y, 0).rotation.x = Math.PI / 2;
-    const limb = (x, y, len, rad, lean) => {                                          // 付け根を軸に振れる手足。根元から先まで同じ太さで、先は丸い
-      const pivot = new THREE.Group(); pivot.position.set(x, y, 0); pivot.rotation.z = pivot.userData.lean = lean;
+    bone(b, new THREE.CylinderGeometry(0.035, 0.035, 0.44, 8), 0, 0.08, 0);           // 背骨とあばら
+    for (const y of [0, 0.1, 0.2]) bone(b, new THREE.TorusGeometry(0.15, 0.022, 6, 16), 0, y, 0).rotation.x = Math.PI / 2;
+    const limb = (len, rad) => {                                                      // 付け根から先へ伸びる手足。根元から先まで同じ太さで、先は丸い
+      const pivot = new THREE.Group();
       // 付け根の丸み（肩・股）の中心を軸にして胴の中へ埋める：どう振っても胴とつながって見える
       const o = new THREE.Mesh(new THREE.CapsuleGeometry(rad, len, 8, 16), white); o.position.y = -len / 2;
-      pivot.add(o); skin.push(o); b.add(pivot);
+      pivot.add(o); skin.push(o); g.add(pivot);
       bone(pivot, new THREE.CylinderGeometry(0.03, 0.03, len + rad, 6), 0, -(len + rad) / 2, 0);
       return pivot;
     };
-    const arms = [limb(-0.2, 0.84, 0.34, 0.078, -0.3), limb(0.2, 0.84, 0.34, 0.078, 0.3)];
-    const legs = [limb(-0.12, 0.36, 0.24, 0.1, 0), limb(0.12, 0.36, 0.24, 0.1, 0)];
+    const arms = [limb(ARM, 0.078), limb(ARM, 0.078)], legs = [limb(LEG, 0.1), limb(LEG, 0.1)];
     scene.add(g);
-    const fig = { g, b, head, arms, legs, down: false };
+    const fig = { g, parts: [b, head, ...arms, ...legs], down: false };
     // 見た目の切り替え：'normal' ふつう／'down' やられた半スケルトン／'camo' 背景と同化／'camoSelf' 同化（自分と味方には少し濃く見せる）
     fig.look = 'normal';
     fig.setLook = look => {
@@ -990,18 +999,62 @@ function start() {
     } else if (air > 0.15) {                                                          // 跳んでいる・落ちている：万歳して脚をばたつかせる
       aL = -2.6 + w * 0.4; aR = -2.6 - w * 0.4; oL = oR = 0.7; lL = 0.7 * w; lR = -0.7 * w; bx = -0.15;
     }
-    const [armL, armR] = fig.arms, [legL, legR] = fig.legs, vel = fig.vel ||= [];
-    [[armL.rotation, 'x', aL], [armR.rotation, 'x', aR], [armL.rotation, 'z', -oL], [armR.rotation, 'z', oR],
-     [legL.rotation, 'x', lL], [legR.rotation, 'x', lR], [fig.b.rotation, 'x', bx], [fig.b.rotation, 'y', by], [fig.b.rotation, 'z', bz],
-     [fig.head.position, 'x', hx], [fig.head.position, 'z', hz]].forEach(([o, key, target], i) => {
-      // ばねは弱く・収まりにくく（ふにゃふにゃ）。脚とパンチ中だけは強め：脚が暴れると歩きに見えず、パンチは腕が伸び切らないため
-      const firm = i === 4 || i === 5 || isPunch(act);
-      vel[i] = ((vel[i] || 0) + (target - o[key]) * (firm ? 260 : 110) * dt) * Math.exp(-(firm ? 10 : 4.5) * dt);
-      o[key] += vel[i] * dt;
-    });
-    fig.b.position.y = moving ? Math.abs(s) * 0.09 : breathe * 0.012;                 // ぴょこぴょこ弾む
-    fig.head.position.y = 1.2 + (moving ? Math.abs(Math.cos(t)) * 0.04 : breathe * 0.01);
+    // 力の入れ具合 [ばねの強さ, 収まりやすさ]：胴／頭／左手／右手／足。腕はふだん力を抜いてあり、ほぼ重力でぶらぶらする
+    let kT = [400, 14], kH = [250, 8], kL = [40, 3], kR = kL, kF = [300, 14];
+    const limp = [3, 1.5], firm = [600, 25], hit = [900, 20];
+    if (act === ACT.HELD) { kT = [150, 8]; kH = [20, 2]; kL = kR = kF = limp; }      // つかまれた：胴だけ運ばれ、頭と手足は完全に脱力
+    else if (act === ACT.OUCH) { kT = [120, 5]; kH = [10, 2]; kL = kR = kF = limp; }  // 吹っ飛ばされた：全身の力が抜けて引きずられる
+    else if (act === ACT.JAB) kL = hit;
+    else if (act === ACT.STRAIGHT || act === ACT.HOOK) kR = hit;
+    else if (act === ACT.REACH) { kL = kR = firm; if (air > 0.15) { kT = [8, 2]; kH = [8, 2]; kF = limp; } }   // ぶら下がり：手だけで支え、体は垂れる
+    else if (act === ACT.FLOOR) { kL = kR = firm; kT = [120, 10]; }
+    else if (air > 0.15) { kL = kR = [120, 6]; kF = [80, 6]; }
+
+    // 目標の姿勢での粒の位置（体の中の座標 → 世界の座標）
+    const g = fig.g, T = fig.targets ||= REST.concat(REST.slice(0, 4)).map(v => v.clone());
+    const bob = moving ? Math.abs(s) * 0.09 : breathe * 0.012;                        // ぴょこぴょこ弾む
+    QB.setFromEuler(E.set(bx, by, bz));                                               // 体の傾き（足元が軸）
+    for (let i = 0; i < 4; i++) T[i].copy(REST[i]).applyQuaternion(QB);
+    T[4].set(hx, 1.2 + (moving ? Math.abs(Math.cos(t)) * 0.04 : breathe * 0.01), hz).applyQuaternion(QB);
+    [[aL, -oL, ARM], [aR, oR, ARM], [lL, 0, LEG], [lR, 0, LEG]].forEach(([rx, rz, len], i) =>
+      T[5 + i].set(0, -len, 0).applyQuaternion(Q.setFromEuler(E.set(rx, 0, rz))).applyQuaternion(QB).add(T[i]));
+    g.updateMatrixWorld();
+    for (const v of T) { v.y += bob; g.localToWorld(v); }
+
+    // 粒を動かす：ばねと重力 → 棒の長さを保つ → 床に当てる
+    const P = fig.pts ||= T.map(v => ({ p: v.clone(), o: v.clone(), v: new THREE.Vector3() }));
+    if (P.some((q, i) => q.p.distanceToSquared(T[i]) > 9)) P.forEach((q, i) => { q.p.copy(T[i]); q.v.set(0, 0, 0); });   // 瞬間移動したら体ごと移す
+    if (dt > 1e-4) {
+      const K = [kT, kT, kT, kT, kH, kL, kR, kF, kF], size = g.scale.x;
+      P.forEach((q, i) => {
+        q.o.copy(q.p);
+        q.v.addScaledVector(VA.subVectors(T[i], q.p), K[i][0] * dt).multiplyScalar(Math.exp(-K[i][1] * dt));
+        q.v.y -= 12 * dt;
+        q.p.addScaledVector(q.v, dt);
+      });
+      for (let n = 0; n < 3; n++) for (const [a, b, len] of LINKS) {
+        const dist = VA.subVectors(P[b].p, P[a].p).length() || 1e-6;
+        VA.multiplyScalar((dist - len * size) / dist / 2);
+        P[a].p.add(VA); P[b].p.sub(VA);
+      }
+      P.forEach((q, i) => {
+        q.p.y = Math.max(q.p.y, supportAt(q.p.x, q.p.z, q.p.y) + RADIUS[i] * size);
+        q.v.subVectors(q.p, q.o).divideScalar(dt);
+      });
+    }
+
+    // 粒の位置から見た目を組む：胴は両肩と両股から向きを決め、手足は付け根から先の粒へ向ける
+    const L = fig.local ||= P.map(() => new THREE.Vector3()), [b, head, ...limbs] = fig.parts;
+    P.forEach((q, i) => g.worldToLocal(L[i].copy(q.p)));
+    const up = VA.addVectors(L[0], L[1]).sub(L[2]).sub(L[3]).normalize();
+    const right = VB.subVectors(L[1], L[0]); right.addScaledVector(up, -right.dot(up)).normalize();
+    b.quaternion.setFromRotationMatrix(M4.makeBasis(right, up, VC.crossVectors(right, up)));
+    b.position.addVectors(L[0], L[1]).add(L[2]).add(L[3]).multiplyScalar(0.25);
+    head.position.copy(L[4]); head.quaternion.copy(b.quaternion);
+    limbs.forEach((pivot, i) => { pivot.position.copy(L[i]); pivot.quaternion.setFromUnitVectors(DOWN, VA.subVectors(L[5 + i], L[i]).normalize()); });
   }
+  // 床の映り込み用の体は計算せず、本体の姿勢をそのまま写す
+  const copyPose = (to, from) => to.parts.forEach((o, i) => { o.position.copy(from.parts[i].position); o.quaternion.copy(from.parts[i].quaternion); });
 
   // ── メインループ ──
   const clock = new THREE.Clock(), clamp = THREE.MathUtils.clamp;
@@ -1071,7 +1124,7 @@ function start() {
     const breathe = Math.sin(clock.elapsedTime * 2.2);                              // 立っている間もゆっくり呼吸する
     const act = heldBy ? ACT.HELD : Math.hypot(kvx, kvz) > 1.5 ? ACT.OUCH : punchT > 0 ? punchKind : stuck === 'floor' ? ACT.FLOOR : holding || grabbing ? ACT.REACH : ACT.NONE;
     const reach = Math.sin((1 - punchT / PUNCH_TIME) * Math.PI);                     // パンチは突き出して戻す
-    pose(hero, dt, moving, walkT, breathe, act, clock.elapsedTime, reach, air); pose(ghost, dt, moving, walkT, breathe, act, clock.elapsedTime, reach, air);
+    pose(hero, dt, moving, walkT, breathe, act, clock.elapsedTime, reach, air); copyPose(ghost, hero);
     hero.setLook(hp <= 0 ? 'down' : camoT > 0 ? 'camoSelf' : 'normal'); ghost.setLook(hp <= 0 ? 'down' : camoT > 0 ? 'camo' : 'normal');
     const big = powerT > 0 ? 1.2 : 1; hero.g.scale.setScalar(big); ghost.g.scale.set(big, -big, big);   // パワーアップ中は体が大きい
     $('hpFill').style.width = hp + '%';
@@ -1170,7 +1223,7 @@ function start() {
   };
   renderer.setAnimationLoop(frame);
 
-  window.__museum = { get lvl() { return lvl; }, set lvl(v) { p.y = v * H; vy = 0; grounded = true; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, grabbing, stuck, holding, heldBy, kv: [kvx, kvz], hp, team: myTeam, match: match.on, down: hero.down, look: hero.look, buffs: buffBits(), items: [...drops.values()].map(i => [i.t, i.x, i.z, i.l]) }; }, gotItem, p, canBeAt, supportAt, jump, punch, grabStart, grabEnd, get punchKind() { return punchKind; }, knock(x, z) { kvx = x; kvz = z; }, tick: frame };   // 動作確認用
+  window.__museum = { get lvl() { return lvl; }, set lvl(v) { p.y = v * H; vy = 0; grounded = true; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, grabbing, stuck, holding, heldBy, kv: [kvx, kvz], hp, team: myTeam, match: match.on, down: hero.down, look: hero.look, buffs: buffBits(), items: [...drops.values()].map(i => [i.t, i.x, i.z, i.l]) }; }, gotItem, p, canBeAt, supportAt, jump, punch, grabStart, grabEnd, get punchKind() { return punchKind; }, knock(x, z) { kvx = x; kvz = z; }, get body() { return hero.pts.map(q => q.p.toArray().map(v => Math.round(v * 100) / 100)); }, tick: frame };   // 動作確認用
 }
 </script>
 </body>
