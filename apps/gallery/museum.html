@@ -87,7 +87,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=3.95">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=3.96">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
@@ -197,7 +197,8 @@ const stairOf = ch => 'AB'.indexOf(ch);
 const STEP = 0.35;                                      // 歩いて上れる段差
 const RAIL = 0.8;                                       // 柵を越えるのに必要な高さ（見た目の柵より少し低くして跳び越えやすく）
 const BODY = 1.4;                                       // 体の高さ（柵の下をくぐれないようにする）
-const BENCH_TOP = 0.48;                                 // ベンチの座面の高さ
+const SLAB = 0.7;                                       // 階段の段の厚み（この下は空いていて、高さが足りればくぐれる）
+const BENCH_TOP = 0.48;                                // ベンチの座面の高さ
 const levelOf = y => Math.min(LEVELS - 1, Math.max(0, Math.floor((y + 0.3) / H)));   // その高さの体がいる階
 // (x, z) が階段の上なら { k: 階段番号, h: その場所の階段の面の高さ }
 function rampAt(x, z) {
@@ -229,11 +230,13 @@ function canBeAt(nx, nz, y, ox, oz, carrying = false) {
   }
   const from = rampAt(ox, oz), to = rampAt(nx, nz);
   if (!from && !to) return true;
-  if (from && to && from.k === to.k) return y >= to.h - STEP;                         // 階段の上を進む
+  const under = r => y + BODY <= r.h - SLAB;                                          // 階段の裏（段の厚みの下）に、体が立てる高さがあるか
+  if (from && to && from.k === to.k) return y >= to.h - STEP || under(to);            // 階段の上を進む／階段の下をくぐる
   // 階段の縁をまたぐ
   const r = to || from, s = STAIRS[r.k], upper = (r.k + 1) * H;
   const [outX, outZ] = to ? [ox, oz] : [nx, nz];
-  if (to && (carrying || y < to.h - STEP)) return false;                              // 階段の下へはもぐれない
+  if (to && y < to.h - STEP) { if (!under(to)) return false; }                        // 階段の下へは、頭がつかえない所だけ入れる
+  else if (to && carrying) return false;
   const hitsUpperRail = y > upper - 0.9 && y < upper + RAIL;                          // 上の階の吹き抜けの柵（階段の中ほどから跳び下りられるよう、下側は甘め）
   if (Math.abs(outZ - s.z) >= C / 2) return !hitsUpperRail && !(y > r.h - BODY && y < r.h + RAIL);   // 長い辺：斜めの柵もある
   return (outX - s.x0) / (s.x1 - s.x0) >= 1 || !hitsUpperRail;                        // 下の端は吹き抜けの柵だけ／上の端は開いている
@@ -467,12 +470,12 @@ function start() {
     const len = Math.abs(s.x1 - s.x0), dir = Math.sign(s.x1 - s.x0), xm = (s.x0 + s.x1) / 2, steps = [], runner = [];
     for (let i = 0; i < STEPS; i++) {
       // 段の厚みは 0.7m。ただし下の段は、その階の床より下（＝下の階の天井）へ突き出さない厚みに縮める
-      const top = (i + 1) * H / STEPS, h = Math.min(0.7, top);
-      const o = { x: s.x0 + dir * (i + 0.5) * len / STEPS, y: k * H + top - h / 2, z: s.z, sy: h / 0.7 };
+      const top = (i + 1) * H / STEPS, h = Math.min(SLAB, top);
+      const o = { x: s.x0 + dir * (i + 0.5) * len / STEPS, y: k * H + top - h / 2, z: s.z, sy: h / SLAB };
       steps.push(o); runner.push({ ...o, y: o.y + 0.012 });
     }
-    instanced(new THREE.BoxGeometry(len / STEPS, 0.7, C - 0.16), std(0xe6dfd2, 0.4), steps);
-    instanced(new THREE.BoxGeometry(len / STEPS + 0.01, 0.7, 1.3), std(0x7a1624, 1), runner);
+    instanced(new THREE.BoxGeometry(len / STEPS, SLAB, C - 0.16), std(0xe6dfd2, 0.4), steps);
+    instanced(new THREE.BoxGeometry(len / STEPS + 0.01, SLAB, 1.3), std(0x7a1624, 1), runner);
     for (const side of [-1, 1]) {
       const z = s.z + side * (C / 2 - 0.04);
       fence(Math.hypot(len, H), 0.04, xm, k * H + H / 2, z, dir * Math.atan2(H, len));          // 斜めの柵

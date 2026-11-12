@@ -34,9 +34,13 @@ for (let i = 0; i < 4.2 * 60; i++) { w.step(-4 / 60, 0); maxGap = Math.max(maxGa
 assert.ok(near(w.y, 0) && maxGap < 1e-9, `階段を下りる途中で浮いた (gap=${maxGap})`);
 console.log('PASS stairs: walk up A and B, walk down A');
 
-// 3. 1 階：階段の横からも、階段の裏（高い側の下）からも入れない
-assert.ok(!canBeAt(0, A.z + C / 2 - 0.1, 0, 0, A.z + C / 2 + 0.1), '1 階で階段の横から入れてしまう');
-assert.ok(!canBeAt(A.x1 - 0.1, A.z, 0, A.x1 + 0.1, A.z), '1 階で階段の下にもぐれてしまう');
+// 3. 1 階：階段の低い側は、横から入れない（頭がつかえる）
+assert.ok(!canBeAt(-4, A.z + C / 2 - 0.1, 0, -4, A.z + C / 2 + 0.1), '1 階で階段の低い側へ横から入れてしまう');
+// 3b. 階段の高い側の下は空いているので、くぐれる：横から反対側へ通り抜けられ、高い端から入ると頭がつかえる所で止まる
+w = walker(3, 0, A.z + C / 2 + 0.6).walk(0, -4, 1.2);
+assert.ok(w.z < A.z - C / 2 && near(w.y, 0), `階段の下を通り抜けられない (z=${w.z}, y=${w.y})`);
+w = walker(A.x1 + 0.6, 0, A.z).walk(-4, 0, 4);
+assert.ok(near(w.y, 0) && w.x < 1 && rampAt(w.x, w.z).h - 0.7 >= 1.4 - 0.05, `階段の下で止まる位置がおかしい (x=${w.x}, y=${w.y})`);
 // 4. 2 階：吹き抜けの柵は歩いては越えられない（長い辺・下の端とも）。上の端からは下りられる
 assert.ok(!canBeAt(0, A.z + C / 2 - 0.1, H, 0, A.z + C / 2 + 0.1), '2 階で柵を歩いて越えられてしまう');
 assert.ok(!canBeAt(A.x0 + 0.1, A.z, H, A.x0 - 0.1, A.z), '2 階で下の端の柵を歩いて越えられてしまう');
