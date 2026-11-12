@@ -87,7 +87,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=3.92">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=3.93">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
@@ -627,13 +627,14 @@ function start() {
     for (const y of [0.6, 0.7, 0.8]) bone(b, new THREE.TorusGeometry(0.15, 0.022, 6, 16), 0, y, 0).rotation.x = Math.PI / 2;
     const limb = (x, y, len, rad, lean) => {                                          // 付け根を軸に振れる手足。根元から先まで同じ太さで、先は丸い
       const pivot = new THREE.Group(); pivot.position.set(x, y, 0); pivot.rotation.z = pivot.userData.lean = lean;
-      const o = new THREE.Mesh(new THREE.CapsuleGeometry(rad, len, 8, 16), white); o.position.y = -(len / 2 + rad);
+      // 付け根の丸み（肩・股）の中心を軸にして胴の中へ埋める：どう振っても胴とつながって見える
+      const o = new THREE.Mesh(new THREE.CapsuleGeometry(rad, len, 8, 16), white); o.position.y = -len / 2;
       pivot.add(o); skin.push(o); b.add(pivot);
-      bone(pivot, new THREE.CylinderGeometry(0.03, 0.03, len + rad, 6), 0, -(len / 2 + rad), 0);
+      bone(pivot, new THREE.CylinderGeometry(0.03, 0.03, len + rad, 6), 0, -(len + rad) / 2, 0);
       return pivot;
     };
-    const arms = [limb(-0.28, 0.88, 0.28, 0.078, -0.3), limb(0.28, 0.88, 0.28, 0.078, 0.3)];
-    const legs = [limb(-0.12, 0.44, 0.22, 0.1, 0), limb(0.12, 0.44, 0.22, 0.1, 0)];
+    const arms = [limb(-0.2, 0.84, 0.34, 0.078, -0.3), limb(0.2, 0.84, 0.34, 0.078, 0.3)];
+    const legs = [limb(-0.12, 0.36, 0.24, 0.1, 0), limb(0.12, 0.36, 0.24, 0.1, 0)];
     scene.add(g);
     const fig = { g, b, head, arms, legs, down: false };
     // 見た目の切り替え：'normal' ふつう／'down' やられた半スケルトン／'camo' 背景と同化／'camoSelf' 同化（自分と味方には少し濃く見せる）
@@ -961,9 +962,9 @@ function start() {
     // ふだん：腕をだらんと前に垂らし、前のめりで左右によたよた歩く
     let aL = moving ? -0.3 + s * 0.6 : sway * 0.08, aR = moving ? -0.3 - s * 0.6 : -sway * 0.08;   // 腕の前後
     let oL = 0.3 + Math.abs(s) * 0.35, oR = oL;                                                    // 腕の開き
-    let lL = -s, lR = s;                                                                           // 脚の前後
-    let bx = moving ? 0.22 : 0.03, by = s * 0.25, bz = moving ? s * 0.2 : sway * 0.03;             // 体の前傾・ひねり・横揺れ
-    let hx = -s * 0.07, hz = moving ? -0.05 : 0;                                                   // 頭は体に遅れてついてくる
+    let lL = -s * 0.7, lR = s * 0.7;                                                                         // 脚の前後
+    let bx = moving ? 0.25 : 0.03, by = s * 0.3, bz = moving ? s * 0.26 : sway * 0.06;             // 体の前傾・ひねり・横揺れ
+    let hx = -s * 0.1, hz = moving ? -0.06 : 0;                                                  // 頭は体に遅れてついてくる
     if (act === ACT.HELD) {                                                           // つかまれた：力が抜けて、ぶらんぶらん
       aL = Math.sin(time * 6) * 0.9; aR = Math.sin(time * 6 + 2) * 0.9; oL = oR = 0.7 + Math.sin(time * 4) * 0.3;
       lL = Math.sin(time * 7 + 1) * 0.7; lR = Math.sin(time * 7 + 3.5) * 0.7;
@@ -985,7 +986,9 @@ function start() {
     [[armL.rotation, 'x', aL], [armR.rotation, 'x', aR], [armL.rotation, 'z', -oL], [armR.rotation, 'z', oR],
      [legL.rotation, 'x', lL], [legR.rotation, 'x', lR], [fig.b.rotation, 'x', bx], [fig.b.rotation, 'y', by], [fig.b.rotation, 'z', bz],
      [fig.head.position, 'x', hx], [fig.head.position, 'z', hz]].forEach(([o, key, target], i) => {
-      vel[i] = ((vel[i] || 0) + (target - o[key]) * 260 * dt) * Math.exp(-10 * dt);
+      // ばねは弱く・収まりにくく（ふにゃふにゃ）。脚とパンチ中だけは強め：脚が暴れると歩きに見えず、パンチは腕が伸び切らないため
+      const firm = i === 4 || i === 5 || isPunch(act);
+      vel[i] = ((vel[i] || 0) + (target - o[key]) * (firm ? 260 : 110) * dt) * Math.exp(-(firm ? 10 : 4.5) * dt);
       o[key] += vel[i] * dt;
     });
     fig.b.position.y = moving ? Math.abs(s) * 0.09 : breathe * 0.012;                 // ぴょこぴょこ弾む
