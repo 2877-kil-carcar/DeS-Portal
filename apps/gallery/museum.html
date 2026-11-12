@@ -87,7 +87,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=3.90">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=3.91">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
@@ -105,7 +105,7 @@
     <button class="pill small" id="roomClose">とじる</button>
   </div>
 </div>
-<div class="ui" id="help">移動：WASD / 左下スティック<br>視点：画面をドラッグ<br>ジャンプ：Space　パンチ：F　つかむ：G<br>絵を拡大：Enter　階段：中央ホール</div>
+<div class="ui" id="help">移動：WASD / 左下スティック<br>視点：画面をドラッグ<br>ジャンプ：Space　パンチ：F（連打でワンツー）<br>つかむ：G を押している間（パンチで投げる）<br>絵を拡大：Enter　階段：中央ホール</div>
 <div class="ui" id="acts"><button class="act" id="actGrab">つかむ</button><button class="act" id="actPunch">パンチ</button><button class="act" id="actJump">ジャンプ</button></div>
 <canvas class="ui" id="map" width="340" height="300" aria-label="美術館のマップ"></canvas>
 <div class="ui" id="stick" aria-label="移動スティック"><div id="knob"></div></div>
@@ -190,6 +190,54 @@ const STAIRS = [
   { z: cz(8), x0: cx(10) + C / 2, x1: cx(6) - C / 2 },
 ];
 const stairOf = ch => 'AB'.indexOf(ch);
+
+/* ── 高さつきの当たり判定 ──
+   体の位置は (x, z) と足の高さ y。床・ベンチの上・階段の面のうち、足より下でいちばん高い面に立つ。
+   柵とベンチは「その高さを越えていれば通れる」ので、跳べば柵を越えて落ちたり、ベンチに乗ったりできる。 */
+const STEP = 0.35;                                      // 歩いて上れる段差
+const RAIL = 0.8;                                       // 柵を越えるのに必要な高さ（見た目の柵より少し低くして跳び越えやすく）
+const BODY = 1.4;                                       // 体の高さ（柵の下をくぐれないようにする）
+const BENCH_TOP = 0.48;                                 // ベンチの座面の高さ
+const levelOf = y => Math.min(LEVELS - 1, Math.max(0, Math.floor((y + 0.3) / H)));   // その高さの体がいる階
+// (x, z) が階段の上なら { k: 階段番号, h: その場所の階段の面の高さ }
+function rampAt(x, z) {
+  for (let k = 0; k < STAIRS.length; k++) {
+    const s = STAIRS[k], t = (x - s.x0) / (s.x1 - s.x0);
+    if (t > 0 && t < 1 && Math.abs(z - s.z) < C / 2) return { k, h: (k + t) * H };
+  }
+  return null;
+}
+const onBench = (f, x, z) => cellAt(f, x, z) === 'b' && Math.abs(x - cx(Math.floor(x / C + 8.5))) < 0.95 && Math.abs(z - cz(Math.floor(z / C + 7.5))) < 0.35;
+// 足元を支える面の高さ
+function supportAt(x, z, y) {
+  let best = 0;
+  const take = h => { if (h <= y + STEP && h > best) best = h; };
+  for (let f = 0; f < LEVELS; f++) {
+    const ch = cellAt(f, x, z), k = stairOf(ch);
+    if (ch === '#' || (k >= 0 && f === k + 1)) continue;                             // 壁の中と、階段の吹き抜け（上の階側）に床はない
+    take(f * H); if (onBench(f, x, z)) take(f * H + BENCH_TOP);
+  }
+  const r = rampAt(x, z); if (r) take(r.h);
+  return best;
+}
+// 足の高さ y のまま (ox, oz) から (nx, nz) へ動けるか。carrying は誰かを持ち上げている間（階段に入れない）
+function canBeAt(nx, nz, y, ox, oz, carrying = false) {
+  const f = levelOf(y);
+  for (const dx of [-R, R]) for (const dz of [-R, R]) {
+    if (cellAt(f, nx + dx, nz + dz) === '#') return false;
+    if (y < f * H + BENCH_TOP - 0.05 && onBench(f, nx + dx, nz + dz)) return false;  // ベンチは座面より高ければ上を通れる
+  }
+  const from = rampAt(ox, oz), to = rampAt(nx, nz);
+  if (!from && !to) return true;
+  if (from && to && from.k === to.k) return y >= to.h - STEP;                         // 階段の上を進む
+  // 階段の縁をまたぐ
+  const r = to || from, s = STAIRS[r.k], upper = (r.k + 1) * H;
+  const [outX, outZ] = to ? [ox, oz] : [nx, nz];
+  if (to && (carrying || y < to.h - STEP)) return false;                              // 階段の下へはもぐれない
+  const hitsUpperRail = y > upper - 0.9 && y < upper + RAIL;                          // 上の階の吹き抜けの柵（階段の中ほどから跳び下りられるよう、下側は甘め）
+  if (Math.abs(outZ - s.z) >= C / 2) return !hitsUpperRail && !(y > r.h - BODY && y < r.h + RAIL);   // 長い辺：斜めの柵もある
+  return (outX - s.x0) / (s.x1 - s.x0) >= 1 || !hitsUpperRail;                        // 下の端は吹き抜けの柵だけ／上の端は開いている
+}
 console.assert(PLANS.length === LEVELS && PLANS.every(p => p.length === ROWS && p.every(r => r.length === COLS)), '間取りの大きさが不正');
 // 階段は上下の階で同じ位置に無いと上り下りできない。両端のマスも歩ける床であること
 console.assert([0, 1].every(f => PLANS[f][6].slice(5, 12) === '.AAAAA.') && [1, 2].every(f => PLANS[f][8].slice(5, 12) === '.BBBBB.'), '階段の位置が階によってずれている');
@@ -576,7 +624,7 @@ function start() {
     bone(b, new THREE.CylinderGeometry(0.035, 0.035, 0.44, 8), 0, 0.68, 0);           // 背骨とあばら
     for (const y of [0.6, 0.7, 0.8]) bone(b, new THREE.TorusGeometry(0.15, 0.022, 6, 16), 0, y, 0).rotation.x = Math.PI / 2;
     const limb = (x, y, len, rad, lean) => {                                          // 付け根を軸に振れる手足。根元から先まで同じ太さで、先は丸い
-      const pivot = new THREE.Group(); pivot.position.set(x, y, 0); pivot.rotation.z = lean;
+      const pivot = new THREE.Group(); pivot.position.set(x, y, 0); pivot.rotation.z = pivot.userData.lean = lean;
       const o = new THREE.Mesh(new THREE.CapsuleGeometry(rad, len, 8, 16), white); o.position.y = -(len / 2 + rad);
       pivot.add(o); skin.push(o); b.add(pivot);
       bone(pivot, new THREE.CylinderGeometry(0.03, 0.03, len + rad, 6), 0, -(len / 2 + rad), 0);
@@ -602,29 +650,19 @@ function start() {
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.02; shadow.renderOrder = 100; hero.g.add(shadow);
   const p = hero.g.position;
   p.set(cx(10), 0, cz(7)); hero.g.rotation.y = -Math.PI / 2;                         // 1 階ホールの東側から、2 本の階段の間を西向きに始める
-  let lvl = 0, ramp = null;                                                           // 今いる階／乗っている階段（なければ null）
-  // 動作の状態。p.y は「足元の床の高さ groundY ＋ 浮いている高さ air」
-  let groundY = 0, air = 0, vy = 0;                                                   // ジャンプ・投げられたときの上下動
+  // 足元の状態（毎フレーム、位置から求め直す）：今いる階／乗っている階段（なければ null）／足元の面の高さ／そこから浮いている高さ
+  let lvl = 0, ramp = null, groundY = 0, air = 0;
+  let vy = 0, grounded = true;                                                        // 上下の速さ／地面に足がついているか
   let kvx = 0, kvz = 0;                                                               // 殴られた・投げられたときに押し流される速さ
   let punchT = 0, reachT = 0;                                                         // パンチ中／つかみを空振りした残り時間
   let holding = null, holdT = 0;                                                      // 自分が持ち上げている相手の id と経過時間
   let heldBy = null, heldT = 0;                                                       // 自分を持ち上げている相手の id と経過時間
   const HOLD_MAX = 3;                                                                 // 持ち上げていられる秒数
 
-  // そこに立てるか（壁と、階段の横・裏からの進入を止める。階段は端から正面でだけ入れる）
-  function free(x, z) {
-    for (const dx of [-R, R]) for (const dz of [-R, R]) {
-      const ch = cellAt(lvl, x + dx, z + dz);
-      if (ch === '#') return false;
-      if (ch === 'b' && Math.abs(x + dx - cx(Math.floor((x + dx) / C + 8.5))) < 0.95 && Math.abs(z + dz - cz(Math.floor((z + dz) / C + 7.5))) < 0.35) return false;   // ベンチ
-      const k = stairOf(ch);
-      if (k >= 0 && (lvl === k || lvl === k + 1)) {
-        if (holding || heldBy) return false;                                          // 持ち上げている・持ち上げられている間は階段に入れない
-        const s = STAIRS[k], t = (x + dx - s.x0) / (s.x1 - s.x0);
-        if (Math.abs(z - s.z) > C / 2 - R || (lvl === k ? t > 0.5 : t < 0.5)) return false;
-      }
-    }
-    return true;
+  // 横へ動く。壁・柵に当たったら、当たっていない向きにだけ滑る
+  function tryMove(mx, mz) {
+    if (canBeAt(p.x + mx, p.z, p.y, p.x, p.z, !!holding)) p.x += mx;
+    if (canBeAt(p.x, p.z + mz, p.y, p.x, p.z, !!holding)) p.z += mz;
   }
 
   // ── 入力 ──
@@ -633,9 +671,9 @@ function start() {
   addEventListener('keydown', e => { if (e.target.closest?.('input')) return;       // 名前やコードの入力中は歩かせない
     keys[e.code] = true; if (e.code === 'Escape') closeViewer(); if (e.code === 'Enter') openViewer();
     if (e.repeat) return;
-    if (e.code === 'Space') { e.preventDefault(); jump(); } else if (e.code === 'KeyF') punch(); else if (e.code === 'KeyG') grab(); });
-  addEventListener('keyup', e => { keys[e.code] = false; });
-  addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+    if (e.code === 'Space') { e.preventDefault(); jump(); } else if (e.code === 'KeyF') punch(); else if (e.code === 'KeyG') grabStart(); });
+  addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'KeyG') grabEnd(); });
+  addEventListener('blur', () => { for (const k in keys) keys[k] = false; grabEnd(); });
 
   const canvas = $('c');
   // 横向き表示のあいだは、見た目の「横」が端末の縦方向になるので、指の動きを読み替える
@@ -737,7 +775,7 @@ function start() {
     $('matchBtn').hidden = match.on; $('hp').hidden = !match.on;
   }
   function beginMatch() {                                                             // 全員が自分の端末で：HP を戻し、チームの陣地（1 階ホールの西／東）へ
-    hp = 100; matchT = 0; powerT = speedT = camoT = 0; kvx = kvz = vy = air = 0; holding = heldBy = null; lvl = 0; ramp = null; groundY = 0;
+    hp = 100; matchT = 0; powerT = speedT = camoT = 0; kvx = kvz = vy = 0; holding = heldBy = null; grounded = true;
     p.set(cx(myTeam ? 11 : 5), 0, cz(7) + (Math.random() * 2 - 1));
     yaw = myTeam ? Math.PI / 2 : -Math.PI / 2; hero.g.rotation.y = -yaw;             // ホールの中央を向く
     banner('試合開始！', 2000);
@@ -851,7 +889,10 @@ function start() {
 
   // ── 動作：ジャンプ・パンチ・つかむ（対戦の第 2 段階）──
   // 相手に効く動作は「合図」を送り、受けた側の端末が自分の体に反映する（押し流される、持ち上げられる、投げられる）
-  const ACT = { NONE: 0, PUNCH: 1, REACH: 2, HELD: 3 };                               // 他の人へ伝える見た目の動作
+  const ACT = { NONE: 0, JAB: 1, REACH: 2, HELD: 3, STRAIGHT: 4, HOOK: 5 };            // 他の人へ伝える見た目の動作
+  // パンチは続けて押すと 左ジャブ → 右ストレート → 右フック の順に出る（0.9 秒あくとジャブへ戻る）
+  const COMBO = [ACT.JAB, ACT.STRAIGHT, ACT.HOOK], PUNCH_TIME = 0.28, isPunch = a => COMBO.includes(a);
+  let combo = 0, comboT = 9, punchKind = ACT.JAB;
   const busy = () => viewer.style.display === 'flex' || !panel.hidden;
   const facing = () => [Math.sin(hero.g.rotation.y), Math.cos(hero.g.rotation.y)];
   // 目の前（1.5m 以内・正面寄り・同じ高さ）にいる相手のうち、いちばん近い人の id
@@ -865,10 +906,12 @@ function start() {
     return best;
   }
   function nonce() { return Date.now() + Math.random(); }
-  function jump() { if (!busy() && air === 0 && !heldBy) vy = 5.2; }
+  function jump() { if (!busy() && grounded && !heldBy) { vy = 5.6; grounded = false; } }   // 約 1.1m 跳ぶ（柵とベンチを越えられる高さ）
   function punch() {
-    if (busy() || punchT > 0 || heldBy || holding || hp <= 0) return;                 // やられた後は歩く・跳ぶだけ
-    punchT = 0.32;
+    if (busy() || punchT > 0 || heldBy || hp <= 0) return;                            // つかまれている間・やられた後はパンチできない
+    if (holding) { release('throw'); return; }                                        // 持ち上げている間のパンチは「投げる」
+    if (comboT > 0.9) combo = 0;
+    punchKind = COMBO[combo]; combo = (combo + 1) % COMBO.length; comboT = 0; punchT = PUNCH_TIME;
     const id = targetInFront(), [fx, fz] = facing();
     if (id) roomApi.fx(id, { k: 'hit', n: nonce(), dx: fx, dz: fz, p: powerT > 0 ? 2 : 1 });
   }
@@ -877,9 +920,10 @@ function start() {
     if (remotes.has(holding)) roomApi.fx(holding, { k: kind, n: nonce(), dx: fx, dz: fz, p: powerT > 0 ? 2 : 1 });
     holding = null; reachT = 0.25;
   }
-  function grab() {
-    if (busy() || heldBy || hp <= 0) return;
-    if (holding) { release('throw'); return; }                                        // 持っていたら投げる
+  // つかむのは、ボタン（G キー）を押している間だけ。離すと下ろす。持ったままパンチを押すと投げる
+  function grabEnd() { if (holding) release('drop'); }
+  function grabStart() {
+    if (busy() || heldBy || hp <= 0 || holding) return;
     reachT = 0.3;
     const id = targetInFront();
     // 階段の途中にいる自分・相手はつかめない／すでに誰かに持たれている相手もつかめない
@@ -898,22 +942,31 @@ function start() {
     if (f.k === 'drop') heldBy = null;
     else if (hp <= 0) return;                                                         // やられた後は何も効かない
     else if (f.k === 'grab') { if (!heldBy && ramp === null && remotes.has(f.by)) { if (holding) release('drop'); heldBy = f.by; heldT = 0; } }
-    else if (f.k === 'throw') { if (heldBy) { heldBy = null; kvx = dx * 9 * push; kvz = dz * 9 * push; vy = 5; hurt(THROW_DAMAGE * power); } }
-    else if (f.k === 'hit' && !heldBy) { if (holding) release('drop'); kvx = dx * 5.5 * push; kvz = dz * 5.5 * push; vy = Math.max(vy, 2.6); hurt(PUNCH_DAMAGE * power); }
+    else if (f.k === 'throw') { if (heldBy) { heldBy = null; kvx = dx * 9 * push; kvz = dz * 9 * push; vy = 5; grounded = false; hurt(THROW_DAMAGE * power); } }
+    else if (f.k === 'hit' && !heldBy) { if (holding) release('drop'); kvx = dx * 5.5 * push; kvz = dz * 5.5 * push; vy = Math.max(vy, 2.6); grounded = false; hurt(PUNCH_DAMAGE * power); }
   }
-  for (const [id, fn] of [['actJump', jump], ['actPunch', punch], ['actGrab', grab]]) {
+  for (const [id, fn] of [['actJump', jump], ['actPunch', punch]]) {
     $(id).addEventListener('pointerdown', e => { e.preventDefault(); fn(); });
   }
+  $('actGrab').addEventListener('pointerdown', e => { e.preventDefault(); try { e.target.setPointerCapture(e.pointerId); } catch (_) {} grabStart(); });
+  for (const type of ['pointerup', 'pointercancel']) $('actGrab').addEventListener(type, grabEnd);
 
-  // 姿勢（自分、床の映り込み、他の人で共通）。act は ACT のどれか、time は動作の揺れに使う時刻
-  function pose(fig, moving, t, breathe, act = 0, time = 0) {
-    const swing = moving ? Math.sin(t) : 0;
-    fig.arms[0].rotation.x = swing * 1.1; fig.arms[1].rotation.x = -swing * 1.1;      // 腕は大きくぱたぱた振る
+  // 姿勢（自分、床の映り込み、他の人で共通）。act は ACT のどれか、time は動作の揺れに使う時刻、amount はパンチの伸び具合（0〜1）
+  function pose(fig, moving, t, breathe, act = 0, time = 0, amount = 1) {
+    const swing = moving ? Math.sin(t) : 0, [armL, armR] = fig.arms;
+    armL.rotation.x = swing * 1.1; armR.rotation.x = -swing * 1.1;                    // 腕は大きくぱたぱた振る
+    armL.rotation.z = armL.userData.lean; armR.rotation.z = armR.userData.lean;
     fig.legs[0].rotation.x = -swing * 0.9; fig.legs[1].rotation.x = swing * 0.9;
     fig.b.position.y = moving ? Math.abs(swing) * 0.07 : breathe * 0.012;             // ぴょこぴょこ弾む
-    fig.b.rotation.z = swing * 0.07;                                                  // 体を左右に揺らす
+    fig.b.rotation.set(0, 0, swing * 0.07);                                           // 体を左右に揺らす
     fig.head.position.y = 1.2 + (moving ? Math.abs(Math.cos(t)) * 0.03 : breathe * 0.01);
-    if (act === ACT.PUNCH) fig.arms[1].rotation.x = -1.7;                             // 右腕を前へ突き出す
+    if (act === ACT.JAB) {                                                            // 左ジャブ：左腕を素早く前へ。右はガード
+      armL.rotation.x = -1.65 * amount; armR.rotation.x = -0.7; fig.b.rotation.y = 0.3 * amount;
+    } else if (act === ACT.STRAIGHT) {                                                // 右ストレート：腰を入れて右腕を伸ばす
+      armR.rotation.x = -1.7 * amount; armL.rotation.x = -0.7; fig.b.rotation.y = -0.45 * amount; fig.b.rotation.x = 0.12 * amount;
+    } else if (act === ACT.HOOK) {                                                    // 右フック：体を大きくひねり、腕を横から振り抜く
+      armR.rotation.x = -1.35 * amount; armR.rotation.z = armR.userData.lean - 1.1 * amount; armL.rotation.x = -0.7; fig.b.rotation.y = -0.75 * amount;
+    }
     else if (act === ACT.REACH) fig.arms[0].rotation.x = fig.arms[1].rotation.x = -2.5;   // 両腕を上げる（つかむ・持ち上げる）
     else if (act === ACT.HELD) {                                                      // 持ち上げられてじたばた
       const w = Math.sin(time * 22);
@@ -924,8 +977,8 @@ function start() {
 
   // ── メインループ ──
   const clock = new THREE.Clock(), clamp = THREE.MathUtils.clamp;
-  let walkT = 0;
-  renderer.setAnimationLoop(() => {
+  let walkT = 0, camY = 0;
+  const frame = () => {
     const dt = Math.min(clock.getDelta(), 0.05);
     if (window.WOS_PANEL_ACTIVE === false) return;                                   // ポータルで他のメニューを見ている間は描画を止める
     let ix = stickV.x + (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
@@ -935,32 +988,21 @@ function start() {
     if (moving) {
       // カメラの向きを基準に前後左右へ動く
       const vx = -Math.sin(yaw) * iy + Math.cos(yaw) * ix, vz = -Math.cos(yaw) * iy - Math.sin(yaw) * ix;
-      const speed = 4 * (speedT > 0 ? 1.7 : 1), mx = vx * speed * dt, mz = vz * speed * dt;
-      if (ramp === null) {
-        if (free(p.x + mx, p.z)) p.x += mx;                                           // 壁に当たったら壁沿いに滑る
-        if (free(p.x, p.z + mz)) p.z += mz;
-        const k = stairOf(cellAt(lvl, p.x, p.z));
-        if (k >= 0 && (lvl === k || lvl === k + 1)) ramp = k;
-      } else {
-        const s = STAIRS[ramp];
-        p.x += mx; p.z = clamp(p.z + mz, s.z - (C / 2 - R), s.z + (C / 2 - R));
-        const t = (p.x - s.x0) / (s.x1 - s.x0);
-        if (t <= 0) { lvl = ramp; ramp = null; } else if (t >= 1) { lvl = ramp + 1; ramp = null; }
-        groundY = (ramp === null ? lvl : ramp + t) * H;
-      }
+      const speed = 4 * (speedT > 0 ? 1.7 : 1);
+      tryMove(vx * speed * dt, vz * speed * dt);
       let d = Math.atan2(vx, vz) - hero.g.rotation.y;                                // 進行方向へ最短で振り向く
       d = Math.atan2(Math.sin(d), Math.cos(d));
       hero.g.rotation.y += d * Math.min(1, dt * 12);
       walkT += dt * 11 * Math.min(1, len);
     }
-    // 押し流し（殴られた・投げられた）。壁では止まる。階段の上では効かない
+    // 押し流し（殴られた・投げられた）。壁と柵では止まる
     if (Math.hypot(kvx, kvz) > 0.15) {
-      if (ramp === null) { if (free(p.x + kvx * dt, p.z)) p.x += kvx * dt; if (free(p.x, p.z + kvz * dt)) p.z += kvz * dt; }
+      tryMove(kvx * dt, kvz * dt);
       const decay = Math.exp(-dt * 4.5); kvx *= decay; kvz *= decay;
     } else kvx = kvz = 0;
 
     // 持ち上げている側：3 秒たつか、相手がいなくなる・抜けたら放す
-    punchT = Math.max(0, punchT - dt); reachT = Math.max(0, reachT - dt);
+    punchT = Math.max(0, punchT - dt); reachT = Math.max(0, reachT - dt); comboT += dt;
     if (holding) {
       holdT += dt;
       const r = remotes.get(holding);
@@ -973,17 +1015,28 @@ function start() {
       if (!r || heldT > HOLD_MAX + 0.5) heldBy = null;
       else {
         const g = r.fig.g, hx = g.position.x + Math.sin(g.rotation.y) * 0.75, hz = g.position.z + Math.cos(g.rotation.y) * 0.75;
-        if (free(hx, hz)) { p.x = hx; p.z = hz; } else if (free(g.position.x, g.position.z)) { p.x = g.position.x; p.z = g.position.z; }
-        hero.g.rotation.y = g.rotation.y; air = Math.max(0, g.position.y + 0.9 - groundY); vy = 0;
+        const open = (x, z) => cellAt(levelOf(g.position.y), x, z) !== '#';
+        if (open(hx, hz)) { p.x = hx; p.z = hz; } else if (open(g.position.x, g.position.z)) { p.x = g.position.x; p.z = g.position.z; }
+        hero.g.rotation.y = g.rotation.y; p.y = g.position.y + 0.9; vy = 0; grounded = false;
       }
     }
-    // 上下動（ジャンプ・落下）
-    if (!heldBy && (air > 0 || vy > 0)) { vy -= 14 * dt; air += vy * dt; if (air <= 0) { air = 0; vy = 0; } }
-    p.y = groundY + air; shadow.position.y = 0.02 - air;                             // 影は床に残す
+    // 上下動：歩いているだけなら足元の面に沿う（階段を上り下りする）。足元が大きく下がれば落ち、跳べば上がる
+    const floorY = supportAt(p.x, p.z, p.y);
+    if (!heldBy) {
+      if (grounded && vy <= 0 && p.y - floorY < 0.45) p.y = floorY;
+      else { vy -= 14 * dt; p.y += vy * dt; grounded = p.y <= floorY; if (grounded) { p.y = floorY; vy = 0; } }
+    }
+    // 足元の状態を求め直す
+    groundY = supportAt(p.x, p.z, p.y); air = Math.max(0, p.y - groundY);
+    const under = rampAt(p.x, p.z);
+    ramp = under && Math.abs(groundY - under.h) < 1e-6 ? under.k : null;
+    lvl = Math.min(LEVELS - 1, Math.floor((groundY + 0.01) / H));
+    shadow.position.y = 0.02 - air;                                                  // 影は足元の面に残す
 
     const breathe = Math.sin(clock.elapsedTime * 2.2);                              // 立っている間もゆっくり呼吸する
-    const act = heldBy ? ACT.HELD : punchT > 0 ? ACT.PUNCH : holding || reachT > 0 ? ACT.REACH : ACT.NONE;
-    pose(hero, moving, walkT, breathe, act, clock.elapsedTime); pose(ghost, moving, walkT, breathe, act, clock.elapsedTime);
+    const act = heldBy ? ACT.HELD : punchT > 0 ? punchKind : holding || reachT > 0 ? ACT.REACH : ACT.NONE;
+    const reach = Math.sin((1 - punchT / PUNCH_TIME) * Math.PI);                     // パンチは突き出して戻す
+    pose(hero, moving, walkT, breathe, act, clock.elapsedTime, reach); pose(ghost, moving, walkT, breathe, act, clock.elapsedTime, reach);
     hero.setLook(hp <= 0 ? 'down' : camoT > 0 ? 'camoSelf' : 'normal'); ghost.setLook(hp <= 0 ? 'down' : camoT > 0 ? 'camo' : 'normal');
     const big = powerT > 0 ? 1.2 : 1; hero.g.scale.setScalar(big); ghost.g.scale.set(big, -big, big);   // パワーアップ中は体が大きい
     $('hpFill').style.width = hp + '%';
@@ -1003,7 +1056,7 @@ function start() {
     for (const [id, it] of drops) {
       it.sprite.position.set(it.x, it.l * H + 0.85 + Math.sin(clock.elapsedTime * 2.5 + it.x) * 0.12, it.z);
       it.sprite.visible = Math.abs(it.l * H - groundY) < H * 0.9;
-      if (!it.taking && hp > 0 && ramp === null && it.l === lvl && Math.hypot(it.x - p.x, it.z - p.z) < 0.9) {
+      if (!it.taking && hp > 0 && ramp === null && it.l === lvl && air < 1.2 && Math.hypot(it.x - p.x, it.z - p.z) < 0.9) {
         it.taking = true;
         roomApi.takeItem(id).then(ok => { if (ok) gotItem(it.t); else it.taking = false; });
       }
@@ -1033,7 +1086,9 @@ function start() {
         g.rotation.y += Math.atan2(Math.sin(tr - g.rotation.y), Math.cos(tr - g.rotation.y)) * k;
       }
       if (mv) r.walkT += dt * 11;
-      pose(r.fig, !!mv, r.walkT, breathe, id === holding ? ACT.HELD : ract, clock.elapsedTime);
+      if (ract !== r.lastAct) { r.lastAct = ract; r.actT = 0; }                      // 動作が変わった瞬間からパンチの伸びを数える
+      r.actT = (r.actT || 0) + dt;
+      pose(r.fig, !!mv, r.walkT, breathe, id === holding ? ACT.HELD : ract, clock.elapsedTime, isPunch(ract) ? Math.sin(Math.min(1, r.actT / PUNCH_TIME) * Math.PI) : 1);
       const hidden = (r.buffs & 4) && r.team !== myTeam && r.hp > 0;                  // 同化中の相手チームは名札も HP も出さない
       r.fig.setLook(r.hp <= 0 ? 'down' : r.buffs & 4 ? (r.team === myTeam ? 'camoSelf' : 'camo') : 'normal');
       g.scale.setScalar(r.buffs & 1 && r.hp > 0 ? 1.2 : 1); r.tag.visible = !hidden;
@@ -1052,15 +1107,16 @@ function start() {
       wallsG[f].visible = f >= Math.floor(groundY / H + 1e-4);                           // 足元より下の階の壁は隠す（床に映す像と重なるため）
     }
     ghost.g.visible = onFloor;
-    ghost.g.position.set(p.x, lvl * H - air, p.z); ghost.g.rotation.y = hero.g.rotation.y;
+    ghost.g.position.set(p.x, 2 * lvl * H - p.y, p.z); ghost.g.rotation.y = hero.g.rotation.y;
 
     // 三人称カメラ（壁にめり込まないよう、壁の手前で止める）
     const sx = Math.sin(yaw), sz = Math.cos(yaw);
     let dist = 0;
     const camLevel = Math.round(groundY / H);
     while (dist < 4.6 && cellAt(camLevel, p.x + sx * (dist + 0.5), p.z + sz * (dist + 0.5)) !== '#') dist += 0.2;
-    camera.position.set(p.x + sx * dist, groundY + air * 0.5 + 1.9, p.z + sz * dist);
-    camera.lookAt(p.x, groundY + air * 0.5 + 1.2, p.z);
+    camY += (p.y - air * 0.5 - camY) * (1 - Math.exp(-dt * 10));                     // 落ちたときに視点が一気に飛ばないよう、高さはなめらかに追う
+    camera.position.set(p.x + sx * dist, camY + 1.9, p.z + sz * dist);
+    camera.lookAt(p.x, camY + 1.2, p.z);
 
     // いちばん近い絵の題名を出す
     let best = null, bestD = 2.8;
@@ -1075,9 +1131,10 @@ function start() {
     }
     drawMap(Math.round(groundY / H));
     renderer.render(scene, camera);
-  });
+  };
+  renderer.setAnimationLoop(frame);
 
-  window.__museum = { get lvl() { return lvl; }, set lvl(v) { lvl = v; ramp = null; groundY = v * H; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, reachT, holding, heldBy, kv: [kvx, kvz], hp, team: myTeam, match: match.on, down: hero.down, look: hero.look, buffs: buffBits(), items: [...drops.values()].map(i => [i.t, i.x, i.z, i.l]) }; }, gotItem, p, free, jump, punch, grab };   // 動作確認用
+  window.__museum = { get lvl() { return lvl; }, set lvl(v) { p.y = v * H; vy = 0; grounded = true; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, reachT, holding, heldBy, kv: [kvx, kvz], hp, team: myTeam, match: match.on, down: hero.down, look: hero.look, buffs: buffBits(), items: [...drops.values()].map(i => [i.t, i.x, i.z, i.l]) }; }, gotItem, p, canBeAt, supportAt, jump, punch, grabStart, grabEnd, get punchKind() { return punchKind; }, tick: frame };   // 動作確認用
 }
 </script>
 </body>

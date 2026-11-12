@@ -33,7 +33,7 @@
     { id: 'sources', label: '出典情報', icon: '◎', eyebrow: 'RESEARCH LOG', title: 'いろんな情報から確かめる。', subtitle: '' },
     { id: 'bear', label:'熊罠配置', icon:'▦', path:'./apps/bear/index.html?v=3.44', title:'熊罠配置', eyebrow:'ALLIANCE LAYOUT', subtitle:'DeS・GeMの配置を確認・調整' },
     { id: 'canyon', label:'峡谷合戦', icon:'△', path:'./apps/canyon/index.html', title:'峡谷合戦', eyebrow:'CANYON CLASH', subtitle:'42レッスンの攻略ガイド', memoOnly:true },
-    { id: 'gallery', label:'もふもふギャラリー', icon:'♧', path:'./apps/gallery/index.html?v=3.90', title:'もふもふギャラリー', eyebrow:'THE FLUFFY HALL', subtitle:'同盟のもふもふコレクション' },
+    { id: 'gallery', label:'もふもふギャラリー', icon:'♧', path:'./apps/gallery/index.html?v=3.91', title:'もふもふギャラリー', eyebrow:'THE FLUFFY HALL', subtitle:'同盟のもふもふコレクション' },
     { id: 'games', label:'ミニゲーム', icon:'♠', path:'./apps/games/index.html?v=3.73', title:'ミニゲーム', eyebrow:'PLAY TOGETHER', subtitle:'みんなで楽しむオンラインゲーム' },
     { id: 'formation', label:'編成ツール', icon:'◫', path:'https://wos.henseiradar.com/', title:'編成ツール', eyebrow:'FORMATION RADAR', subtitle:'英雄・兵士の編成を確認' },
     { id: 'svs', label:'2856SvS補助ツール', icon:'⚑', path:'./apps/svs/index.html?v=3.45', title:'2856SvS補助ツール', eyebrow:'SVS OPERATIONS', subtitle:'参加管理・集結設定・振り分け・カウントアップ' },
