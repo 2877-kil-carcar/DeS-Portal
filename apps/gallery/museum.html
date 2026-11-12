@@ -25,6 +25,13 @@
     background: rgba(13,4,6,0.78); border: 1px solid rgba(212,175,55,0.45); border-radius: 999px; padding: 5px 8px 5px 14px; font-size: 13px;
   }
   .pill.small { font-size: 12px; padding: 6px 12px; }
+  #roomInfo { font-weight: 700; }
+  #hp { top: 54px; left: 50%; transform: translateX(-50%); width: 180px; height: 12px; border-radius: 999px; overflow: hidden; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.4); }
+  #hpFill { height: 100%; width: 100%; background: #57e389; transition: width 0.15s; }
+  #banner {
+    top: 28%; left: 50%; transform: translateX(-50%); z-index: 4; pointer-events: none; white-space: nowrap;
+    font-size: 26px; font-weight: 800; color: #FFE566; text-shadow: 0 2px 8px #000; background: rgba(13,4,6,0.72); padding: 10px 24px; border-radius: 16px;
+  }
   #roomPanel { inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; background: rgba(5,2,3,0.8); }
   #roomPanel .box {
     width: min(92%, 340px); max-height: 94%; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 18px;
@@ -79,9 +86,11 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=3.88">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=3.89">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
-<div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コードをコピー</button><button class="pill small" id="roomLeave">出る</button></div>
+<div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
+<div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
+<div class="ui" id="banner" role="status" hidden></div>
 <div class="ui" id="roomPanel" role="dialog" aria-label="みんなで入る" hidden>
   <div class="box">
     <h2>👥 みんなで入る</h2>
@@ -545,21 +554,38 @@ function start() {
 
   // ── 白くて丸いキャラ（ローカル +z が前）。床に映す用にもう 1 体作る ──
   const white = std(0xffffff, 0.55);
+  // やられた後の「半スケルトン」：体を半透明にして、中の骨を見せる
+  const ghostMat = new THREE.MeshStandardMaterial({ color: 0xcfe6ff, roughness: 0.4, transparent: true, opacity: 0.28, depthWrite: false });
+  const boneMat = std(0xf4f0e4, 0.7), socketMat = std(0x111111, 1);
   function makeFigure() {
     // 大きな丸い頭・ぽってりした胴・細い手足に丸い手先足先、の 3 頭身。b は歩くときに弾ませる中身
-    const g = new THREE.Group(), b = new THREE.Group(); g.add(b);
-    const part = (geo, y) => { const o = new THREE.Mesh(geo, white); o.position.y = y; b.add(o); return o; };
+    const g = new THREE.Group(), b = new THREE.Group(), skin = [], bones = []; g.add(b);
+    const part = (geo, y) => { const o = new THREE.Mesh(geo, white); o.position.y = y; b.add(o); skin.push(o); return o; };
+    const bone = (parent, geo, x, y, z, material = boneMat) => {                      // ふだんは隠しておく骨
+      const o = new THREE.Mesh(geo, material); o.position.set(x, y, z); o.visible = false; parent.add(o); bones.push(o); return o;
+    };
     part(new THREE.CapsuleGeometry(0.24, 0.16, 8, 20), 0.66);                         // 胴
     const head = part(new THREE.SphereGeometry(0.31, 32, 24), 1.2);                   // 頭
+    bone(head, new THREE.SphereGeometry(0.2, 16, 12), 0, 0, 0);                       // 頭蓋骨と目の穴
+    for (const x of [-0.075, 0.075]) bone(head, new THREE.SphereGeometry(0.05, 8, 6), x, 0.03, 0.165, socketMat);
+    bone(b, new THREE.CylinderGeometry(0.035, 0.035, 0.44, 8), 0, 0.68, 0);           // 背骨とあばら
+    for (const y of [0.6, 0.7, 0.8]) bone(b, new THREE.TorusGeometry(0.15, 0.022, 6, 16), 0, y, 0).rotation.x = Math.PI / 2;
     const limb = (x, y, len, rad, lean) => {                                          // 付け根を軸に振れる手足。根元から先まで同じ太さで、先は丸い
       const pivot = new THREE.Group(); pivot.position.set(x, y, 0); pivot.rotation.z = lean;
       const o = new THREE.Mesh(new THREE.CapsuleGeometry(rad, len, 8, 16), white); o.position.y = -(len / 2 + rad);
-      pivot.add(o); b.add(pivot); return pivot;
+      pivot.add(o); skin.push(o); b.add(pivot);
+      bone(pivot, new THREE.CylinderGeometry(0.03, 0.03, len + rad, 6), 0, -(len / 2 + rad), 0);
+      return pivot;
     };
     const arms = [limb(-0.28, 0.88, 0.28, 0.078, -0.3), limb(0.28, 0.88, 0.28, 0.078, 0.3)];
     const legs = [limb(-0.12, 0.44, 0.22, 0.1, 0), limb(0.12, 0.44, 0.22, 0.1, 0)];
     scene.add(g);
-    return { g, b, head, arms, legs };
+    const fig = { g, b, head, arms, legs, down: false };
+    fig.setDown = on => {                                                             // やられた姿に切り替える／戻す
+      if (fig.down === on) return;
+      fig.down = on; skin.forEach(o => { o.material = on ? ghostMat : white; }); bones.forEach(o => { o.visible = on; });
+    };
+    return fig;
   }
   const hero = makeFigure(), ghost = makeFigure();
   ghost.g.scale.y = -1;
@@ -676,14 +702,51 @@ function start() {
     tag.scale.set(1.1, 0.275, 1); tag.position.y = 1.85; tag.renderOrder = 90;
     return tag;
   }
-  function dropRemote(id) { const r = remotes.get(id); scene.remove(r.fig.g); r.tag.material.map.dispose(); r.tag.material.dispose(); remotes.delete(id); }
+  function dropRemote(id) {
+    const r = remotes.get(id); scene.remove(r.fig.g);
+    r.tag.material.map.dispose(); r.tag.material.dispose(); r.bar.material.dispose(); remotes.delete(id);
+  }
+
+  // ── チーム戦（対戦の第 3 段階）：HP がなくなると半スケルトンになり、片方のチームが全滅したら相手の勝ち ──
+  const TEAM_NAMES = ['赤', '青'], PUNCH_DAMAGE = 15, THROW_DAMAGE = 25;
+  let hp = 100, myTeam = 0, matchT = 0;
+  let match = { on: false, n: 0 };                                                    // 試合中か／試合の通し番号
+  let bannerTimer;
+  function banner(text, ms) {
+    $('banner').textContent = text; $('banner').hidden = false;
+    clearTimeout(bannerTimer); bannerTimer = setTimeout(() => { $('banner').hidden = true; }, ms);
+  }
+  function refreshHud(count) {
+    if (count) room.count = count;
+    $('roomInfo').textContent = `${room.code}・${room.count}/6・${TEAM_NAMES[myTeam]}`;
+    $('roomInfo').style.color = TEAM_COLORS[myTeam];
+    $('matchBtn').hidden = match.on; $('hp').hidden = !match.on;
+  }
+  function beginMatch() {                                                             // 全員が自分の端末で：HP を戻し、チームの陣地（1 階ホールの西／東）へ
+    hp = 100; matchT = 0; kvx = kvz = vy = air = 0; holding = heldBy = null; lvl = 0; ramp = null; groundY = 0;
+    p.set(cx(myTeam ? 11 : 5), 0, cz(7) + (Math.random() * 2 - 1));
+    yaw = myTeam ? Math.PI / 2 : -Math.PI / 2; hero.g.rotation.y = -yaw;             // ホールの中央を向く
+    banner('試合開始！', 2000);
+  }
+  $('matchBtn').addEventListener('click', () => {
+    const teams = [0, 0]; teams[myTeam]++; for (const r of remotes.values()) teams[r.team]++;
+    if (!teams[0] || !teams[1]) { banner('相手チームがいません（2人以上で始められます）', 3000); return; }
+    roomApi.setMatch({ on: true, n: nonce() });
+  });
+
   let lastFx, roomMe = null;                                                          // 最後に反映した自分宛ての合図の番号／部屋での自分の id
-  function onRoom(code, players, me, fx) {
-    roomMe = me;
-    if (!room) lastFx = fx?.n;                                                        // 入室前から残っていた合図は無視する
+  function onRoom(code, players, me, fx, m) {
+    roomMe = me; myTeam = players[me].team === 1 ? 1 : 0;
+    const first = !room;
+    if (first) lastFx = fx?.n;                                                        // 入室前から残っていた合図は無視する
     else if (fx && fx.n !== lastFx) { lastFx = fx.n; onFx(fx); }
-    room = { code };
-    $('roomInfo').textContent = `部屋 ${code}・${Object.keys(players).length}/6人`;
+    room ||= { code };
+    if ((m?.n || 0) !== match.n) {                                                    // 試合が始まった／終わった
+      match = { on: !!m?.on, n: m?.n || 0 };
+      if (match.on) beginMatch();
+      else if (!first && m && m.winner != null) banner(m.winner === -1 ? '引き分け！' : `${TEAM_NAMES[m.winner]}チームの勝ち！`, 6000);
+    }
+    refreshHud(Object.keys(players).length);
     $('roomHud').hidden = false; $('roomBtn').hidden = true;
     for (const id of [...remotes.keys()]) if (!players[id]) dropRemote(id);
     for (const [id, q] of Object.entries(players)) {
@@ -692,15 +755,19 @@ function start() {
       let r = remotes.get(id);
       if (r && (r.name !== name || r.team !== team)) { dropRemote(id); r = null; }
       if (!r) {
-        r = { fig: makeFigure(), tag: nameTag(name, team), target: q.s, walkT: 0, team, name };
-        r.fig.g.add(r.tag); r.fig.g.position.set(+q.s[0] || 0, +q.s[1] || 0, +q.s[2] || 0); remotes.set(id, r);
+        r = { fig: makeFigure(), tag: nameTag(name, team), target: q.s, walkT: 0, team, name, hp: 100 };
+        r.bar = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x57e389 }));    // 名札の下の HP の棒
+        r.bar.position.y = 1.66; r.bar.renderOrder = 90;
+        r.fig.g.add(r.tag, r.bar); r.fig.g.position.set(+q.s[0] || 0, +q.s[1] || 0, +q.s[2] || 0); remotes.set(id, r);
       }
       r.target = q.s.map(v => +v || 0);
+      r.hp = q.s.length > 6 ? r.target[6] : 100;                                     // 古い版の相手は HP を送ってこない
     }
   }
   function leftRoom(message) {
     for (const id of [...remotes.keys()]) dropRemote(id);
-    room = null; lastSent = ''; holding = heldBy = null; $('roomHud').hidden = true; $('roomBtn').hidden = false;
+    room = null; lastSent = ''; holding = heldBy = null; hp = 100; match = { on: false, n: 0 };
+    $('roomHud').hidden = true; $('roomBtn').hidden = false; $('hp').hidden = true;
     if (message) { panel.hidden = false; roomMsg(message); }
   }
   async function enterRoom(create) {
@@ -710,7 +777,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      roomApi ||= await import('./museum-room.js?v=3.88');
+      roomApi ||= await import('./museum-room.js?v=3.89');
       await roomApi.enter({ create, code, name: roomApi.cleanName(name) || 'ななし', onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
       try { localStorage.setItem('museum:name', name); } catch (_) {}
       panel.hidden = true; roomMsg('');
@@ -725,7 +792,7 @@ function start() {
   $('roomJoin').addEventListener('click', () => enterRoom(false));
   $('roomLeave').addEventListener('click', () => { roomApi.leave(); leftRoom(''); });
   $('roomCopy').addEventListener('click', () => {
-    navigator.clipboard?.writeText(room.code).then(() => { $('roomCopy').textContent = 'コピーしました'; setTimeout(() => { $('roomCopy').textContent = 'コードをコピー'; }, 1500); }).catch(() => {});
+    navigator.clipboard?.writeText(room.code).then(() => { $('roomCopy').textContent = 'コピー済み'; setTimeout(() => { $('roomCopy').textContent = 'コピー'; }, 1500); }).catch(() => {});
   });
   addEventListener('pagehide', () => roomApi?.leave());
 
@@ -739,14 +806,15 @@ function start() {
     const [fx, fz] = facing(); let best = null, bestD = 1.5;
     for (const [id, r] of remotes) {
       const q = r.fig.g.position, dx = q.x - p.x, dz = q.z - p.z, d = Math.hypot(dx, dz);
+      if (match.on && (r.team === myTeam || r.hp <= 0)) continue;                     // 試合中は味方と、やられた人には当たらない
       if (d < bestD && Math.abs(q.y - p.y) < 1.2 && (d < 0.3 || (dx * fx + dz * fz) / d > 0.35)) { best = id; bestD = d; }
     }
     return best;
   }
-  const nonce = () => Date.now() + Math.random();
+  function nonce() { return Date.now() + Math.random(); }
   function jump() { if (!busy() && air === 0 && !heldBy) vy = 5.2; }
   function punch() {
-    if (busy() || punchT > 0 || heldBy || holding) return;
+    if (busy() || punchT > 0 || heldBy || holding || hp <= 0) return;                 // やられた後は歩く・跳ぶだけ
     punchT = 0.32;
     const id = targetInFront(), [fx, fz] = facing();
     if (id) roomApi.fx(id, { k: 'hit', n: nonce(), dx: fx, dz: fz });
@@ -757,7 +825,7 @@ function start() {
     holding = null; reachT = 0.25;
   }
   function grab() {
-    if (busy() || heldBy) return;
+    if (busy() || heldBy || hp <= 0) return;
     if (holding) { release('throw'); return; }                                        // 持っていたら投げる
     reachT = 0.3;
     const id = targetInFront();
@@ -769,10 +837,16 @@ function start() {
   // 自分宛ての合図を体に反映する
   function onFx(f) {
     const dx = +f.dx || 0, dz = +f.dz || 0;
-    if (f.k === 'grab') { if (!heldBy && ramp === null && remotes.has(f.by)) { if (holding) release('drop'); heldBy = f.by; heldT = 0; } }
-    else if (f.k === 'drop') heldBy = null;
-    else if (f.k === 'throw') { if (heldBy) { heldBy = null; kvx = dx * 9; kvz = dz * 9; vy = 5; } }
-    else if (f.k === 'hit' && !heldBy) { if (holding) release('drop'); kvx = dx * 5.5; kvz = dz * 5.5; vy = Math.max(vy, 2.6); }
+    const hurt = damage => {                                                          // 試合中だけ HP が減る。0 になったら持っている相手を放す
+      if (!match.on) return;
+      hp = Math.max(0, hp - damage);
+      if (hp <= 0) { if (holding) release('drop'); banner('やられた…　歩くことはできます', 3000); }
+    };
+    if (f.k === 'drop') heldBy = null;
+    else if (hp <= 0) return;                                                         // やられた後は何も効かない
+    else if (f.k === 'grab') { if (!heldBy && ramp === null && remotes.has(f.by)) { if (holding) release('drop'); heldBy = f.by; heldT = 0; } }
+    else if (f.k === 'throw') { if (heldBy) { heldBy = null; kvx = dx * 9; kvz = dz * 9; vy = 5; hurt(THROW_DAMAGE); } }
+    else if (f.k === 'hit' && !heldBy) { if (holding) release('drop'); kvx = dx * 5.5; kvz = dz * 5.5; vy = Math.max(vy, 2.6); hurt(PUNCH_DAMAGE); }
   }
   for (const [id, fn] of [['actJump', jump], ['actPunch', punch], ['actGrab', grab]]) {
     $(id).addEventListener('pointerdown', e => { e.preventDefault(); fn(); });
@@ -857,13 +931,23 @@ function start() {
     const breathe = Math.sin(clock.elapsedTime * 2.2);                              // 立っている間もゆっくり呼吸する
     const act = heldBy ? ACT.HELD : punchT > 0 ? ACT.PUNCH : holding || reachT > 0 ? ACT.REACH : ACT.NONE;
     pose(hero, moving, walkT, breathe, act, clock.elapsedTime); pose(ghost, moving, walkT, breathe, act, clock.elapsedTime);
+    hero.setDown(hp <= 0); ghost.setDown(hp <= 0);
+    $('hpFill').style.width = hp + '%';
+
+    // 試合中：片方のチームが全滅したら、気づいた端末が勝敗を全員へ知らせる（開始直後は古い HP が残るので 2 秒待つ）
+    if (room && match.on && (matchT += dt) > 2) {
+      const alive = [0, 0]; if (hp > 0) alive[myTeam]++;
+      for (const r of remotes.values()) if (r.hp > 0) alive[r.team]++;
+      const winner = roomApi.decideWinner(alive);
+      if (winner !== null) { match.on = false; roomApi.setMatch({ on: false, winner, n: nonce() }); }
+    }
 
     // 部屋にいる間：自分の位置を 1 秒に 10 回まで送り（動いたときだけ）、他の人を受け取った位置へなめらかに寄せる
     if (room) {
       sendT += dt;
       if (sendT >= 0.1) {
         sendT = 0;
-        const s = [p.x, p.y, p.z, hero.g.rotation.y].map(v => Math.round(v * 100) / 100).concat(moving ? 1 : 0, act);
+        const s = [p.x, p.y, p.z, hero.g.rotation.y].map(v => Math.round(v * 100) / 100).concat(moving ? 1 : 0, act, hp);
         if (s.join() !== lastSent) { lastSent = s.join(); roomApi.send(s); }
       }
     }
@@ -879,6 +963,9 @@ function start() {
       }
       if (mv) r.walkT += dt * 11;
       pose(r.fig, !!mv, r.walkT, breathe, id === holding ? ACT.HELD : ract, clock.elapsedTime);
+      r.fig.setDown(r.hp <= 0);
+      r.bar.visible = match.on && r.hp > 0; r.bar.scale.set(Math.max(0.02, r.hp / 100), 0.07, 1);
+      r.bar.material.color.set(r.hp > 50 ? 0x57e389 : r.hp > 25 ? 0xf5c211 : 0xe2485a);
       g.visible = Math.abs(ty - p.y) < H * 0.9;                                      // 違う階の人は描かない
     }
 
@@ -917,7 +1004,7 @@ function start() {
     renderer.render(scene, camera);
   });
 
-  window.__museum = { get lvl() { return lvl; }, set lvl(v) { lvl = v; ramp = null; groundY = v * H; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, reachT, holding, heldBy, kv: [kvx, kvz] }; }, p, free, jump, punch, grab };   // 動作確認用
+  window.__museum = { get lvl() { return lvl; }, set lvl(v) { lvl = v; ramp = null; groundY = v * H; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, reachT, holding, heldBy, kv: [kvx, kvz], hp, team: myTeam, match: match.on, down: hero.down }; }, p, free, jump, punch, grab };   // 動作確認用
 }
 </script>
 </body>

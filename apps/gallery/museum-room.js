@@ -47,9 +47,16 @@ export function decideEntry(room, { create, code, pid, name }) {
   return { room };
 }
 
+/* 試合の勝敗。alive = [赤の生き残り人数, 青の生き残り人数]。
+   戻り値：まだ決まらなければ null、勝ったチームの番号（0 赤／1 青）、全滅どうしなら -1（引き分け） */
+export function decideWinner(alive) {
+  if (alive[0] > 0 && alive[1] > 0) return null;
+  return alive[0] > 0 ? 0 : alive[1] > 0 ? 1 : -1;
+}
+
 let db, pid, myRef, myFxRef, stopListening;
 
-/* 部屋を作る（create: true）か、コードで入る。onRoom(code, players, 自分の id, 自分宛ての合図) は部屋の内容が変わるたびに呼ばれ、
+/* 部屋を作る（create: true）か、コードで入る。onRoom(code, players, 自分の id, 自分宛ての合図, 試合の状態) は部屋の内容が変わるたびに呼ばれ、
    自分が部屋から消えたら onGone() が呼ばれる。失敗時は userMessage つきのエラーを投げる */
 export async function enter({ create, code, name, onRoom, onGone }) {
   if (!db) { db = getDatabase(initializeApp(firebaseConfig, "museum-room")); pid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`; }
@@ -72,7 +79,7 @@ export async function enter({ create, code, name, onRoom, onGone }) {
   stopListening = onValue(roomRef, snap => {
     const room = snap.val(), me = room?.players?.[pid];
     if (!me?.name || room.code !== code) { leave(); onGone(); return; }  // 通信が切れて消された／部屋が作り直された
-    onRoom(room.code, room.players, pid, room.fx?.[pid]);
+    onRoom(room.code, room.players, pid, room.fx?.[pid], room.match);
   });
   return { code };
 }
@@ -86,6 +93,11 @@ export function send(s) {
    players の下ではなく fx の下に書く：もう居ない相手へ書いても、人数に数えられる抜け殻を作らないため */
 export function fx(targetId, data) {
   if (myRef && stopListening) set(ref(db, `${ROOM_PATH}/fx/${targetId}`), data).catch(() => {});
+}
+
+/* 試合の状態を全員へ知らせる（{ on: 試合中か, n: 通し番号, winner: 勝ったチーム }） */
+export function setMatch(data) {
+  if (myRef && stopListening) set(ref(db, `${ROOM_PATH}/match`), data).catch(() => {});
 }
 
 export function leave() {

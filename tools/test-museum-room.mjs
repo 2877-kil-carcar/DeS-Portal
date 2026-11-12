@@ -2,7 +2,7 @@
 import fs from 'node:fs'; import assert from 'node:assert/strict';
 const src = fs.readFileSync(new URL("../apps/gallery/museum-room.js", import.meta.url), 'utf8').replace(/^import .*$/gm, '');
 const mod = await import('data:text/javascript;base64,' + Buffer.from(src).toString('base64'));
-const { decideEntry, cleanCode, cleanName, MAX_PLAYERS } = mod;
+const { decideEntry, decideWinner, cleanCode, cleanName, MAX_PLAYERS } = mod;
 const join = (room, pid, extra = {}) => decideEntry(room, { create: false, code: 'ABC234', pid, name: pid, ...extra });
 let r = decideEntry(null, { create: true, code: 'ABC234', pid: 'p1', name: 'A' });
 assert.equal(r.room.code, 'ABC234'); assert.equal(r.room.players.p1.team, 0);
@@ -17,3 +17,6 @@ const empty = { code: 'ABC234', createdAt: 1 };                                 
 assert.ok(decideEntry(empty, { create: true, code: 'NEW234', pid: 'n', name: 'n' }).room.code === 'NEW234');   // 空なら作り直せる
 assert.equal(cleanCode(' ab-c2 34x'), 'ABC234'); assert.equal(cleanName('  <b>なまえ</b>\n'), 'bなまえ/b');
 console.log('PASS museum-room entry rules (8 checks)');
+// 試合の勝敗：両チームに生き残りがいる間は続く。片方が全滅で相手の勝ち、同時に全滅なら引き分け
+assert.equal(decideWinner([2, 1]), null); assert.equal(decideWinner([1, 0]), 0); assert.equal(decideWinner([0, 3]), 1); assert.equal(decideWinner([0, 0]), -1);
+console.log('PASS museum-room match result (4 checks)');
