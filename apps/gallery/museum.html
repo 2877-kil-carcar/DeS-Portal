@@ -87,7 +87,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=3.96">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=3.97">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
@@ -742,8 +742,8 @@ function start() {
     mc.lineTo(px + Math.sin(a + 2.5) * 15, pz + Math.cos(a + 2.5) * 15);
     mc.lineTo(px + Math.sin(a - 2.5) * 15, pz + Math.cos(a - 2.5) * 15);
     mc.closePath(); mc.stroke(); mc.fill();
-    for (const r of remotes.values()) {                                              // 同じ階にいる他の人はチーム色の丸
-      if (Math.round(r.target[1] / H) !== level || ((r.buffs & 4) && r.team !== myTeam && r.hp > 0)) continue;
+    for (const r of remotes.values()) {                                              // 同じ階にいる他の人はチーム色の丸。試合中は味方だけ出す
+      if (Math.round(r.target[1] / H) !== level || (r.team !== myTeam && (match.on || ((r.buffs & 4) && r.hp > 0)))) continue;
       mc.fillStyle = TEAM_COLORS[r.team]; mc.lineWidth = 2;
       mc.beginPath(); mc.arc((r.fig.g.position.x / C + 8.5) * U, (r.fig.g.position.z / C + 7.5) * U, 8, 0, 7); mc.fill(); mc.stroke();
     }
@@ -909,16 +909,19 @@ function start() {
   const ACT = { NONE: 0, JAB: 1, REACH: 2, HELD: 3, STRAIGHT: 4, HOOK: 5, OUCH: 6, FLOOR: 7 };            // 他の人へ伝える見た目の動作
   // パンチは続けて押すと 左ジャブ → 右ストレート → 右フック の順に出る（0.9 秒あくとジャブへ戻る）
   const COMBO = [ACT.JAB, ACT.STRAIGHT, ACT.HOOK], PUNCH_TIME = 0.28, isPunch = a => COMBO.includes(a);
-  let combo = 0, comboT = 9, punchKind = ACT.JAB;
+  let combo = 0, comboT = 9, punchKind = ACT.JAB, punchHit = false;                    // punchHit：振ったパンチの当たり判定がまだ済んでいない
+  let struggle = 0, lastIx = 0;                                                       // つかまれている間にスティックを左右へ振った量（たまると抜ける）
   const busy = () => viewer.style.display === 'flex' || !panel.hidden;
   const facing = () => [Math.sin(hero.g.rotation.y), Math.cos(hero.g.rotation.y)];
-  // 目の前（1.5m 以内・正面寄り・同じ高さ）にいる相手のうち、いちばん近い人の id
+  // 目の前（1.2m 以内・正面から左右 45 度・高さの差 0.8m 未満）にいる相手のうち、いちばん近い人の id。
+  // 跳んでいる相手には届かない。持ち上げられている相手は高い所にいるので、高さの差を 1.4m まで許す
   function targetInFront() {
-    const [fx, fz] = facing(); let best = null, bestD = 1.5;
+    const [fx, fz] = facing(); let best = null, bestD = 1.2;
     for (const [id, r] of remotes) {
       const q = r.fig.g.position, dx = q.x - p.x, dz = q.z - p.z, d = Math.hypot(dx, dz);
       if (match.on && (r.team === myTeam || r.hp <= 0)) continue;                     // 試合中は味方と、やられた人には当たらない
-      if (d < bestD && Math.abs(q.y - p.y) < 1.2 && (d < 0.3 || (dx * fx + dz * fz) / d > 0.35)) { best = id; bestD = d; }
+      const reachY = r.target[5] === ACT.HELD ? 1.4 : 0.8;
+      if (d < bestD && Math.abs(q.y - p.y) < reachY && (d < 0.3 || (dx * fx + dz * fz) / d > 0.7)) { best = id; bestD = d; }
     }
     return best;
   }
@@ -928,7 +931,10 @@ function start() {
     if (busy() || punchT > 0 || heldBy || hp <= 0) return;                            // つかまれている間・やられた後はパンチできない
     if (holding) { release('throw'); return; }                                        // 持ち上げている間のパンチは「投げる」
     if (comboT > 0.9) combo = 0;
-    punchKind = COMBO[combo]; combo = (combo + 1) % COMBO.length; comboT = 0; punchT = PUNCH_TIME;
+    punchKind = COMBO[combo]; combo = (combo + 1) % COMBO.length; comboT = 0; punchT = PUNCH_TIME; punchHit = true;
+  }
+  function landPunch() {                                                              // 腕が伸び切った瞬間に、その時点で目の前にいる相手へ当てる
+    punchHit = false;
     const id = targetInFront(), [fx, fz] = facing();
     if (id) roomApi.fx(id, { k: 'hit', n: nonce(), dx: fx, dz: fz, p: powerT > 0 ? 2 : 1 });
   }
@@ -961,9 +967,10 @@ function start() {
     };
     if (f.k === 'drop') heldBy = null;
     else if (hp <= 0) return;                                                         // やられた後は何も効かない
-    else if (f.k === 'grab') { if (!heldBy && ramp === null && remotes.has(f.by)) { if (holding) release('drop'); heldBy = f.by; heldT = 0; } }
+    else if (f.k === 'grab') { if (!heldBy && ramp === null && remotes.has(f.by)) { if (holding) release('drop'); heldBy = f.by; heldT = 0; struggle = 0; banner('つかまれた！　スティックを左右に振って抜け出そう', 2500); } }
     else if (f.k === 'throw') { if (heldBy) { heldBy = null; kvx = dx * 9 * push; kvz = dz * 9 * push; vy = 5; grounded = false; hurt(THROW_DAMAGE * power); } }
-    else if (f.k === 'hit' && !heldBy) { if (holding) release('drop'); kvx = dx * 5.5 * push; kvz = dz * 5.5 * push; vy = Math.max(vy, 2.6); grounded = false; hurt(PUNCH_DAMAGE * power); }
+    else if (f.k === 'hit' && heldBy) hurt(PUNCH_DAMAGE * power);                     // 持ち上げられている間は、持たれたままダメージだけ受ける
+    else if (f.k === 'hit') { if (holding) release('drop'); kvx = dx * 5.5 * push; kvz = dz * 5.5 * push; vy = Math.max(vy, 2.6); grounded = false; hurt(PUNCH_DAMAGE * power); }
   }
   for (const [id, fn] of [['actJump', jump], ['actPunch', punch]]) {
     $(id).addEventListener('pointerdown', e => { e.preventDefault(); fn(); });
@@ -1068,7 +1075,10 @@ function start() {
     let ix = stickV.x + (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
     let iy = stickV.y + (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
     const len = Math.hypot(ix, iy); if (len > 1) { ix /= len; iy /= len; }
-    if (heldBy || Math.hypot(kvx, kvz) > 1.5) stuck = null;                          // つかまれた・吹っ飛ばされたら手が離れる
+    // つかまれている間：スティック（A/D キー）を左右に振った量がたまると、手から抜けて落ちる（端から端まで 3 往復ぶん）
+    if (heldBy && (struggle += Math.abs(ix - lastIx)) > 6) { heldBy = null; vy = 3; banner('抜け出した！', 1200); }
+    lastIx = ix;
+    if (heldBy || Math.hypot(kvx, kvz) > 1.5) stuck = null;                         // つかまれた・吹っ飛ばされたら手が離れる
     const input = len > 0.05 && !busy() && !heldBy && !stuck;
     let wx = 0, wz = 0;
     if (input) {
@@ -1094,6 +1104,7 @@ function start() {
 
     // 持ち上げている側：3 秒たつか、相手がいなくなる・抜けたら放す
     punchT = Math.max(0, punchT - dt); comboT += dt;
+    if (punchHit && punchT <= PUNCH_TIME / 2) landPunch();
     if (holding) {
       holdT += dt;
       const r = remotes.get(holding);
@@ -1108,7 +1119,7 @@ function start() {
         const g = r.fig.g, hx = g.position.x + Math.sin(g.rotation.y) * 0.75, hz = g.position.z + Math.cos(g.rotation.y) * 0.75;
         const open = (x, z) => cellAt(levelOf(g.position.y), x, z) !== '#';
         if (open(hx, hz)) { p.x = hx; p.z = hz; } else if (open(g.position.x, g.position.z)) { p.x = g.position.x; p.z = g.position.z; }
-        hero.g.rotation.y = g.rotation.y; p.y = g.position.y + 0.9; vy = 0; grounded = false;
+        hero.g.rotation.y = g.rotation.y + ix * 0.7; p.y = g.position.y + 0.9;      // 振った向きへ体をよじる（全員に見える） vy = 0; grounded = false;
       }
     }
     // 上下動：歩いているだけなら足元の面に沿う（階段を上り下りする）。足元が大きく下がれば落ち、跳べば上がる
