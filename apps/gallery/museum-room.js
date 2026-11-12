@@ -54,9 +54,14 @@ export function decideWinner(alive) {
   return alive[0] > 0 ? 0 : alive[1] > 0 ? 1 : -1;
 }
 
+/* アイテムを出す係を 1 人に決める：部屋にいる人の id のうち、並べて先頭の人。全員の端末で同じ答えになる */
+export function pickHost(ids) {
+  return [...ids].sort()[0] ?? null;
+}
+
 let db, pid, myRef, myFxRef, stopListening;
 
-/* 部屋を作る（create: true）か、コードで入る。onRoom(code, players, 自分の id, 自分宛ての合図, 試合の状態) は部屋の内容が変わるたびに呼ばれ、
+/* 部屋を作る（create: true）か、コードで入る。onRoom(code, players, 自分の id, 自分宛ての合図, 試合の状態, アイテム) は部屋の内容が変わるたびに呼ばれ、
    自分が部屋から消えたら onGone() が呼ばれる。失敗時は userMessage つきのエラーを投げる */
 export async function enter({ create, code, name, onRoom, onGone }) {
   if (!db) { db = getDatabase(initializeApp(firebaseConfig, "museum-room")); pid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`; }
@@ -79,7 +84,7 @@ export async function enter({ create, code, name, onRoom, onGone }) {
   stopListening = onValue(roomRef, snap => {
     const room = snap.val(), me = room?.players?.[pid];
     if (!me?.name || room.code !== code) { leave(); onGone(); return; }  // 通信が切れて消された／部屋が作り直された
-    onRoom(room.code, room.players, pid, room.fx?.[pid], room.match);
+    onRoom(room.code, room.players, pid, room.fx?.[pid], room.match, room.items);
   });
   return { code };
 }
@@ -98,6 +103,20 @@ export function fx(targetId, data) {
 /* 試合の状態を全員へ知らせる（{ on: 試合中か, n: 通し番号, winner: 勝ったチーム }） */
 export function setMatch(data) {
   if (myRef && stopListening) set(ref(db, `${ROOM_PATH}/match`), data).catch(() => {});
+}
+
+/* アイテムを置く（{ t: 種類, x, z, l: 階 }）。出す係の端末だけが呼ぶ */
+export function putItem(id, data) {
+  if (myRef && stopListening) set(ref(db, `${ROOM_PATH}/items/${id}`), data).catch(() => {});
+}
+
+/* アイテムを取る。まだ残っていたときだけ消して true を返す（同時に触った 2 人のうち、取れるのは 1 人） */
+export async function takeItem(id) {
+  if (!myRef || !stopListening) return false;
+  try {
+    const result = await runTransaction(ref(db, `${ROOM_PATH}/items/${id}`), item => (item ? null : undefined));
+    return result.committed;
+  } catch (_) { return false; }
 }
 
 export function leave() {

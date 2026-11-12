@@ -28,6 +28,7 @@
   #roomInfo { font-weight: 700; }
   #hp { top: 54px; left: 50%; transform: translateX(-50%); width: 180px; height: 12px; border-radius: 999px; overflow: hidden; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.4); }
   #hpFill { height: 100%; width: 100%; background: #57e389; transition: width 0.15s; }
+  #buffs { top: 72px; left: 50%; transform: translateX(-50%); font-size: 14px; font-weight: 700; color: #fff; text-shadow: 0 1px 4px #000; white-space: nowrap; pointer-events: none; }
   #banner {
     top: 28%; left: 50%; transform: translateX(-50%); z-index: 4; pointer-events: none; white-space: nowrap;
     font-size: 26px; font-weight: 800; color: #FFE566; text-shadow: 0 2px 8px #000; background: rgba(13,4,6,0.72); padding: 10px 24px; border-radius: 16px;
@@ -86,10 +87,11 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=3.89">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=3.90">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
+<div class="ui" id="buffs" aria-label="効いているアイテム"></div>
 <div class="ui" id="banner" role="status" hidden></div>
 <div class="ui" id="roomPanel" role="dialog" aria-label="みんなで入る" hidden>
   <div class="box">
@@ -557,6 +559,9 @@ function start() {
   // やられた後の「半スケルトン」：体を半透明にして、中の骨を見せる
   const ghostMat = new THREE.MeshStandardMaterial({ color: 0xcfe6ff, roughness: 0.4, transparent: true, opacity: 0.28, depthWrite: false });
   const boneMat = std(0xf4f0e4, 0.7), socketMat = std(0x111111, 1);
+  // 「背景と同化」：色を消してほぼ透明にする。光の当たり方（つや）は残るので、立体の形はうっすら分かる
+  const camoMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.15, transparent: true, opacity: 0.13, depthWrite: false });
+  const camoSelfMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.15, transparent: true, opacity: 0.4, depthWrite: false });
   function makeFigure() {
     // 大きな丸い頭・ぽってりした胴・細い手足に丸い手先足先、の 3 頭身。b は歩くときに弾ませる中身
     const g = new THREE.Group(), b = new THREE.Group(), skin = [], bones = []; g.add(b);
@@ -581,9 +586,13 @@ function start() {
     const legs = [limb(-0.12, 0.44, 0.22, 0.1, 0), limb(0.12, 0.44, 0.22, 0.1, 0)];
     scene.add(g);
     const fig = { g, b, head, arms, legs, down: false };
-    fig.setDown = on => {                                                             // やられた姿に切り替える／戻す
-      if (fig.down === on) return;
-      fig.down = on; skin.forEach(o => { o.material = on ? ghostMat : white; }); bones.forEach(o => { o.visible = on; });
+    // 見た目の切り替え：'normal' ふつう／'down' やられた半スケルトン／'camo' 背景と同化／'camoSelf' 同化（自分と味方には少し濃く見せる）
+    fig.look = 'normal';
+    fig.setLook = look => {
+      if (fig.look === look) return;
+      fig.look = look; fig.down = look === 'down';
+      const material = look === 'down' ? ghostMat : look === 'camo' ? camoMat : look === 'camoSelf' ? camoSelfMat : white;
+      skin.forEach(o => { o.material = material; }); bones.forEach(o => { o.visible = fig.down; });
     };
     return fig;
   }
@@ -679,9 +688,14 @@ function start() {
     mc.lineTo(px + Math.sin(a - 2.5) * 15, pz + Math.cos(a - 2.5) * 15);
     mc.closePath(); mc.stroke(); mc.fill();
     for (const r of remotes.values()) {                                              // 同じ階にいる他の人はチーム色の丸
-      if (Math.round(r.target[1] / H) !== level) continue;
+      if (Math.round(r.target[1] / H) !== level || ((r.buffs & 4) && r.team !== myTeam && r.hp > 0)) continue;
       mc.fillStyle = TEAM_COLORS[r.team]; mc.lineWidth = 2;
       mc.beginPath(); mc.arc((r.fig.g.position.x / C + 8.5) * U, (r.fig.g.position.z / C + 7.5) * U, 8, 0, 7); mc.fill(); mc.stroke();
+    }
+    for (const it of drops.values()) {                                               // 同じ階のアイテムは種類の色の四角
+      if (it.l !== level) continue;
+      mc.fillStyle = ITEMS[it.t].color; mc.lineWidth = 2;
+      mc.fillRect((it.x / C + 8.5) * U - 6, (it.z / C + 7.5) * U - 6, 12, 12); mc.strokeRect((it.x / C + 8.5) * U - 6, (it.z / C + 7.5) * U - 6, 12, 12);
     }
     mc.fillStyle = '#FFE566'; mc.font = 'bold 26px sans-serif'; mc.fillText(`${level + 1}F`, 8, 28);
   }
@@ -723,7 +737,7 @@ function start() {
     $('matchBtn').hidden = match.on; $('hp').hidden = !match.on;
   }
   function beginMatch() {                                                             // 全員が自分の端末で：HP を戻し、チームの陣地（1 階ホールの西／東）へ
-    hp = 100; matchT = 0; kvx = kvz = vy = air = 0; holding = heldBy = null; lvl = 0; ramp = null; groundY = 0;
+    hp = 100; matchT = 0; powerT = speedT = camoT = 0; kvx = kvz = vy = air = 0; holding = heldBy = null; lvl = 0; ramp = null; groundY = 0;
     p.set(cx(myTeam ? 11 : 5), 0, cz(7) + (Math.random() * 2 - 1));
     yaw = myTeam ? Math.PI / 2 : -Math.PI / 2; hero.g.rotation.y = -yaw;             // ホールの中央を向く
     banner('試合開始！', 2000);
@@ -734,8 +748,47 @@ function start() {
     roomApi.setMatch({ on: true, n: nonce() });
   });
 
+  // ── アイテム（対戦の第 4 段階）：部屋にいる間、15 秒ごとにどこかへ 1 つ出る（同時に 3 つまで）。触ると取れる ──
+  const ITEMS = [                                                                     // 種類の番号 = この並び順
+    { icon: '❤️', color: '#57e389', text: '回復！' },                                 // HP を 40 回復
+    { icon: '💪', color: '#e2485a', text: 'パワーアップ！' },                          // 15 秒間、与えるダメージと押す力が 2 倍
+    { icon: '⚡', color: '#3d8bff', text: 'スピードアップ！' },                        // 15 秒間、歩く速さが 1.7 倍
+    { icon: '👻', color: '#b9b9c9', text: '背景と同化！' },                            // 15 秒間、相手からほとんど見えなくなる
+  ];
+  const BUFF_SECONDS = 15, HEAL = 40, MAX_ITEMS = 3, SPAWN_EVERY = 15;
+  const itemMats = ITEMS.map(it => new THREE.SpriteMaterial({ transparent: true, map: paint(128, 128, g => {
+    g.fillStyle = it.color; g.beginPath(); g.arc(64, 64, 58, 0, 7); g.fill();
+    g.strokeStyle = '#fff'; g.lineWidth = 6; g.stroke();
+    g.font = '64px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(it.icon, 64, 70);
+  }) }));
+  const drops = new Map();                                                            // id → { t, x, z, l, sprite, taking }
+  let powerT = 0, speedT = 0, camoT = 0, spawnT = SPAWN_EVERY - 5;                     // 効果の残り秒数／次に出すまでの経過（入室 5 秒後に最初の 1 つ）
+  const buffBits = () => (powerT > 0 ? 1 : 0) | (speedT > 0 ? 2 : 0) | (camoT > 0 ? 4 : 0);
+  function syncItems(data) {
+    for (const [id, it] of drops) if (!data?.[id]) { scene.remove(it.sprite); drops.delete(id); }
+    for (const [id, d] of Object.entries(data || {})) {
+      if (drops.has(id) || !ITEMS[d.t]) continue;
+      const sprite = new THREE.Sprite(itemMats[d.t]); sprite.scale.set(0.7, 0.7, 1); scene.add(sprite);
+      drops.set(id, { t: d.t, x: +d.x || 0, z: +d.z || 0, l: Math.min(LEVELS - 1, Math.max(0, d.l | 0)), sprite, taking: false });
+    }
+  }
+  function gotItem(t) {
+    if (t === 0) hp = Math.min(100, hp + HEAL); else if (t === 1) powerT = BUFF_SECONDS; else if (t === 2) speedT = BUFF_SECONDS; else camoT = BUFF_SECONDS;
+    banner(`${ITEMS[t].icon} ${ITEMS[t].text}`, 1500);
+  }
+  // 出す場所：ホールか展示室の床（ベンチ・階段・出入口は除く）。6 割は出す係のいる階、残りはどこかの階
+  function spawnItem() {
+    for (let tries = 0; tries < 60; tries++) {
+      const f = Math.random() < 0.6 ? lvl : Math.floor(Math.random() * LEVELS), c = Math.floor(Math.random() * COLS), r = Math.floor(Math.random() * ROWS), ch = at(f, c, r);
+      if ((ch !== '.' && !(isGallery(ch) && ch !== 'b')) || isDoor(f, c, r)) continue;
+      roomApi.putItem('i' + Date.now().toString(36), { t: Math.floor(Math.random() * ITEMS.length), x: cx(c), z: cz(r), l: f });
+      return;
+    }
+  }
+
   let lastFx, roomMe = null;                                                          // 最後に反映した自分宛ての合図の番号／部屋での自分の id
-  function onRoom(code, players, me, fx, m) {
+  function onRoom(code, players, me, fx, m, itemData) {
+    syncItems(itemData);
     roomMe = me; myTeam = players[me].team === 1 ? 1 : 0;
     const first = !room;
     if (first) lastFx = fx?.n;                                                        // 入室前から残っていた合図は無視する
@@ -761,12 +814,12 @@ function start() {
         r.fig.g.add(r.tag, r.bar); r.fig.g.position.set(+q.s[0] || 0, +q.s[1] || 0, +q.s[2] || 0); remotes.set(id, r);
       }
       r.target = q.s.map(v => +v || 0);
-      r.hp = q.s.length > 6 ? r.target[6] : 100;                                     // 古い版の相手は HP を送ってこない
+      r.hp = q.s.length > 6 ? r.target[6] : 100; r.buffs = r.target[7] | 0;                                     // 古い版の相手は HP を送ってこない
     }
   }
   function leftRoom(message) {
     for (const id of [...remotes.keys()]) dropRemote(id);
-    room = null; lastSent = ''; holding = heldBy = null; hp = 100; match = { on: false, n: 0 };
+    room = null; lastSent = ''; holding = heldBy = null; hp = 100; match = { on: false, n: 0 }; powerT = speedT = camoT = 0; syncItems(null);
     $('roomHud').hidden = true; $('roomBtn').hidden = false; $('hp').hidden = true;
     if (message) { panel.hidden = false; roomMsg(message); }
   }
@@ -777,7 +830,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      roomApi ||= await import('./museum-room.js?v=3.89');
+      roomApi ||= await import('./museum-room.js?v=3.90');
       await roomApi.enter({ create, code, name: roomApi.cleanName(name) || 'ななし', onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
       try { localStorage.setItem('museum:name', name); } catch (_) {}
       panel.hidden = true; roomMsg('');
@@ -817,11 +870,11 @@ function start() {
     if (busy() || punchT > 0 || heldBy || holding || hp <= 0) return;                 // やられた後は歩く・跳ぶだけ
     punchT = 0.32;
     const id = targetInFront(), [fx, fz] = facing();
-    if (id) roomApi.fx(id, { k: 'hit', n: nonce(), dx: fx, dz: fz });
+    if (id) roomApi.fx(id, { k: 'hit', n: nonce(), dx: fx, dz: fz, p: powerT > 0 ? 2 : 1 });
   }
   function release(kind) {                                                            // 持ち上げている相手を放す（kind: 'drop' か 'throw'）
     const [fx, fz] = facing();
-    if (remotes.has(holding)) roomApi.fx(holding, { k: kind, n: nonce(), dx: fx, dz: fz });
+    if (remotes.has(holding)) roomApi.fx(holding, { k: kind, n: nonce(), dx: fx, dz: fz, p: powerT > 0 ? 2 : 1 });
     holding = null; reachT = 0.25;
   }
   function grab() {
@@ -836,17 +889,17 @@ function start() {
   }
   // 自分宛ての合図を体に反映する
   function onFx(f) {
-    const dx = +f.dx || 0, dz = +f.dz || 0;
+    const dx = +f.dx || 0, dz = +f.dz || 0, power = f.p === 2 ? 2 : 1, push = power === 2 ? 1.5 : 1;   // パワーアップ中の相手からは 2 倍のダメージ
     const hurt = damage => {                                                          // 試合中だけ HP が減る。0 になったら持っている相手を放す
       if (!match.on) return;
       hp = Math.max(0, hp - damage);
-      if (hp <= 0) { if (holding) release('drop'); banner('やられた…　歩くことはできます', 3000); }
+      if (hp <= 0) { powerT = speedT = camoT = 0; if (holding) release('drop'); banner('やられた…　歩くことはできます', 3000); }
     };
     if (f.k === 'drop') heldBy = null;
     else if (hp <= 0) return;                                                         // やられた後は何も効かない
     else if (f.k === 'grab') { if (!heldBy && ramp === null && remotes.has(f.by)) { if (holding) release('drop'); heldBy = f.by; heldT = 0; } }
-    else if (f.k === 'throw') { if (heldBy) { heldBy = null; kvx = dx * 9; kvz = dz * 9; vy = 5; hurt(THROW_DAMAGE); } }
-    else if (f.k === 'hit' && !heldBy) { if (holding) release('drop'); kvx = dx * 5.5; kvz = dz * 5.5; vy = Math.max(vy, 2.6); hurt(PUNCH_DAMAGE); }
+    else if (f.k === 'throw') { if (heldBy) { heldBy = null; kvx = dx * 9 * push; kvz = dz * 9 * push; vy = 5; hurt(THROW_DAMAGE * power); } }
+    else if (f.k === 'hit' && !heldBy) { if (holding) release('drop'); kvx = dx * 5.5 * push; kvz = dz * 5.5 * push; vy = Math.max(vy, 2.6); hurt(PUNCH_DAMAGE * power); }
   }
   for (const [id, fn] of [['actJump', jump], ['actPunch', punch], ['actGrab', grab]]) {
     $(id).addEventListener('pointerdown', e => { e.preventDefault(); fn(); });
@@ -882,7 +935,7 @@ function start() {
     if (moving) {
       // カメラの向きを基準に前後左右へ動く
       const vx = -Math.sin(yaw) * iy + Math.cos(yaw) * ix, vz = -Math.cos(yaw) * iy - Math.sin(yaw) * ix;
-      const mx = vx * 4 * dt, mz = vz * 4 * dt;
+      const speed = 4 * (speedT > 0 ? 1.7 : 1), mx = vx * speed * dt, mz = vz * speed * dt;
       if (ramp === null) {
         if (free(p.x + mx, p.z)) p.x += mx;                                           // 壁に当たったら壁沿いに滑る
         if (free(p.x, p.z + mz)) p.z += mz;
@@ -931,7 +984,8 @@ function start() {
     const breathe = Math.sin(clock.elapsedTime * 2.2);                              // 立っている間もゆっくり呼吸する
     const act = heldBy ? ACT.HELD : punchT > 0 ? ACT.PUNCH : holding || reachT > 0 ? ACT.REACH : ACT.NONE;
     pose(hero, moving, walkT, breathe, act, clock.elapsedTime); pose(ghost, moving, walkT, breathe, act, clock.elapsedTime);
-    hero.setDown(hp <= 0); ghost.setDown(hp <= 0);
+    hero.setLook(hp <= 0 ? 'down' : camoT > 0 ? 'camoSelf' : 'normal'); ghost.setLook(hp <= 0 ? 'down' : camoT > 0 ? 'camo' : 'normal');
+    const big = powerT > 0 ? 1.2 : 1; hero.g.scale.setScalar(big); ghost.g.scale.set(big, -big, big);   // パワーアップ中は体が大きい
     $('hpFill').style.width = hp + '%';
 
     // 試合中：片方のチームが全滅したら、気づいた端末が勝敗を全員へ知らせる（開始直後は古い HP が残るので 2 秒待つ）
@@ -942,12 +996,29 @@ function start() {
       if (winner !== null) { match.on = false; roomApi.setMatch({ on: false, winner, n: nonce() }); }
     }
 
+    // アイテム：効果の残り時間を減らす／触れたら取る／出す係（id が先頭の人）なら時々 1 つ出す
+    powerT = Math.max(0, powerT - dt); speedT = Math.max(0, speedT - dt); camoT = Math.max(0, camoT - dt);
+    const buffText = [[powerT, '💪'], [speedT, '⚡'], [camoT, '👻']].filter(b => b[0] > 0).map(b => `${b[1]}${Math.ceil(b[0])}`).join('　');
+    if ($('buffs').textContent !== buffText) $('buffs').textContent = buffText;
+    for (const [id, it] of drops) {
+      it.sprite.position.set(it.x, it.l * H + 0.85 + Math.sin(clock.elapsedTime * 2.5 + it.x) * 0.12, it.z);
+      it.sprite.visible = Math.abs(it.l * H - groundY) < H * 0.9;
+      if (!it.taking && hp > 0 && ramp === null && it.l === lvl && Math.hypot(it.x - p.x, it.z - p.z) < 0.9) {
+        it.taking = true;
+        roomApi.takeItem(id).then(ok => { if (ok) gotItem(it.t); else it.taking = false; });
+      }
+    }
+    if (room && roomApi.pickHost([roomMe, ...remotes.keys()]) === roomMe && (spawnT += dt) >= SPAWN_EVERY) {
+      spawnT = 0;
+      if (drops.size < MAX_ITEMS) spawnItem();
+    }
+
     // 部屋にいる間：自分の位置を 1 秒に 10 回まで送り（動いたときだけ）、他の人を受け取った位置へなめらかに寄せる
     if (room) {
       sendT += dt;
       if (sendT >= 0.1) {
         sendT = 0;
-        const s = [p.x, p.y, p.z, hero.g.rotation.y].map(v => Math.round(v * 100) / 100).concat(moving ? 1 : 0, act, hp);
+        const s = [p.x, p.y, p.z, hero.g.rotation.y].map(v => Math.round(v * 100) / 100).concat(moving ? 1 : 0, act, hp, buffBits());
         if (s.join() !== lastSent) { lastSent = s.join(); roomApi.send(s); }
       }
     }
@@ -963,8 +1034,10 @@ function start() {
       }
       if (mv) r.walkT += dt * 11;
       pose(r.fig, !!mv, r.walkT, breathe, id === holding ? ACT.HELD : ract, clock.elapsedTime);
-      r.fig.setDown(r.hp <= 0);
-      r.bar.visible = match.on && r.hp > 0; r.bar.scale.set(Math.max(0.02, r.hp / 100), 0.07, 1);
+      const hidden = (r.buffs & 4) && r.team !== myTeam && r.hp > 0;                  // 同化中の相手チームは名札も HP も出さない
+      r.fig.setLook(r.hp <= 0 ? 'down' : r.buffs & 4 ? (r.team === myTeam ? 'camoSelf' : 'camo') : 'normal');
+      g.scale.setScalar(r.buffs & 1 && r.hp > 0 ? 1.2 : 1); r.tag.visible = !hidden;
+      r.bar.visible = match.on && r.hp > 0 && !hidden; r.bar.scale.set(Math.max(0.02, r.hp / 100), 0.07, 1);
       r.bar.material.color.set(r.hp > 50 ? 0x57e389 : r.hp > 25 ? 0xf5c211 : 0xe2485a);
       g.visible = Math.abs(ty - p.y) < H * 0.9;                                      // 違う階の人は描かない
     }
@@ -1004,7 +1077,7 @@ function start() {
     renderer.render(scene, camera);
   });
 
-  window.__museum = { get lvl() { return lvl; }, set lvl(v) { lvl = v; ramp = null; groundY = v * H; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, reachT, holding, heldBy, kv: [kvx, kvz], hp, team: myTeam, match: match.on, down: hero.down }; }, p, free, jump, punch, grab };   // 動作確認用
+  window.__museum = { get lvl() { return lvl; }, set lvl(v) { lvl = v; ramp = null; groundY = v * H; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, reachT, holding, heldBy, kv: [kvx, kvz], hp, team: myTeam, match: match.on, down: hero.down, look: hero.look, buffs: buffBits(), items: [...drops.values()].map(i => [i.t, i.x, i.z, i.l]) }; }, gotItem, p, free, jump, punch, grab };   // 動作確認用
 }
 </script>
 </body>
