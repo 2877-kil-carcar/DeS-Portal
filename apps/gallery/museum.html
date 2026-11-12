@@ -87,7 +87,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=3.93">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=3.94">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
@@ -105,7 +105,7 @@
     <button class="pill small" id="roomClose">とじる</button>
   </div>
 </div>
-<div class="ui" id="help">移動：WASD / 左下スティック<br>視点：画面をドラッグ<br>ジャンプ：Space　パンチ：F（連打でワンツー）<br>つかむ：G を押している間（パンチで投げる）<br>絵を拡大：Enter　階段：中央ホール</div>
+<div class="ui" id="help">移動：WASD / 左下スティック<br>視点：画面をドラッグ<br>ジャンプ：Space　パンチ：F（連打でワンツー）<br>つかむ：G を押している間（人・壁・床。人はパンチで投げる）<br>絵を拡大：Enter　階段：中央ホール</div>
 <div class="ui" id="acts"><button class="act" id="actGrab">つかむ</button><button class="act" id="actPunch">パンチ</button><button class="act" id="actJump">ジャンプ</button></div>
 <canvas class="ui" id="map" width="340" height="300" aria-label="美術館のマップ"></canvas>
 <div class="ui" id="stick" aria-label="移動スティック"><div id="knob"></div></div>
@@ -657,7 +657,9 @@ function start() {
   let lvl = 0, ramp = null, groundY = 0, air = 0;
   let vy = 0, grounded = true;                                                        // 上下の速さ／地面に足がついているか
   let kvx = 0, kvz = 0;                                                               // 殴られた・投げられたときに押し流される速さ
-  let punchT = 0, reachT = 0;                                                         // パンチ中／つかみを空振りした残り時間
+  let punchT = 0;                                                                     // パンチ中の残り時間
+  let grabbing = false, stuck = null;                                                 // つかむを押している間／手が張りついている先（'wall' 壁・柵・段・ベンチ、'floor' 床）
+  let hvx = 0, hvz = 0;                                                               // 歩く速さ（急には変わらない：滑り出しと止まり際がもたつく）
   let holding = null, holdT = 0;                                                      // 自分が持ち上げている相手の id と経過時間
   let heldBy = null, heldT = 0;                                                       // 自分を持ち上げている相手の id と経過時間
   const HOLD_MAX = 3;                                                                 // 持ち上げていられる秒数
@@ -778,7 +780,7 @@ function start() {
     $('matchBtn').hidden = match.on; $('hp').hidden = !match.on;
   }
   function beginMatch() {                                                             // 全員が自分の端末で：HP を戻し、チームの陣地（1 階ホールの西／東）へ
-    hp = 100; matchT = 0; powerT = speedT = camoT = 0; kvx = kvz = vy = 0; holding = heldBy = null; grounded = true;
+    hp = 100; matchT = 0; powerT = speedT = camoT = 0; kvx = kvz = vy = 0; holding = heldBy = stuck = null; grounded = true;
     p.set(cx(myTeam ? 11 : 5), 0, cz(7) + (Math.random() * 2 - 1));
     yaw = myTeam ? Math.PI / 2 : -Math.PI / 2; hero.g.rotation.y = -yaw;             // ホールの中央を向く
     banner('試合開始！', 2000);
@@ -892,7 +894,7 @@ function start() {
 
   // ── 動作：ジャンプ・パンチ・つかむ（対戦の第 2 段階）──
   // 相手に効く動作は「合図」を送り、受けた側の端末が自分の体に反映する（押し流される、持ち上げられる、投げられる）
-  const ACT = { NONE: 0, JAB: 1, REACH: 2, HELD: 3, STRAIGHT: 4, HOOK: 5, OUCH: 6 };            // 他の人へ伝える見た目の動作
+  const ACT = { NONE: 0, JAB: 1, REACH: 2, HELD: 3, STRAIGHT: 4, HOOK: 5, OUCH: 6, FLOOR: 7 };            // 他の人へ伝える見た目の動作
   // パンチは続けて押すと 左ジャブ → 右ストレート → 右フック の順に出る（0.9 秒あくとジャブへ戻る）
   const COMBO = [ACT.JAB, ACT.STRAIGHT, ACT.HOOK], PUNCH_TIME = 0.28, isPunch = a => COMBO.includes(a);
   let combo = 0, comboT = 9, punchKind = ACT.JAB;
@@ -909,7 +911,7 @@ function start() {
     return best;
   }
   function nonce() { return Date.now() + Math.random(); }
-  function jump() { if (!busy() && grounded && !heldBy) { vy = 5.6; grounded = false; } }   // 約 1.1m 跳ぶ（柵とベンチを越えられる高さ）
+  function jump() { if (!busy() && grounded && !heldBy && !stuck) { vy = 5.6; grounded = false; } }   // 約 1.1m 跳ぶ（柵とベンチを越えられる高さ）
   function punch() {
     if (busy() || punchT > 0 || heldBy || hp <= 0) return;                            // つかまれている間・やられた後はパンチできない
     if (holding) { release('throw'); return; }                                        // 持ち上げている間のパンチは「投げる」
@@ -921,18 +923,21 @@ function start() {
   function release(kind) {                                                            // 持ち上げている相手を放す（kind: 'drop' か 'throw'）
     const [fx, fz] = facing();
     if (remotes.has(holding)) roomApi.fx(holding, { k: kind, n: nonce(), dx: fx, dz: fz, p: powerT > 0 ? 2 : 1 });
-    holding = null; reachT = 0.25;
+    holding = null;
   }
-  // つかむのは、ボタン（G キー）を押している間だけ。離すと下ろす。持ったままパンチを押すと投げる
-  function grabEnd() { if (holding) release('drop'); }
+  /* つかむのは、ボタン（G キー）を押している間ずっと。離すと放す。
+     目の前に人がいれば持ち上げる（持ったままパンチで投げる）。いなければ、目の前の壁・柵・段・ベンチに手が張りつく。何もなければ床をつかむ。
+     張りついている間はその場から動けず、空中で壁をつかめばぶら下がる */
+  function grabEnd() { grabbing = false; stuck = null; if (holding) release('drop'); }
   function grabStart() {
-    if (busy() || heldBy || hp <= 0 || holding) return;
-    reachT = 0.3;
-    const id = targetInFront();
-    // 階段の途中にいる自分・相手はつかめない／すでに誰かに持たれている相手もつかめない
-    if (!id || ramp !== null || remotes.get(id).target[5] === ACT.HELD) return;
-    const ty = remotes.get(id).target[1] / H; if (Math.abs(ty - Math.round(ty)) > 0.05) return;
-    holding = id; holdT = 0; roomApi.fx(id, { k: 'grab', n: nonce(), by: roomMe });
+    if (busy() || heldBy || hp <= 0 || grabbing) return;
+    grabbing = true;
+    const id = targetInFront(), [fx, fz] = facing(), ty = id ? remotes.get(id).target[1] / H : 0;
+    // 階段の途中にいる自分・相手は持ち上げられない／すでに誰かに持たれている相手も持ち上げられない
+    if (id && ramp === null && remotes.get(id).target[5] !== ACT.HELD && Math.abs(ty - Math.round(ty)) <= 0.05) {
+      holding = id; holdT = 0; roomApi.fx(id, { k: 'grab', n: nonce(), by: roomMe });
+    } else if (!canBeAt(p.x + fx * 0.6, p.z + fz * 0.6, p.y, p.x, p.z, false)) { stuck = 'wall'; vy = 0; }
+    else if (grounded) stuck = 'floor';
   }
   // 自分宛ての合図を体に反映する
   function onFx(f) {
@@ -979,6 +984,9 @@ function start() {
       aR = -1.5 * a; oR = 0.3 + 1.5 * a; aL = 0.6 * a; oL = 0.3 + a; by = -1.4 * a; bz = 0.3 * a; lL = 0.6 * a;
     } else if (act === ACT.REACH) {                                                   // つかむ：両腕をまっすぐ前へ突き出し、重さでふらつく
       aL = -1.9 + w * 0.12; aR = -1.9 - w * 0.12; oL = oR = 0.05; bx = 0.1; bz += Math.sin(time * 5) * 0.12;
+      if (air > 0.15) { aL = aR = -2.8; bx = -0.1; lL = Math.sin(time * 5) * 0.5; lR = -lL; }   // 空中でつかんだ：腕を上に伸ばして、ぶら下がる
+    } else if (act === ACT.FLOOR) {                                                   // 床をつかむ：体ごと前へ倒れ込んで、両手を床につく
+      aL = aR = -1.2; oL = oR = 0.15; bx = 1; lL = lR = 0; bz = Math.sin(time * 5) * 0.06;
     } else if (air > 0.15) {                                                          // 跳んでいる・落ちている：万歳して脚をばたつかせる
       aL = -2.6 + w * 0.4; aR = -2.6 - w * 0.4; oL = oR = 0.7; lL = 0.7 * w; lR = -0.7 * w; bx = -0.15;
     }
@@ -1004,17 +1012,24 @@ function start() {
     let ix = stickV.x + (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
     let iy = stickV.y + (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
     const len = Math.hypot(ix, iy); if (len > 1) { ix /= len; iy /= len; }
-    const moving = len > 0.05 && !busy() && !heldBy;
-    if (moving) {
+    if (heldBy || Math.hypot(kvx, kvz) > 1.5) stuck = null;                          // つかまれた・吹っ飛ばされたら手が離れる
+    const input = len > 0.05 && !busy() && !heldBy && !stuck;
+    let wx = 0, wz = 0;
+    if (input) {
       // カメラの向きを基準に前後左右へ動く
       const vx = -Math.sin(yaw) * iy + Math.cos(yaw) * ix, vz = -Math.cos(yaw) * iy - Math.sin(yaw) * ix;
       const speed = 4 * (speedT > 0 ? 1.7 : 1);
-      tryMove(vx * speed * dt, vz * speed * dt);
-      let d = Math.atan2(vx, vz) - hero.g.rotation.y;                                // 進行方向へ最短で振り向く
+      wx = vx * speed; wz = vz * speed;
+      let d = Math.atan2(vx, vz) - hero.g.rotation.y;                                // 進行方向へ最短で、もたもた振り向く
       d = Math.atan2(Math.sin(d), Math.cos(d));
-      hero.g.rotation.y += d * Math.min(1, dt * 12);
-      walkT += dt * 11 * Math.min(1, len);
+      hero.g.rotation.y += d * Math.min(1, dt * 7);
     }
+    // 速さは目標へじわっと寄せる（慣性）。滑り出しが遅れ、止まるときは少し流れる
+    const ease = 1 - Math.exp(-dt * (input ? 7 : 5));
+    hvx += (wx - hvx) * ease; hvz += (wz - hvz) * ease;
+    if (stuck || heldBy) hvx = hvz = 0;
+    const pace = Math.hypot(hvx, hvz), moving = pace > 0.5;
+    if (moving) { tryMove(hvx * dt, hvz * dt); walkT += dt * 11 * Math.min(1.7, pace / 4); }
     // 押し流し（殴られた・投げられた）。壁と柵では止まる
     if (Math.hypot(kvx, kvz) > 0.15) {
       tryMove(kvx * dt, kvz * dt);
@@ -1022,7 +1037,7 @@ function start() {
     } else kvx = kvz = 0;
 
     // 持ち上げている側：3 秒たつか、相手がいなくなる・抜けたら放す
-    punchT = Math.max(0, punchT - dt); reachT = Math.max(0, reachT - dt); comboT += dt;
+    punchT = Math.max(0, punchT - dt); comboT += dt;
     if (holding) {
       holdT += dt;
       const r = remotes.get(holding);
@@ -1042,7 +1057,7 @@ function start() {
     }
     // 上下動：歩いているだけなら足元の面に沿う（階段を上り下りする）。足元が大きく下がれば落ち、跳べば上がる
     const floorY = supportAt(p.x, p.z, p.y);
-    if (!heldBy) {
+    if (!heldBy && !stuck) {                                                         // 手が張りついている間は落ちない（壁にぶら下がる）
       if (grounded && vy <= 0 && p.y - floorY < 0.45) p.y = floorY;
       else { vy -= 14 * dt; p.y += vy * dt; grounded = p.y <= floorY; if (grounded) { p.y = floorY; vy = 0; } }
     }
@@ -1054,7 +1069,7 @@ function start() {
     shadow.position.y = 0.02 - air;                                                  // 影は足元の面に残す
 
     const breathe = Math.sin(clock.elapsedTime * 2.2);                              // 立っている間もゆっくり呼吸する
-    const act = heldBy ? ACT.HELD : Math.hypot(kvx, kvz) > 1.5 ? ACT.OUCH : punchT > 0 ? punchKind : holding || reachT > 0 ? ACT.REACH : ACT.NONE;
+    const act = heldBy ? ACT.HELD : Math.hypot(kvx, kvz) > 1.5 ? ACT.OUCH : punchT > 0 ? punchKind : stuck === 'floor' ? ACT.FLOOR : holding || grabbing ? ACT.REACH : ACT.NONE;
     const reach = Math.sin((1 - punchT / PUNCH_TIME) * Math.PI);                     // パンチは突き出して戻す
     pose(hero, dt, moving, walkT, breathe, act, clock.elapsedTime, reach, air); pose(ghost, dt, moving, walkT, breathe, act, clock.elapsedTime, reach, air);
     hero.setLook(hp <= 0 ? 'down' : camoT > 0 ? 'camoSelf' : 'normal'); ghost.setLook(hp <= 0 ? 'down' : camoT > 0 ? 'camo' : 'normal');
@@ -1155,7 +1170,7 @@ function start() {
   };
   renderer.setAnimationLoop(frame);
 
-  window.__museum = { get lvl() { return lvl; }, set lvl(v) { p.y = v * H; vy = 0; grounded = true; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, reachT, holding, heldBy, kv: [kvx, kvz], hp, team: myTeam, match: match.on, down: hero.down, look: hero.look, buffs: buffBits(), items: [...drops.values()].map(i => [i.t, i.x, i.z, i.l]) }; }, gotItem, p, canBeAt, supportAt, jump, punch, grabStart, grabEnd, get punchKind() { return punchKind; }, knock(x, z) { kvx = x; kvz = z; }, tick: frame };   // 動作確認用
+  window.__museum = { get lvl() { return lvl; }, set lvl(v) { p.y = v * H; vy = 0; grounded = true; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, grabbing, stuck, holding, heldBy, kv: [kvx, kvz], hp, team: myTeam, match: match.on, down: hero.down, look: hero.look, buffs: buffBits(), items: [...drops.values()].map(i => [i.t, i.x, i.z, i.l]) }; }, gotItem, p, canBeAt, supportAt, jump, punch, grabStart, grabEnd, get punchKind() { return punchKind; }, knock(x, z) { kvx = x; kvz = z; }, tick: frame };   // 動作確認用
 }
 </script>
 </body>
