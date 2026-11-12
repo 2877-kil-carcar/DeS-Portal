@@ -8,6 +8,9 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; overflow: hidden; background: #0e0806; color: #F0E0C0; font-family: 'Zen Maru Gothic', sans-serif; }
+  #stage { position: fixed; inset: 0; }
+  /* スマホを縦に持っているときは、画面全体を 90° 回して横向きで見せる（中の部品は #stage を基準に並ぶ） */
+  .turned #stage { inset: auto; top: 0; left: 0; width: 100vh; height: 100vw; transform-origin: top left; transform: rotate(90deg) translateY(-100%); }
   canvas#c { display: block; width: 100%; height: 100%; touch-action: none; }
   .ui { position: fixed; z-index: 2; }
   .pill {
@@ -29,28 +32,33 @@
     background: rgba(255,248,231,0.75); pointer-events: none;
   }
   #caption {
-    left: 50%; bottom: 28px; transform: translateX(-50%); max-width: min(60vw, 420px);
+    left: 50%; bottom: 28px; transform: translateX(-50%); max-width: min(60%, 420px);
     display: none; flex-direction: column; align-items: center; gap: 8px; text-align: center;
   }
-  @media (max-width: 600px) { #caption { bottom: 160px; } #help { display: none; } }   /* スマホではスティックと重ならない位置へ */
+  @media (max-width: 500px), (max-height: 500px) { #help { display: none; } }          /* スマホでは操作説明を出さない */
+  /* 横向きのスマホは縦が短いので、題名はキャラに重ならない右下へ */
+  .turned #caption { left: auto; right: 16px; bottom: 16px; transform: none; align-items: flex-end; max-width: 45%; }
+  @media (max-height: 500px) { #caption { left: auto; right: 16px; bottom: 16px; transform: none; align-items: flex-end; max-width: 45%; } }
   #capTitle { font-size: 15px; text-shadow: 0 1px 4px #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
   #viewer {
     inset: 0; z-index: 5; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
     background: rgba(5,2,3,0.95); cursor: pointer;
   }
-  #viewer img { max-width: 92vw; max-height: 82vh; object-fit: contain; box-shadow: 0 0 80px #000; }
+  #viewer img { max-width: 92%; max-height: 82%; object-fit: contain; box-shadow: 0 0 80px #000; }
   #msg { inset: 0; z-index: 6; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 20px; text-align: center; padding: 24px; line-height: 1.8; }
 </style>
 </head>
 <body>
+<div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=3.85">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=3.86">← ギャラリーへ</a>
 <div class="ui" id="help">移動：WASD / 左下スティック<br>視点：画面をドラッグ<br>階段：中央ホール</div>
 <canvas class="ui" id="map" width="340" height="300" aria-label="美術館のマップ"></canvas>
 <div class="ui" id="stick" aria-label="移動スティック"><div id="knob"></div></div>
 <div class="ui" id="caption"><div id="capTitle"></div><button class="pill" id="capBtn">🔍 拡大する</button></div>
 <div class="ui" id="viewer" role="dialog" aria-label="作品の拡大表示"><img id="viewImg" alt=""><div id="viewTitle"></div></div>
 <div class="ui" id="msg"><p id="msgText"></p><a class="pill" href="index.html">ギャラリーを開く</a></div>
+</div>
 
 <script src="checked-image.js?v=3.84"></script>
 <script src="../bridge.js"></script>
@@ -159,8 +167,12 @@ function start() {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0e0806);
   const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 120);
-  const resize = () => { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); };
-  addEventListener('resize', resize); resize();
+  // 縦持ちのスマホ（タッチ端末で縦長）のときは .turned を付けて横向き表示にする。PC の縦長ウィンドウは回さない
+  const stage = $('stage'), root = document.documentElement, portraitPhone = matchMedia('(orientation: portrait) and (pointer: coarse)');
+  const turned = () => root.classList.contains('turned');
+  const resize = () => { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+  const applyTurn = () => { root.classList.toggle('turned', portraitPhone.matches); resize(); };
+  portraitPhone.addEventListener('change', applyTurn); addEventListener('resize', resize); applyTurn();
 
   // 全体は暗めにして、絵ごとのスポットライト（壁の光だまり）を目立たせる
   scene.add(new THREE.HemisphereLight(0xfff1dc, 0x6a5a50, 1.9));
@@ -537,16 +549,19 @@ function start() {
   addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
   const canvas = $('c');
+  // 横向き表示のあいだは、見た目の「横」が端末の縦方向になるので、指の動きを読み替える
+  const acrossOf = e => turned() ? e.clientY : e.clientX;
   let dragId = null, lastX = 0;
-  canvas.addEventListener('pointerdown', e => { dragId = e.pointerId; lastX = e.clientX; canvas.setPointerCapture(e.pointerId); });
-  canvas.addEventListener('pointermove', e => { if (e.pointerId === dragId) { yaw -= (e.clientX - lastX) * 0.006; lastX = e.clientX; } });
+  canvas.addEventListener('pointerdown', e => { dragId = e.pointerId; lastX = acrossOf(e); canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', e => { if (e.pointerId === dragId) { yaw -= (acrossOf(e) - lastX) * 0.006; lastX = acrossOf(e); } });
   const endDrag = e => { if (e.pointerId === dragId) dragId = null; };
   canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
 
   const stick = $('stick'), knob = $('knob');
   const setStick = e => {
     const r = stick.getBoundingClientRect();
-    let x = (e.clientX - r.left - 60) / 45, y = (e.clientY - r.top - 60) / 45;
+    const sx = e.clientX - (r.left + r.width / 2), sy = e.clientY - (r.top + r.height / 2);
+    let x = (turned() ? sy : sx) / 45, y = (turned() ? -sx : sy) / 45;
     const len = Math.hypot(x, y); if (len > 1) { x /= len; y /= len; }
     stickV.x = x; stickV.y = -y; knob.style.transform = `translate(${x * 35}px, ${y * 35}px)`;
   };
