@@ -57,8 +57,16 @@
   }
   @media (max-width: 500px), (max-height: 500px) { #help { display: none; } }          /* スマホでは操作説明を出さない */
   /* 横向きのスマホは縦が短いので、題名はキャラに重ならない右下へ */
-  .turned #caption { left: auto; right: 16px; bottom: 16px; transform: none; align-items: flex-end; max-width: 45%; }
-  @media (max-height: 500px) { #caption { left: auto; right: 16px; bottom: 16px; transform: none; align-items: flex-end; max-width: 45%; } }
+  .turned #caption { left: 160px; bottom: 16px; transform: none; align-items: flex-start; max-width: 32%; }
+  @media (max-height: 500px) { #caption { left: 160px; bottom: 16px; transform: none; align-items: flex-start; max-width: 32%; } }
+  /* 右下の動作ボタン（ジャンプ・パンチ・つかむ） */
+  #acts { right: 16px; bottom: 16px; display: flex; gap: 10px; align-items: flex-end; }
+  .act {
+    width: 58px; height: 58px; border-radius: 50%; touch-action: none; cursor: pointer; user-select: none; -webkit-user-select: none;
+    background: rgba(13,4,6,0.6); border: 1px solid rgba(212,175,55,0.55); color: #FFE566; font: inherit; font-size: 11px; font-weight: 700;
+  }
+  .act:active { background: rgba(212,175,55,0.35); }
+  #actJump { width: 72px; height: 72px; font-size: 12px; }
   #capTitle { font-size: 15px; text-shadow: 0 1px 4px #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
   #viewer {
     inset: 0; z-index: 5; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
@@ -71,7 +79,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=3.87">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=3.88">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コードをコピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="roomPanel" role="dialog" aria-label="みんなで入る" hidden>
@@ -86,7 +94,8 @@
     <button class="pill small" id="roomClose">とじる</button>
   </div>
 </div>
-<div class="ui" id="help">移動：WASD / 左下スティック<br>視点：画面をドラッグ<br>階段：中央ホール</div>
+<div class="ui" id="help">移動：WASD / 左下スティック<br>視点：画面をドラッグ<br>ジャンプ：Space　パンチ：F　つかむ：G<br>絵を拡大：Enter　階段：中央ホール</div>
+<div class="ui" id="acts"><button class="act" id="actGrab">つかむ</button><button class="act" id="actPunch">パンチ</button><button class="act" id="actJump">ジャンプ</button></div>
 <canvas class="ui" id="map" width="340" height="300" aria-label="美術館のマップ"></canvas>
 <div class="ui" id="stick" aria-label="移動スティック"><div id="knob"></div></div>
 <div class="ui" id="caption"><div id="capTitle"></div><button class="pill" id="capBtn">🔍 拡大する</button></div>
@@ -559,6 +568,13 @@ function start() {
   const p = hero.g.position;
   p.set(cx(10), 0, cz(7)); hero.g.rotation.y = -Math.PI / 2;                         // 1 階ホールの東側から、2 本の階段の間を西向きに始める
   let lvl = 0, ramp = null;                                                           // 今いる階／乗っている階段（なければ null）
+  // 動作の状態。p.y は「足元の床の高さ groundY ＋ 浮いている高さ air」
+  let groundY = 0, air = 0, vy = 0;                                                   // ジャンプ・投げられたときの上下動
+  let kvx = 0, kvz = 0;                                                               // 殴られた・投げられたときに押し流される速さ
+  let punchT = 0, reachT = 0;                                                         // パンチ中／つかみを空振りした残り時間
+  let holding = null, holdT = 0;                                                      // 自分が持ち上げている相手の id と経過時間
+  let heldBy = null, heldT = 0;                                                       // 自分を持ち上げている相手の id と経過時間
+  const HOLD_MAX = 3;                                                                 // 持ち上げていられる秒数
 
   // そこに立てるか（壁と、階段の横・裏からの進入を止める。階段は端から正面でだけ入れる）
   function free(x, z) {
@@ -568,6 +584,7 @@ function start() {
       if (ch === 'b' && Math.abs(x + dx - cx(Math.floor((x + dx) / C + 8.5))) < 0.95 && Math.abs(z + dz - cz(Math.floor((z + dz) / C + 7.5))) < 0.35) return false;   // ベンチ
       const k = stairOf(ch);
       if (k >= 0 && (lvl === k || lvl === k + 1)) {
+        if (holding || heldBy) return false;                                          // 持ち上げている・持ち上げられている間は階段に入れない
         const s = STAIRS[k], t = (x + dx - s.x0) / (s.x1 - s.x0);
         if (Math.abs(z - s.z) > C / 2 - R || (lvl === k ? t > 0.5 : t < 0.5)) return false;
       }
@@ -579,7 +596,9 @@ function start() {
   const keys = {}, stickV = { x: 0, y: 0 };
   let yaw = Math.PI / 2, near = null;
   addEventListener('keydown', e => { if (e.target.closest?.('input')) return;       // 名前やコードの入力中は歩かせない
-    keys[e.code] = true; if (e.code === 'Escape') closeViewer(); if (e.code === 'Enter' || e.code === 'Space') openViewer(); });
+    keys[e.code] = true; if (e.code === 'Escape') closeViewer(); if (e.code === 'Enter') openViewer();
+    if (e.repeat) return;
+    if (e.code === 'Space') { e.preventDefault(); jump(); } else if (e.code === 'KeyF') punch(); else if (e.code === 'KeyG') grab(); });
   addEventListener('keyup', e => { keys[e.code] = false; });
   addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
@@ -658,7 +677,11 @@ function start() {
     return tag;
   }
   function dropRemote(id) { const r = remotes.get(id); scene.remove(r.fig.g); r.tag.material.map.dispose(); r.tag.material.dispose(); remotes.delete(id); }
-  function onRoom(code, players, me) {
+  let lastFx, roomMe = null;                                                          // 最後に反映した自分宛ての合図の番号／部屋での自分の id
+  function onRoom(code, players, me, fx) {
+    roomMe = me;
+    if (!room) lastFx = fx?.n;                                                        // 入室前から残っていた合図は無視する
+    else if (fx && fx.n !== lastFx) { lastFx = fx.n; onFx(fx); }
     room = { code };
     $('roomInfo').textContent = `部屋 ${code}・${Object.keys(players).length}/6人`;
     $('roomHud').hidden = false; $('roomBtn').hidden = true;
@@ -677,7 +700,7 @@ function start() {
   }
   function leftRoom(message) {
     for (const id of [...remotes.keys()]) dropRemote(id);
-    room = null; lastSent = ''; $('roomHud').hidden = true; $('roomBtn').hidden = false;
+    room = null; lastSent = ''; holding = heldBy = null; $('roomHud').hidden = true; $('roomBtn').hidden = false;
     if (message) { panel.hidden = false; roomMsg(message); }
   }
   async function enterRoom(create) {
@@ -687,7 +710,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      roomApi ||= await import('./museum-room.js?v=3.87');
+      roomApi ||= await import('./museum-room.js?v=3.88');
       await roomApi.enter({ create, code, name: roomApi.cleanName(name) || 'ななし', onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
       try { localStorage.setItem('museum:name', name); } catch (_) {}
       panel.hidden = true; roomMsg('');
@@ -706,14 +729,70 @@ function start() {
   });
   addEventListener('pagehide', () => roomApi?.leave());
 
-  // 歩く・立つの姿勢（自分、床の映り込み、他の人で共通）
-  function pose(fig, moving, t, breathe) {
+  // ── 動作：ジャンプ・パンチ・つかむ（対戦の第 2 段階）──
+  // 相手に効く動作は「合図」を送り、受けた側の端末が自分の体に反映する（押し流される、持ち上げられる、投げられる）
+  const ACT = { NONE: 0, PUNCH: 1, REACH: 2, HELD: 3 };                               // 他の人へ伝える見た目の動作
+  const busy = () => viewer.style.display === 'flex' || !panel.hidden;
+  const facing = () => [Math.sin(hero.g.rotation.y), Math.cos(hero.g.rotation.y)];
+  // 目の前（1.5m 以内・正面寄り・同じ高さ）にいる相手のうち、いちばん近い人の id
+  function targetInFront() {
+    const [fx, fz] = facing(); let best = null, bestD = 1.5;
+    for (const [id, r] of remotes) {
+      const q = r.fig.g.position, dx = q.x - p.x, dz = q.z - p.z, d = Math.hypot(dx, dz);
+      if (d < bestD && Math.abs(q.y - p.y) < 1.2 && (d < 0.3 || (dx * fx + dz * fz) / d > 0.35)) { best = id; bestD = d; }
+    }
+    return best;
+  }
+  const nonce = () => Date.now() + Math.random();
+  function jump() { if (!busy() && air === 0 && !heldBy) vy = 5.2; }
+  function punch() {
+    if (busy() || punchT > 0 || heldBy || holding) return;
+    punchT = 0.32;
+    const id = targetInFront(), [fx, fz] = facing();
+    if (id) roomApi.fx(id, { k: 'hit', n: nonce(), dx: fx, dz: fz });
+  }
+  function release(kind) {                                                            // 持ち上げている相手を放す（kind: 'drop' か 'throw'）
+    const [fx, fz] = facing();
+    if (remotes.has(holding)) roomApi.fx(holding, { k: kind, n: nonce(), dx: fx, dz: fz });
+    holding = null; reachT = 0.25;
+  }
+  function grab() {
+    if (busy() || heldBy) return;
+    if (holding) { release('throw'); return; }                                        // 持っていたら投げる
+    reachT = 0.3;
+    const id = targetInFront();
+    // 階段の途中にいる自分・相手はつかめない／すでに誰かに持たれている相手もつかめない
+    if (!id || ramp !== null || remotes.get(id).target[5] === ACT.HELD) return;
+    const ty = remotes.get(id).target[1] / H; if (Math.abs(ty - Math.round(ty)) > 0.05) return;
+    holding = id; holdT = 0; roomApi.fx(id, { k: 'grab', n: nonce(), by: roomMe });
+  }
+  // 自分宛ての合図を体に反映する
+  function onFx(f) {
+    const dx = +f.dx || 0, dz = +f.dz || 0;
+    if (f.k === 'grab') { if (!heldBy && ramp === null && remotes.has(f.by)) { if (holding) release('drop'); heldBy = f.by; heldT = 0; } }
+    else if (f.k === 'drop') heldBy = null;
+    else if (f.k === 'throw') { if (heldBy) { heldBy = null; kvx = dx * 9; kvz = dz * 9; vy = 5; } }
+    else if (f.k === 'hit' && !heldBy) { if (holding) release('drop'); kvx = dx * 5.5; kvz = dz * 5.5; vy = Math.max(vy, 2.6); }
+  }
+  for (const [id, fn] of [['actJump', jump], ['actPunch', punch], ['actGrab', grab]]) {
+    $(id).addEventListener('pointerdown', e => { e.preventDefault(); fn(); });
+  }
+
+  // 姿勢（自分、床の映り込み、他の人で共通）。act は ACT のどれか、time は動作の揺れに使う時刻
+  function pose(fig, moving, t, breathe, act = 0, time = 0) {
     const swing = moving ? Math.sin(t) : 0;
     fig.arms[0].rotation.x = swing * 1.1; fig.arms[1].rotation.x = -swing * 1.1;      // 腕は大きくぱたぱた振る
     fig.legs[0].rotation.x = -swing * 0.9; fig.legs[1].rotation.x = swing * 0.9;
     fig.b.position.y = moving ? Math.abs(swing) * 0.07 : breathe * 0.012;             // ぴょこぴょこ弾む
     fig.b.rotation.z = swing * 0.07;                                                  // 体を左右に揺らす
     fig.head.position.y = 1.2 + (moving ? Math.abs(Math.cos(t)) * 0.03 : breathe * 0.01);
+    if (act === ACT.PUNCH) fig.arms[1].rotation.x = -1.7;                             // 右腕を前へ突き出す
+    else if (act === ACT.REACH) fig.arms[0].rotation.x = fig.arms[1].rotation.x = -2.5;   // 両腕を上げる（つかむ・持ち上げる）
+    else if (act === ACT.HELD) {                                                      // 持ち上げられてじたばた
+      const w = Math.sin(time * 22);
+      fig.arms[0].rotation.x = -2.2 + w * 0.6; fig.arms[1].rotation.x = -2.2 - w * 0.6;
+      fig.legs[0].rotation.x = w * 0.8; fig.legs[1].rotation.x = -w * 0.8;
+    }
   }
 
   // ── メインループ ──
@@ -725,7 +804,7 @@ function start() {
     let ix = stickV.x + (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
     let iy = stickV.y + (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
     const len = Math.hypot(ix, iy); if (len > 1) { ix /= len; iy /= len; }
-    const moving = len > 0.05 && viewer.style.display !== 'flex' && panel.hidden;
+    const moving = len > 0.05 && !busy() && !heldBy;
     if (moving) {
       // カメラの向きを基準に前後左右へ動く
       const vx = -Math.sin(yaw) * iy + Math.cos(yaw) * ix, vz = -Math.cos(yaw) * iy - Math.sin(yaw) * ix;
@@ -740,33 +819,66 @@ function start() {
         p.x += mx; p.z = clamp(p.z + mz, s.z - (C / 2 - R), s.z + (C / 2 - R));
         const t = (p.x - s.x0) / (s.x1 - s.x0);
         if (t <= 0) { lvl = ramp; ramp = null; } else if (t >= 1) { lvl = ramp + 1; ramp = null; }
-        p.y = (ramp === null ? lvl : ramp + t) * H;
+        groundY = (ramp === null ? lvl : ramp + t) * H;
       }
       let d = Math.atan2(vx, vz) - hero.g.rotation.y;                                // 進行方向へ最短で振り向く
       d = Math.atan2(Math.sin(d), Math.cos(d));
       hero.g.rotation.y += d * Math.min(1, dt * 12);
       walkT += dt * 11 * Math.min(1, len);
     }
+    // 押し流し（殴られた・投げられた）。壁では止まる。階段の上では効かない
+    if (Math.hypot(kvx, kvz) > 0.15) {
+      if (ramp === null) { if (free(p.x + kvx * dt, p.z)) p.x += kvx * dt; if (free(p.x, p.z + kvz * dt)) p.z += kvz * dt; }
+      const decay = Math.exp(-dt * 4.5); kvx *= decay; kvz *= decay;
+    } else kvx = kvz = 0;
+
+    // 持ち上げている側：3 秒たつか、相手がいなくなる・抜けたら放す
+    punchT = Math.max(0, punchT - dt); reachT = Math.max(0, reachT - dt);
+    if (holding) {
+      holdT += dt;
+      const r = remotes.get(holding);
+      if (!r || holdT > HOLD_MAX || (holdT > 0.8 && r.target[5] !== ACT.HELD)) release('drop');
+    }
+    // 持ち上げられている側：相手の頭の前へ運ばれる。3 秒たつか相手がいなくなったら落ちる
+    if (heldBy) {
+      heldT += dt;
+      const r = remotes.get(heldBy);
+      if (!r || heldT > HOLD_MAX + 0.5) heldBy = null;
+      else {
+        const g = r.fig.g, hx = g.position.x + Math.sin(g.rotation.y) * 0.75, hz = g.position.z + Math.cos(g.rotation.y) * 0.75;
+        if (free(hx, hz)) { p.x = hx; p.z = hz; } else if (free(g.position.x, g.position.z)) { p.x = g.position.x; p.z = g.position.z; }
+        hero.g.rotation.y = g.rotation.y; air = Math.max(0, g.position.y + 0.9 - groundY); vy = 0;
+      }
+    }
+    // 上下動（ジャンプ・落下）
+    if (!heldBy && (air > 0 || vy > 0)) { vy -= 14 * dt; air += vy * dt; if (air <= 0) { air = 0; vy = 0; } }
+    p.y = groundY + air; shadow.position.y = 0.02 - air;                             // 影は床に残す
+
     const breathe = Math.sin(clock.elapsedTime * 2.2);                              // 立っている間もゆっくり呼吸する
-    pose(hero, moving, walkT, breathe); pose(ghost, moving, walkT, breathe);
+    const act = heldBy ? ACT.HELD : punchT > 0 ? ACT.PUNCH : holding || reachT > 0 ? ACT.REACH : ACT.NONE;
+    pose(hero, moving, walkT, breathe, act, clock.elapsedTime); pose(ghost, moving, walkT, breathe, act, clock.elapsedTime);
 
     // 部屋にいる間：自分の位置を 1 秒に 10 回まで送り（動いたときだけ）、他の人を受け取った位置へなめらかに寄せる
     if (room) {
       sendT += dt;
       if (sendT >= 0.1) {
         sendT = 0;
-        const s = [p.x, p.y, p.z, hero.g.rotation.y].map(v => Math.round(v * 100) / 100).concat(moving ? 1 : 0);
+        const s = [p.x, p.y, p.z, hero.g.rotation.y].map(v => Math.round(v * 100) / 100).concat(moving ? 1 : 0, act);
         if (s.join() !== lastSent) { lastSent = s.join(); roomApi.send(s); }
       }
     }
-    for (const r of remotes.values()) {
-      const g = r.fig.g, [tx, ty, tz, tr, mv] = r.target, far = Math.hypot(tx - g.position.x, tz - g.position.z) > 6;
-      const k = far ? 1 : 1 - Math.exp(-dt * 12);
-      g.position.set(g.position.x + (tx - g.position.x) * k, g.position.y + (ty - g.position.y) * k, g.position.z + (tz - g.position.z) * k);
-      const turn = Math.atan2(Math.sin(tr - g.rotation.y), Math.cos(tr - g.rotation.y));
-      g.rotation.y += turn * k;
+    for (const [id, r] of remotes) {
+      const g = r.fig.g, [tx, ty, tz, tr, mv, ract] = r.target;
+      if (id === holding) {                                                          // 自分が持っている相手は、通信を待たずに手元へ描く
+        const [fx, fz] = facing();
+        g.position.set(p.x + fx * 0.75, p.y + 0.9, p.z + fz * 0.75); g.rotation.y = hero.g.rotation.y;
+      } else {
+        const k = Math.hypot(tx - g.position.x, tz - g.position.z) > 6 ? 1 : 1 - Math.exp(-dt * 12);
+        g.position.set(g.position.x + (tx - g.position.x) * k, g.position.y + (ty - g.position.y) * k, g.position.z + (tz - g.position.z) * k);
+        g.rotation.y += Math.atan2(Math.sin(tr - g.rotation.y), Math.cos(tr - g.rotation.y)) * k;
+      }
       if (mv) r.walkT += dt * 11;
-      pose(r.fig, !!mv, r.walkT, breathe);
+      pose(r.fig, !!mv, r.walkT, breathe, id === holding ? ACT.HELD : ract, clock.elapsedTime);
       g.visible = Math.abs(ty - p.y) < H * 0.9;                                      // 違う階の人は描かない
     }
 
@@ -774,21 +886,21 @@ function start() {
     const onFloor = ramp === null;
     for (let f = 0; f < LEVELS; f++) {
       const L = levels[f];
-      L.visible = Math.abs(f - p.y / H) < 1;
+      L.visible = Math.abs(f - groundY / H) < 1;
       if (L.visible && L.userData.load) { L.userData.load.forEach(fn => fn()); L.userData.load = null; }
       mirrors[f].visible = onFloor && lvl === f;
-      wallsG[f].visible = f >= Math.floor(p.y / H + 1e-4);                           // 足元より下の階の壁は隠す（床に映す像と重なるため）
+      wallsG[f].visible = f >= Math.floor(groundY / H + 1e-4);                           // 足元より下の階の壁は隠す（床に映す像と重なるため）
     }
     ghost.g.visible = onFloor;
-    ghost.g.position.set(p.x, lvl * H, p.z); ghost.g.rotation.y = hero.g.rotation.y;
+    ghost.g.position.set(p.x, lvl * H - air, p.z); ghost.g.rotation.y = hero.g.rotation.y;
 
     // 三人称カメラ（壁にめり込まないよう、壁の手前で止める）
     const sx = Math.sin(yaw), sz = Math.cos(yaw);
     let dist = 0;
-    const camLevel = Math.round(p.y / H);
+    const camLevel = Math.round(groundY / H);
     while (dist < 4.6 && cellAt(camLevel, p.x + sx * (dist + 0.5), p.z + sz * (dist + 0.5)) !== '#') dist += 0.2;
-    camera.position.set(p.x + sx * dist, p.y + 1.9, p.z + sz * dist);
-    camera.lookAt(p.x, p.y + 1.2, p.z);
+    camera.position.set(p.x + sx * dist, groundY + air * 0.5 + 1.9, p.z + sz * dist);
+    camera.lookAt(p.x, groundY + air * 0.5 + 1.2, p.z);
 
     // いちばん近い絵の題名を出す
     let best = null, bestD = 2.8;
@@ -801,11 +913,11 @@ function start() {
       $('caption').style.display = near ? 'flex' : 'none';
       if (near) $('capTitle').textContent = near.item.title || '無題';
     }
-    drawMap(Math.round(p.y / H));
+    drawMap(Math.round(groundY / H));
     renderer.render(scene, camera);
   });
 
-  window.__museum = { get lvl() { return lvl; }, set lvl(v) { lvl = v; ramp = null; p.y = v * H; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, p, free };   // 動作確認用
+  window.__museum = { get lvl() { return lvl; }, set lvl(v) { lvl = v; ramp = null; groundY = v * H; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, reachT, holding, heldBy, kv: [kvx, kvz] }; }, p, free, jump, punch, grab };   // 動作確認用
 }
 </script>
 </body>

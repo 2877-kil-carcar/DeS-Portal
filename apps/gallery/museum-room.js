@@ -47,16 +47,18 @@ export function decideEntry(room, { create, code, pid, name }) {
   return { room };
 }
 
-let db, pid, myRef, stopListening;
+let db, pid, myRef, myFxRef, stopListening;
 
-/* 部屋を作る（create: true）か、コードで入る。onRoom(code, players, 自分の id) は部屋の内容が変わるたびに呼ばれ、
+/* 部屋を作る（create: true）か、コードで入る。onRoom(code, players, 自分の id, 自分宛ての合図) は部屋の内容が変わるたびに呼ばれ、
    自分が部屋から消えたら onGone() が呼ばれる。失敗時は userMessage つきのエラーを投げる */
 export async function enter({ create, code, name, onRoom, onGone }) {
   if (!db) { db = getDatabase(initializeApp(firebaseConfig, "museum-room")); pid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`; }
   if (create) code = makeCode();
   const roomRef = ref(db, ROOM_PATH);
   myRef = ref(db, `${ROOM_PATH}/players/${pid}`);
+  myFxRef = ref(db, `${ROOM_PATH}/fx/${pid}`);
   await withTimeout(onDisconnect(myRef).remove());                     // 先に「切れたら消す」を予約してから入る
+  onDisconnect(myFxRef).remove().catch(() => {});
   let error = "";
   const result = await withTimeout(runTransaction(roomRef, room => {
     const d = decideEntry(room, { create, code, pid, name });
@@ -70,20 +72,27 @@ export async function enter({ create, code, name, onRoom, onGone }) {
   stopListening = onValue(roomRef, snap => {
     const room = snap.val(), me = room?.players?.[pid];
     if (!me?.name || room.code !== code) { leave(); onGone(); return; }  // 通信が切れて消された／部屋が作り直された
-    onRoom(room.code, room.players, pid);
+    onRoom(room.code, room.players, pid, room.fx?.[pid]);
   });
   return { code };
 }
 
-/* 自分の位置などを送る（s = [x, y, z, 向き, 歩いているか]） */
+/* 自分の位置などを送る（s = [x, y, z, 向き, 歩いているか, 動作]） */
 export function send(s) {
   if (myRef && stopListening) set(ref(db, `${ROOM_PATH}/players/${pid}/s`), s).catch(() => {});
+}
+
+/* 相手への合図（パンチが当たった、つかんだ、投げた、放した）。受けた側の端末が自分の動きに反映する。
+   players の下ではなく fx の下に書く：もう居ない相手へ書いても、人数に数えられる抜け殻を作らないため */
+export function fx(targetId, data) {
+  if (myRef && stopListening) set(ref(db, `${ROOM_PATH}/fx/${targetId}`), data).catch(() => {});
 }
 
 export function leave() {
   if (!myRef) return;
   stopListening?.(); stopListening = null;
   onDisconnect(myRef).cancel().catch(() => {});
-  remove(myRef).catch(() => {});
+  onDisconnect(myFxRef).cancel().catch(() => {});
+  remove(myRef).catch(() => {}); remove(myFxRef).catch(() => {});
   myRef = null;
 }
