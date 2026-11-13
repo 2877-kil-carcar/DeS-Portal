@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>もふもふ冒険 | The Fluffy Hall</title>
+<script type="importmap">{"imports":{"three":"../karuro/vendor/three.module.js"}}</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; background: #5fb4f2; color: #F0E0C0; font-family: 'Zen Maru Gothic', sans-serif; }
+  #stage { position: fixed; inset: 0; }
+  /* スマホを縦に持っているときは、画面全体を 90° 回して横向きで見せる（美術館 museum.html と同じ） */
+  .turned #stage { inset: auto; top: 0; left: 0; width: 100vh; height: 100vw; transform-origin: top left; transform: rotate(90deg) translateY(-100%); }
+  canvas#c { display: block; width: 100%; height: 100%; touch-action: none; }
+  .ui { position: fixed; z-index: 2; }
+  .pill {
+    background: rgba(13,4,6,0.78); border: 1px solid rgba(212,175,55,0.45); border-radius: 999px;
+    color: #FFE566; font: inherit; font-size: 14px; padding: 10px 18px; text-decoration: none; cursor: pointer;
+  }
+  .pill.small { font-size: 12px; padding: 6px 12px; }
+  [hidden] { display: none !important; }
+  #back { top: 12px; left: 12px; }
+  #roomBtn { top: 60px; left: 12px; }
+  #roomHud {
+    top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; white-space: nowrap;
+    background: rgba(13,4,6,0.78); border: 1px solid rgba(212,175,55,0.45); border-radius: 999px; padding: 5px 8px 5px 14px; font-size: 13px;
+  }
+  #roomInfo { font-weight: 700; color: #FFE566; }
+  #stageInfo { top: 12px; right: 12px; pointer-events: none; }
+  #banner {
+    top: 26%; left: 50%; transform: translateX(-50%); z-index: 4; pointer-events: none; white-space: nowrap;
+    font-size: 26px; font-weight: 800; color: #FFE566; text-shadow: 0 2px 8px #000; background: rgba(13,4,6,0.72); padding: 10px 24px; border-radius: 16px;
+  }
+  #hint {
+    left: 50%; bottom: 20px; transform: translateX(-50%); max-width: min(52%, 460px); pointer-events: none; text-align: center;
+    font-size: 13px; line-height: 1.5; color: #fff; background: rgba(13,4,6,0.6); padding: 8px 14px; border-radius: 12px;
+  }
+  #roomPanel { inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; background: rgba(5,2,3,0.8); }
+  #roomPanel .box {
+    width: min(92%, 340px); max-height: 94%; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 18px;
+    background: #1a0a0e; border: 1px solid rgba(212,175,55,0.45); border-radius: 16px;
+  }
+  #roomPanel h2 { font-size: 18px; color: #FFE566; }
+  #roomPanel p { font-size: 12px; line-height: 1.6; color: rgba(240,224,192,0.8); }
+  #roomPanel label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+  #roomPanel input {
+    font: inherit; font-size: 16px; padding: 8px 10px; border-radius: 8px; color: #F0E0C0;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(212,175,55,0.35);
+  }
+  #roomMsg { min-height: 1.6em; color: #FFE566 !important; }
+  #help { top: 108px; left: 14px; font-size: 12px; color: #fff; pointer-events: none; text-shadow: 0 1px 3px #000; }
+  @media (max-width: 500px), (max-height: 500px) { #help { display: none; } }          /* スマホでは操作説明を出さない */
+  #stick {
+    left: 24px; bottom: 24px; width: 120px; height: 120px; border-radius: 50%; touch-action: none;
+    background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.5);
+  }
+  #knob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,248,231,0.8); pointer-events: none; }
+  #acts { right: 16px; bottom: 16px; display: flex; gap: 12px; align-items: flex-end; }
+  .act {
+    width: 68px; height: 68px; border-radius: 50%; touch-action: none; cursor: pointer; user-select: none; -webkit-user-select: none;
+    background: rgba(13,4,6,0.6); border: 1px solid rgba(212,175,55,0.55); color: #FFE566; font: inherit; font-size: 12px; font-weight: 700;
+  }
+  .act:active { background: rgba(212,175,55,0.35); }
+  #actJump { width: 78px; height: 78px; }
+  #msg { inset: 0; z-index: 6; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 20px; text-align: center; padding: 24px; line-height: 1.8; background: #1a0a0e; }
+</style>
+</head>
+<body>
+<div id="stage">
+<canvas id="c"></canvas>
+<a class="ui pill" id="back" href="index.html?v=3.98">← ギャラリーへ</a>
+<button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
+<div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
+<div class="ui pill small" id="stageInfo"></div>
+<div class="ui" id="banner" role="status" hidden></div>
+<div class="ui" id="hint" role="status" hidden></div>
+<div class="ui" id="roomPanel" role="dialog" aria-label="みんなで冒険" hidden>
+  <div class="box">
+    <h2>👥 みんなで冒険</h2>
+    <p>同じ部屋に入った人どうしで、力を合わせてステージを進めます。部屋は同時に1つだけ、3人までです。1人でも最後まで遊べます。</p>
+    <label>なまえ<input id="roomName" maxlength="12" autocomplete="off"></label>
+    <button class="pill" id="roomCreate">部屋を作る</button>
+    <label>部屋のコード（6文字）<input id="roomCode" maxlength="6" autocomplete="off" autocapitalize="characters"></label>
+    <button class="pill" id="roomJoin">コードで入る</button>
+    <p id="roomMsg" role="status"></p>
+    <button class="pill small" id="roomClose">とじる</button>
+  </div>
+</div>
+<div class="ui" id="help">移動：WASD / 左下スティック<br>視点：画面をドラッグ<br>ジャンプ：Space<br>つかむ：G を押している間（箱・段の縁・仲間）<br>段の縁をつかんだら、前へ倒すとよじ登る<br>仲間を持ったままジャンプで投げる</div>
+<div class="ui" id="acts"><button class="act" id="actGrab">つかむ</button><button class="act" id="actJump">ジャンプ</button></div>
+<div class="ui" id="stick" aria-label="移動スティック"><div id="knob"></div></div>
+<div class="ui" id="msg"><p id="msgText"></p><a class="pill" href="index.html">ギャラリーを開く</a></div>
+</div>
+
+<script src="../bridge.js"></script>
+<script type="module">
+/* もふもふ冒険：白くて丸いキャラで、空に浮かぶステージを進む協力アクション（3 人まで）。
+   足場・仕掛け・キャラの動きのルールは adventure-world.js。このファイルは、それを描く・操作する・部屋でそろえる係。
+   キャラの体（ラグドール）は美術館 museum.html と同じ作り。
+   shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
+import * as THREE from 'three';
+import { STAGES, makeWorld, makePlayer } from './adventure-world.js?v=3.98';
+
+const $ = id => document.getElementById(id);
+try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
+
+function start() {
+  const renderer = new THREE.WebGLRenderer({ canvas: $('c'), antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 400);
+  // 縦持ちのスマホ（タッチ端末で縦長）のときは .turned を付けて横向き表示にする。PC の縦長ウィンドウは回さない
+  const stage = $('stage'), root = document.documentElement, portraitPhone = matchMedia('(orientation: portrait) and (pointer: coarse)');
+  const turned = () => root.classList.contains('turned');
+  const resize = () => { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+  const applyTurn = () => { root.classList.toggle('turned', portraitPhone.matches); resize(); };
+  portraitPhone.addEventListener('change', applyTurn); addEventListener('resize', resize); applyTurn();
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a7a66, 2.1));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.1); sun.position.set(4, 10, -3); scene.add(sun);
+  const std = (color, roughness = 0.9) => new THREE.MeshStandardMaterial({ color, roughness });
+  const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler();
+  const paint = (w, h, draw) => {                                                     // 模様は画像ファイルを使わず、その場で描く
+    const cvs = document.createElement('canvas'); cvs.width = w; cvs.height = h;
+    draw(cvs.getContext('2d'), w, h);
+    const tex = new THREE.CanvasTexture(cvs); tex.colorSpace = THREE.SRGBColorSpace; return tex;
+  };
+
+  // ── ステージの見た目 ──
+  // 足場の色（adventure-world.js の色番号順）：草の島（土色。上に草を敷く）／石／木／動く床／門
+  const MATS = [0x9b7653, 0xc9c2b4, 0xc49a62, 0xf2c94c, 0xd9534f].map(c => std(c));
+  const grassMat = std(0x7ecb5c), padMat = std(0xf5c211, 0.6), padOnMat = std(0x57e389, 0.6), poleMat = std(0xffffff, 0.6);
+  const flagMat = std(0xb8b8b8, 0.8), flagOnMat = std(0xffb400, 0.8), cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+  const goalMat = new THREE.MeshBasicMaterial({ color: 0xfff27a });
+  const crateMats = ['#c9965a', '#8d6a4a'].map(base => new THREE.MeshStandardMaterial({ roughness: 0.9, map: paint(128, 128, g => {   // 木箱（軽い／重い）
+    g.fillStyle = base; g.fillRect(0, 0, 128, 128);
+    g.strokeStyle = 'rgba(60,35,15,0.75)'; g.lineWidth = 10; g.strokeRect(5, 5, 118, 118);
+    g.lineWidth = 8; g.beginPath(); g.moveTo(8, 8); g.lineTo(120, 120); g.moveTo(120, 8); g.lineTo(8, 120); g.stroke();
+  }) }));
+  const unit = new THREE.BoxGeometry(1, 1, 1);
+  const boxMesh = (b, material, parent) => {                                          // 箱 b の形に合わせた直方体
+    const m = new THREE.Mesh(unit, material); parent.add(m);
+    m.userData.fit = () => { m.scale.set(b.x1 - b.x0, b.y1 - b.y0, b.z1 - b.z0); m.position.set((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (b.z0 + b.z1) / 2); };
+    m.userData.fit(); return m;
+  };
+
+  let world, me, group, stageIndex = -1, run = 0, moving = [], pads = [], flags = [];
+  let bannerTimer, hintTimer;
+  function banner(text, ms) { $('banner').textContent = text; $('banner').hidden = false; clearTimeout(bannerTimer); bannerTimer = setTimeout(() => { $('banner').hidden = true; }, ms); }
+  function hint(text) { $('hint').textContent = text; $('hint').hidden = false; clearTimeout(hintTimer); hintTimer = setTimeout(() => { $('hint').hidden = true; }, 9000); }
+
+  // ステージ i を最初から始める（n は「何回目の出発か」の通し番号。部屋では全員同じ値になる）
+  function loadStage(i, n) {
+    if (group) { scene.remove(group); group.traverse(o => { if (o.geometry && o.geometry !== unit) o.geometry.dispose(); }); }
+    const st = STAGES[i]; stageIndex = i; run = n; holding = heldBy = null; grabbing = false;
+    world = makeWorld(st); me = makePlayer(world); group = new THREE.Group(); scene.add(group); moving = []; pads = []; flags = [];
+    scene.background = paint(2, 256, g => { const k = g.createLinearGradient(0, 0, 0, 256); k.addColorStop(0, st.sky[0]); k.addColorStop(1, st.sky[1]); g.fillStyle = k; g.fillRect(0, 0, 2, 256); });
+    scene.fog = new THREE.Fog(st.sky[1], 60, 260);
+    for (const b of st.boxes) {
+      boxMesh(b, MATS[b.c], group);
+      if (b.c === 0) boxMesh({ x0: b.x0 - 0.06, x1: b.x1 + 0.06, y0: b.y1 - 0.25, y1: b.y1 + 0.01, z0: b.z0 - 0.06, z1: b.z1 + 0.06 }, grassMat, group);
+    }
+    for (const m of world.movers) moving.push(boxMesh(m.box, MATS[m.b.c], group));
+    for (const c of world.crates) moving.push(boxMesh(c.box, crateMats[+!!c.heavy], group));
+    for (const p of world.plates) {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(p.w / 2, p.w / 2, 0.12, 24), padMat); m.position.set(p.x, p.y + 0.06, p.z); group.add(m); pads.push(m);
+    }
+    st.cps.forEach((c, k) => {                                                        // セーブ地点の旗（通ると金色になる）
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 8), poleMat); pole.position.set(c.x - 2.4, c.y + 1.1, c.z); group.add(pole);
+      const flag = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.45, 0.03), k ? flagMat : flagOnMat); flag.position.set(c.x - 2.02, c.y + 1.95, c.z); group.add(flag); flags.push(flag);
+    });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.12, 10, 40), goalMat); ring.position.set(st.goal.x, st.goal.y + 1.5, st.goal.z); group.add(ring);
+    group.userData.ring = ring;
+    for (let k = 0; k < 26; k++) {                                                    // 雲（足場の下と周りに散らす。場所はステージごとに決まっている）
+      const r = a => { const v = Math.sin((k + 1) * a + i * 7.3) * 43758.5; return v - Math.floor(v); };
+      const cloud = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), cloudMat);
+      cloud.position.set((r(12.9) - 0.5) * 90, -9 - r(78.2) * 14 + (k % 5 ? 0 : 26), r(39.3) * 110 - 15); cloud.scale.set(5 + r(4.1) * 7, 1.2 + r(9.7), 3 + r(2.3) * 5); group.add(cloud);
+    }
+    $('stageInfo').textContent = `ステージ ${i + 1}/${STAGES.length}　${st.name}`;
+    banner(`ステージ ${i + 1}　${st.name}`, 2500); hint(st.cps[0].hint);
+    hero.pts = null;                                                                  // 体も新しい場所から作り直す
+  }
+
+  // ── 白くて丸いキャラ（ローカル +z が前）──
+  /* 体はラグドール：9 個の粒（左肩・右肩・左股・右股・頭・左手・右手・左足・右足）を、長さの変わらない棒でつないだもの。
+     粒には重力がかかり、足場に当たる。pose が決める「目標の姿勢」へは、ばねで引かれるだけ（力の入れ具合は動作ごとに変える）。
+     shortcut: 粒が当たるのは足場の上面だけ。壁や他の人にはめり込む。体の位置そのもの（当たり判定・通信）は 1 点で持つ */
+  const white = std(0xffffff, 0.55);
+  const ARM = 0.34, LEG = 0.24;
+  const REST = [[-0.2, 0.84, 0], [0.2, 0.84, 0], [-0.12, 0.36, 0], [0.12, 0.36, 0], [0, 1.2, 0]].map(a => new THREE.Vector3(...a));
+  const RADIUS = [0.2, 0.2, 0.2, 0.2, 0.31, 0.078, 0.078, 0.1, 0.1];
+  const LINKS = [[0, 5, ARM], [1, 6, ARM], [2, 7, LEG], [3, 8, LEG]];
+  for (let i = 0; i < 5; i++) for (let j = 0; j < i; j++) LINKS.push([j, i, REST[i].distanceTo(REST[j])]);   // 胴と頭は、すべての組をつないで形を保つ
+  const DOWN = new THREE.Vector3(0, -1, 0), QB = new THREE.Quaternion(), VA = new THREE.Vector3(), VB = new THREE.Vector3(), VC = new THREE.Vector3();
+  function makeFigure() {
+    const g = new THREE.Group(), b = new THREE.Group(); g.add(b);
+    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.24, 0.16, 8, 20), white); torso.position.y = 0.06; b.add(torso);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.31, 32, 24), white); g.add(head);
+    const limb = (len, rad) => {                                                      // 付け根の丸みを胴の中へ埋める：どう振っても胴とつながって見える
+      const pivot = new THREE.Group(), o = new THREE.Mesh(new THREE.CapsuleGeometry(rad, len, 8, 16), white);
+      o.position.y = -len / 2; pivot.add(o); g.add(pivot); return pivot;
+    };
+    scene.add(g);
+    return { g, parts: [b, head, limb(ARM, 0.078), limb(ARM, 0.078), limb(LEG, 0.1), limb(LEG, 0.1)] };
+  }
+  const ACT = { NONE: 0, REACH: 2, HELD: 3, OUCH: 6 };                                // 他の人へ伝える見た目の動作（番号は美術館と同じ）
+  /* 姿勢：まず「目標の姿勢」を決め、粒をそこへばねで寄せる。腕・脚の角度は負が前。air は足元から浮いている高さ */
+  function pose(fig, dt, moving, t, breathe, act, time, air) {
+    const s = moving ? Math.sin(t) : 0, sway = Math.sin(time * 1.3), w = Math.sin(time * 9);
+    // ふだん：腕をだらんと前に垂らし、前のめりで左右によたよた歩く
+    let aL = moving ? -0.3 + s * 0.6 : sway * 0.08, aR = moving ? -0.3 - s * 0.6 : -sway * 0.08;   // 腕の前後
+    let oL = 0.3 + Math.abs(s) * 0.35, oR = oL;                                                    // 腕の開き
+    let lL = -s * 0.7, lR = s * 0.7;                                                               // 脚の前後
+    let bx = moving ? 0.25 : 0.03, by = s * 0.3, bz = moving ? s * 0.26 : sway * 0.06;             // 体の前傾・ひねり・横揺れ
+    let hx = -s * 0.1, hz = moving ? -0.06 : 0;                                                    // 頭は体に遅れてついてくる
+    // 力の入れ具合 [ばねの強さ, 収まりやすさ]：胴／頭／左手／右手／足。腕はふだん力を抜いてあり、ほぼ重力でぶらぶらする
+    let kT = [400, 14], kH = [250, 8], kL = [40, 3], kR = kL, kF = [300, 14];
+    const limp = [3, 1.5], firm = [600, 25];
+    if (act === ACT.HELD) {                                                           // 仲間に持たれた：胴だけ運ばれ、頭と手足は脱力
+      bx = 0.4; kT = [150, 8]; kH = [20, 2]; kL = kR = kF = limp;
+    } else if (act === ACT.OUCH) {                                                    // 投げられた：のけぞって万歳
+      aL = aR = -2.6; oL = oR = 1; lL = lR = -0.9; bx = -0.8; kT = [120, 5]; kH = [10, 2]; kL = kR = kF = limp;
+    } else if (act === ACT.REACH) {                                                   // つかむ：両腕を前へ突き出す（箱を持つ・仲間を持つ）
+      aL = -1.9 + w * 0.12; aR = -1.9 - w * 0.12; oL = oR = 0.05; bx = 0.1; bz += Math.sin(time * 5) * 0.12; kL = kR = firm;
+      if (air > 0.15) { aL = aR = -2.8; bx = -0.1; lL = Math.sin(time * 5) * 0.5; lR = -lL; kT = [8, 2]; kH = [8, 2]; kF = limp; }   // ぶら下がり：手だけで支え、体は垂れる
+    } else if (air > 2.5) {                                                           // 空から落ちてくる：大の字で力が抜ける
+      aL = aR = -1.5; oL = oR = 1.3; lL = 0.5; lR = -0.5; bx = 1.1; kT = [60, 4]; kH = [20, 2]; kL = kR = kF = [12, 2];
+    } else if (air > 0.15) {                                                          // 跳んでいる：万歳して脚をばたつかせる
+      aL = -2.6 + w * 0.4; aR = -2.6 - w * 0.4; oL = oR = 0.7; lL = 0.7 * w; lR = -0.7 * w; bx = -0.15; kL = kR = [120, 6]; kF = [80, 6];
+    }
+    // 目標の姿勢での粒の位置（体の中の座標 → 世界の座標）
+    const g = fig.g, T = fig.targets ||= REST.concat(REST.slice(0, 4)).map(v => v.clone());
+    const bob = moving ? Math.abs(s) * 0.09 : breathe * 0.012;                        // ぴょこぴょこ弾む
+    QB.setFromEuler(E.set(bx, by, bz));                                               // 体の傾き（足元が軸）
+    for (let i = 0; i < 4; i++) T[i].copy(REST[i]).applyQuaternion(QB);
+    T[4].set(hx, 1.2 + (moving ? Math.abs(Math.cos(t)) * 0.04 : breathe * 0.01), hz).applyQuaternion(QB);
+    [[aL, -oL, ARM], [aR, oR, ARM], [lL, 0, LEG], [lR, 0, LEG]].forEach(([rx, rz, len], i) =>
+      T[5 + i].set(0, -len, 0).applyQuaternion(Q.setFromEuler(E.set(rx, 0, rz))).applyQuaternion(QB).add(T[i]));
+    g.updateMatrixWorld();
+    for (const v of T) { v.y += bob; g.localToWorld(v); }
+    // 粒を動かす：ばねと重力 → 棒の長さを保つ → 足場に当てる
+    const P = fig.pts ||= T.map(v => ({ p: v.clone(), o: v.clone(), v: new THREE.Vector3() }));
+    if (P.some((q, i) => q.p.distanceToSquared(T[i]) > 9)) P.forEach((q, i) => { q.p.copy(T[i]); q.v.set(0, 0, 0); });   // 瞬間移動したら体ごと移す
+    if (dt > 1e-4) {
+      const K = [kT, kT, kT, kT, kH, kL, kR, kF, kF];
+      P.forEach((q, i) => {
+        q.o.copy(q.p);
+        q.v.addScaledVector(VA.subVectors(T[i], q.p), K[i][0] * dt).multiplyScalar(Math.exp(-K[i][1] * dt));
+        q.v.y -= 12 * dt;
+        q.p.addScaledVector(q.v, dt);
+      });
+      for (let n = 0; n < 3; n++) for (const [a, b, len] of LINKS) {
+        const dist = VA.subVectors(P[b].p, P[a].p).length() || 1e-6;
+        VA.multiplyScalar((dist - len) / dist / 2);
+        P[a].p.add(VA); P[b].p.sub(VA);
+      }
+      P.forEach((q, i) => {
+        q.p.y = Math.max(q.p.y, world.floorY(q.p.x, q.p.z, q.p.y) + RADIUS[i]);
+        q.v.subVectors(q.p, q.o).divideScalar(dt);
+      });
+    }
+    // 粒の位置から見た目を組む：胴は両肩と両股から向きを決め、手足は付け根から先の粒へ向ける
+    const L = fig.local ||= P.map(() => new THREE.Vector3()), [b, head, ...limbs] = fig.parts;
+    P.forEach((q, i) => g.worldToLocal(L[i].copy(q.p)));
+    const up = VA.addVectors(L[0], L[1]).sub(L[2]).sub(L[3]).normalize();
+    const right = VB.subVectors(L[1], L[0]); right.addScaledVector(up, -right.dot(up)).normalize();
+    b.quaternion.setFromRotationMatrix(M4.makeBasis(right, up, VC.crossVectors(right, up)));
+    b.position.addVectors(L[0], L[1]).add(L[2]).add(L[3]).multiplyScalar(0.25);
+    head.position.copy(L[4]);
+    limbs.forEach((pivot, i) => { pivot.position.copy(L[i]); pivot.quaternion.setFromUnitVectors(DOWN, VA.subVectors(L[5 + i], L[i]).normalize()); });
+  }
+  const hero = makeFigure();
+  // 足元の影：空中でも真下の足場に落とす（跳ぶ先の見当をつけるため）
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.42, 24), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0.35, depthWrite: false }));
+  shadow.rotation.x = -Math.PI / 2; shadow.renderOrder = 100; scene.add(shadow);
+
+  // ── 入力 ──
+  const keys = {}, stickV = { x: 0, y: 0 };
+  let yaw = Math.PI;                                                                  // カメラはキャラの後ろ（南）から、進む向き（北＝+z）を見る
+  addEventListener('keydown', e => { if (e.target.closest?.('input')) return;       // 名前やコードの入力中は歩かせない
+    keys[e.code] = true;
+    if (e.repeat) return;
+    if (e.code === 'Space') { e.preventDefault(); jump(); } else if (e.code === 'KeyG') grabStart(); });
+  addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'KeyG') grabEnd(); });
+  addEventListener('blur', () => { for (const k in keys) keys[k] = false; grabEnd(); });
+  const canvas = $('c');
+  // 横向き表示のあいだは、見た目の「横」が端末の縦方向になるので、指の動きを読み替える
+  const acrossOf = e => turned() ? e.clientY : e.clientX;
+  let dragId = null, lastX = 0;
+  canvas.addEventListener('pointerdown', e => { dragId = e.pointerId; lastX = acrossOf(e); canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', e => { if (e.pointerId === dragId) { yaw -= (acrossOf(e) - lastX) * 0.006; lastX = acrossOf(e); } });
+  const endDrag = e => { if (e.pointerId === dragId) dragId = null; };
+  canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
+  const stick = $('stick'), knob = $('knob');
+  const setStick = e => {
+    const r = stick.getBoundingClientRect();
+    const sx = e.clientX - (r.left + r.width / 2), sy = e.clientY - (r.top + r.height / 2);
+    let x = (turned() ? sy : sx) / 45, y = (turned() ? -sx : sy) / 45;
+    const len = Math.hypot(x, y); if (len > 1) { x /= len; y /= len; }
+    stickV.x = x; stickV.y = -y; knob.style.transform = `translate(${x * 35}px, ${y * 35}px)`;
+  };
+  const endStick = () => { stickV.x = stickV.y = 0; knob.style.transform = ''; };
+  stick.addEventListener('pointerdown', e => { stick.setPointerCapture(e.pointerId); setStick(e); });
+  stick.addEventListener('pointermove', e => { if (stick.hasPointerCapture(e.pointerId)) setStick(e); });
+  stick.addEventListener('pointerup', endStick); stick.addEventListener('pointercancel', endStick);
+  $('actJump').addEventListener('pointerdown', e => { e.preventDefault(); jump(); });
+  $('actGrab').addEventListener('pointerdown', e => { e.preventDefault(); try { e.target.setPointerCapture(e.pointerId); } catch (_) {} grabStart(); });
+  for (const type of ['pointerup', 'pointercancel']) $('actGrab').addEventListener(type, () => grabEnd());
+
+  // ── みんなで冒険：部屋は 1 つ・3 人まで。通信は美術館と同じ museum-room.js（部屋の場所と人数だけ変える）──
+  const PREVIEW = new URLSearchParams(location.search).get('preview') === '1';
+  const TAG_COLORS = ['#e2485a', '#3d8bff', '#3aa655'];
+  const remotes = new Map();                                                          // 相手の id → { fig, tag, target, walkT, name }
+  let room = null, roomApi = null, roomMe = null, created = false, sendT = 0, lastSent = '', lastFx;
+  let grabbing = false, holding = null, holdT = 0, heldBy = null, struggle = 0, lastIx = 0;   // つかむを押している／持ち上げている仲間／自分を持っている仲間
+  const panel = $('roomPanel'), roomMsg = t => { $('roomMsg').textContent = t; };
+  const nonce = () => Date.now() + Math.random();
+  const busy = () => !panel.hidden;
+  function nameTag(name, color) {
+    const tex = paint(256, 64, g => {
+      g.fillStyle = color; g.beginPath(); g.roundRect(4, 8, 248, 48, 24); g.fill();
+      g.fillStyle = '#fff'; g.font = 'bold 28px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(name, 128, 34, 228);
+    });
+    const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+    tag.scale.set(1.1, 0.275, 1); tag.position.y = 1.85; tag.renderOrder = 90;
+    return tag;
+  }
+  function dropRemote(id) {
+    const r = remotes.get(id); scene.remove(r.fig.g); r.tag.material.map.dispose(); r.tag.material.dispose(); remotes.delete(id);
+    for (const c of world.crates) if (c.held === id) c.held = null;
+  }
+  /* 部屋の内容が変わるたびに呼ばれる。m = { stage, n } は「いまのステージと、何回目の出発か」、boxes は箱の置き場所（放した人・押した人が書く） */
+  function onRoom(code, players, id, fx, m, boxes) {
+    const first = !room; roomMe = id; room ||= { code };
+    if (first) lastFx = fx?.n;                                                        // 入室前から残っていた合図は無視する
+    else if (fx && fx.n !== lastFx) { lastFx = fx.n; onFx(fx); }
+    if (m?.n && m.n !== run) loadStage(Math.min(STAGES.length - 1, Math.max(0, m.stage | 0)), m.n);   // だれかがゴールした／途中から入った
+    else if (first && created && !m) { run = nonce(); roomApi.setMatch({ stage: stageIndex, n: run }); }   // 部屋を作った人のステージに、あとから来る人が合わせる
+    for (const [key, d] of Object.entries(boxes || {})) {
+      const c = world.crates[+key.slice(1)];
+      if (!c || d.g !== run || d.n === c.seen || !Array.isArray(d.p)) continue;
+      c.seen = d.n;
+      // 自分が運んでいる・押している最中の箱は、自分の手元を優先
+      if (me.carry !== c || (c.heavy && !me.walk)) { [c.x, c.y, c.z] = d.p.map(v => +v || 0); c.vy = 0; world.fit(c); }
+    }
+    $('roomInfo').textContent = `${code}・${Object.keys(players).length}/3`;
+    $('roomHud').hidden = false; $('roomBtn').hidden = true;
+    for (const rid of [...remotes.keys()]) if (!players[rid]) dropRemote(rid);
+    const order = Object.keys(players).sort();
+    for (const [rid, q] of Object.entries(players)) {
+      if (rid === id || !Array.isArray(q.s)) continue;
+      const name = String(q.name || 'ななし').slice(0, 12);
+      let r = remotes.get(rid);
+      if (!r) {
+        r = { fig: makeFigure(), tag: nameTag(name, TAG_COLORS[order.indexOf(rid) % 3]), target: q.s, walkT: 0, name };
+        r.fig.g.add(r.tag); r.fig.g.position.set(+q.s[0] || 0, +q.s[1] || 0, +q.s[2] || 0); remotes.set(rid, r);
+      }
+      r.target = q.s.map(v => +v || 0);
+    }
+  }
+  function leftRoom(message) {
+    for (const id of [...remotes.keys()]) dropRemote(id);
+    room = null; lastSent = ''; holding = heldBy = null; me.frozen = false;
+    $('roomHud').hidden = true; $('roomBtn').hidden = false;
+    if (message) { panel.hidden = false; roomMsg(message); }
+  }
+  async function enterRoom(create) {
+    if (PREVIEW) { roomMsg('プレビューでは接続しません。'); return; }
+    const code = String($('roomCode').value).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
+    roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
+    try {
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=3.98'); roomApi.setup('adventure/room', 3); }
+      const name = roomApi.cleanName($('roomName').value) || 'ななし';
+      created = create;
+      await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
+      try { localStorage.setItem('museum:name', name); } catch (_) {}
+      panel.hidden = true; roomMsg('');
+    } catch (e) {
+      console.warn(e); roomMsg(e.userMessage || '接続できませんでした。通信状態を確認してください。');
+    }
+    $('roomCreate').disabled = $('roomJoin').disabled = false;
+  }
+  $('roomBtn').addEventListener('click', () => { panel.hidden = false; roomMsg(''); try { $('roomName').value ||= localStorage.getItem('museum:name') || ''; } catch (_) {} });
+  $('roomClose').addEventListener('click', () => { panel.hidden = true; });
+  $('roomCreate').addEventListener('click', () => enterRoom(true));
+  $('roomJoin').addEventListener('click', () => enterRoom(false));
+  $('roomLeave').addEventListener('click', () => { roomApi.leave(); leftRoom(''); });
+  $('roomCopy').addEventListener('click', () => {
+    navigator.clipboard?.writeText(room.code).then(() => { $('roomCopy').textContent = 'コピー済み'; setTimeout(() => { $('roomCopy').textContent = 'コピー'; }, 1500); }).catch(() => {});
+  });
+  addEventListener('pagehide', () => roomApi?.leave());
+
+  // ── 動作：ジャンプ・つかむ ──
+  // 目の前（1.2m 以内・正面から左右 45 度・高さの差 0.8m 未満）にいる仲間のうち、いちばん近い人の id
+  function friendInFront() {
+    const [fx, fz] = me.facing(); let best = null, bestD = 1.2;
+    for (const [id, r] of remotes) {
+      const q = r.fig.g.position, dx = q.x - me.x, dz = q.z - me.z, d = Math.hypot(dx, dz);
+      if (d < bestD && Math.abs(q.y - me.y) < 0.8 && r.target[5] !== ACT.HELD && (d < 0.3 || (dx * fx + dz * fz) / d > 0.7)) { best = id; bestD = d; }
+    }
+    return best;
+  }
+  function release(kind) {                                                            // 持ち上げている仲間を放す（kind: 'drop' か 'throw'）
+    const [fx, fz] = me.facing();
+    if (remotes.has(holding)) roomApi.fx(holding, { k: kind, n: nonce(), dx: fx, dz: fz });
+    holding = null;
+  }
+  // 重い箱：部屋に 2 人以上いるときは 2 人でつかまないと動かない。人数がそろえば、つかんでいるだれが歩いても動く
+  // shortcut: 2 人が別々の向きへ同時に押すと、置き場所が端末ごとに少しずれる（手を止めた時点で、最後に知らせた人の場所にそろう）
+  function dragMode() {
+    const c = me.carry; if (!c?.heavy || !room) return 'drive';
+    let hands = 1; for (const r of remotes.values()) if (r.target[6] === c.id + 1) hands++;
+    return hands < Math.min(2, remotes.size + 1) ? 'stuck' : 'drive';
+  }
+  function jump() {
+    if (busy() || heldBy) return;
+    if (holding) release('throw'); else me.jump();                                    // 仲間を持っている間のジャンプは「投げる」
+  }
+  // つかむのは、ボタン（G キー）を押している間ずっと。仲間 → 持ち上げる／箱 → 持つ・押す／段の縁 → ぶら下がってよじ登る
+  function grabStart() {
+    if (busy() || heldBy || grabbing) return;
+    grabbing = true;
+    const id = me.grounded ? friendInFront() : null;
+    if (id) { holding = id; holdT = 0; roomApi.fx(id, { k: 'grab', n: nonce(), by: roomMe }); }
+    else if (me.grabStart()?.heavy && dragMode() === 'stuck') banner('重い！　もう1人つかんで', 2000);
+  }
+  function grabEnd() { grabbing = false; if (holding) release('drop'); const c = me.grabEnd(); if (c) c.moved = true; }
+  // 自分宛ての合図を体に反映する
+  function onFx(f) {
+    if (f.k === 'grab') { if (!heldBy && remotes.has(f.by)) { if (holding) release('drop'); me.grabEnd(); heldBy = f.by; struggle = 0; me.frozen = true; banner('持ち上げられた！　いやならスティックを左右に振る', 2500); } }
+    else if (!heldBy) return;
+    else { heldBy = null; me.frozen = false; me.vy = 0; me.grounded = false;
+      if (f.k === 'throw') { me.kvx = (+f.dx || 0) * 9; me.kvz = (+f.dz || 0) * 9; me.vy = 6.5; } }
+  }
+
+  // ── メインループ ──
+  const clock = new THREE.Clock();
+  let walkT = 0, camY = 0, goalT = 0, sentBoxes = 0;
+  const frame = () => {
+    const dt = Math.min(clock.getDelta(), 0.05), time = clock.elapsedTime;
+    if (window.WOS_PANEL_ACTIVE === false) return;                                   // ポータルで他のメニューを見ている間は止める
+    let ix = stickV.x + (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+    let iy = stickV.y + (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+    const len = Math.hypot(ix, iy); if (len > 1) { ix /= len; iy /= len; }
+    if (busy()) ix = iy = 0;
+
+    // 仲間：受け取った位置へなめらかに寄せる。仲間が持っている軽い箱は、その人の手元に描く
+    for (const [id, r] of remotes) {
+      const g = r.fig.g, [tx, ty, tz, tr] = r.target;
+      if (id === holding) {                                                          // 自分が持っている仲間は、通信を待たずに手元へ描く
+        const [fx, fz] = me.facing(); g.position.set(me.x + fx * 0.75, me.y + 0.9, me.z + fz * 0.75); g.rotation.y = me.ry;
+      } else {
+        const k = Math.hypot(tx - g.position.x, tz - g.position.z) > 6 ? 1 : 1 - Math.exp(-dt * 12);
+        g.position.set(g.position.x + (tx - g.position.x) * k, g.position.y + (ty - g.position.y) * k, g.position.z + (tz - g.position.z) * k);
+        g.rotation.y += Math.atan2(Math.sin(tr - g.rotation.y), Math.cos(tr - g.rotation.y)) * k;
+      }
+      const c = world.crates[r.target[6] - 1];
+      for (const o of world.crates) if (o.held === id && o !== c) o.held = null;       // 放した（置き場所は、放した人からの知らせで決まる）
+      if (c && !c.heavy && (c.held === id || !c.held)) { c.held = id; c.x = g.position.x + Math.sin(g.rotation.y) * 0.75; c.y = g.position.y + 0.55; c.z = g.position.z + Math.cos(g.rotation.y) * 0.75; world.fit(c); }
+    }
+
+    // 世界を 1 コマ進める（ふみ板を押すのは全員の足と箱。持ち上げられている人は押さない）
+    const bodies = [[me.x, me.y, me.z]]; for (const r of remotes.values()) { const q = r.fig.g.position; bodies.push([q.x, q.y, q.z]); }
+    world.step(dt, Date.now(), bodies);
+
+    // 持ち上げている側：仲間がいなくなる・抜けたら放す／持ち上げられている側：相手の手元へ運ばれ、スティックを振ると抜ける
+    if (holding) { holdT += dt; const r = remotes.get(holding); if (!r || (holdT > 0.8 && r.target[5] !== ACT.HELD)) release('drop'); }
+    if (heldBy) {
+      const r = remotes.get(heldBy);
+      if (!r || (struggle += Math.abs(ix - lastIx)) > 6) { heldBy = null; me.frozen = false; me.vy = 3; me.grounded = false; }
+      else { const g = r.fig.g; me.x = g.position.x + Math.sin(g.rotation.y) * 0.75; me.z = g.position.z + Math.cos(g.rotation.y) * 0.75; me.y = g.position.y + 0.9; me.ry = g.rotation.y + ix * 0.7; me.air = 0.9; }
+    }
+    lastIx = ix;
+    // カメラの向きを基準に前後左右へ動く
+    me.step(dt, -Math.sin(yaw) * iy + Math.cos(yaw) * ix, -Math.cos(yaw) * iy - Math.sin(yaw) * ix, dragMode());
+    if (me.carry) world.fit(me.carry);                                               // 持っている箱の見た目を手元へ
+    for (const e of me.events) {
+      if (e === 'fell') { if (holding) release('drop'); banner('セーブ地点からやり直し', 1800); }
+      if (e === 'cp') { banner('セーブ！', 1500); hint(world.stage.cps[me.cp].hint); }
+      if (e === 'goal') {                                                             // 少し喜んでから、全員で次のステージへ
+        const last = stageIndex === STAGES.length - 1, from = run;
+        banner(last ? 'ぜんぶクリア！　おめでとう！' : 'ゴール！', last ? 5000 : 2500);
+        setTimeout(() => {
+          if (run !== from) return;                                                   // ほかの人が先に進めていた
+          const next = (stageIndex + 1) % STAGES.length, n = nonce();
+          if (room) roomApi.setMatch({ stage: next, n }); else loadStage(next, n);
+        }, last ? 5000 : 2500);
+      }
+    }
+    me.events.length = 0;
+    if (me.walk) walkT += dt * 11 * Math.min(1.7, Math.hypot(me.hvx, me.hvz) / 4);
+
+    // 見た目を合わせる
+    hero.g.position.set(me.x, me.y, me.z); hero.g.rotation.y = me.ry;
+    const breathe = Math.sin(time * 2.2);
+    const act = heldBy ? ACT.HELD : Math.hypot(me.kvx, me.kvz) > 1.5 ? ACT.OUCH : holding || grabbing ? ACT.REACH : ACT.NONE;
+    pose(hero, dt, me.walk, walkT, breathe, act, time, me.air);
+    for (const [id, r] of remotes) {
+      const g = r.fig.g, mv = r.target[4];
+      if (mv) r.walkT += dt * 11;
+      pose(r.fig, dt, !!mv, r.walkT, breathe, id === holding ? ACT.HELD : r.target[5], time, g.position.y - world.floorY(g.position.x, g.position.z, g.position.y + 0.01));
+    }
+    moving.forEach(m => m.userData.fit());
+    pads.forEach((m, i) => { const p = world.plates[i]; m.material = p.down ? padOnMat : padMat; m.position.y = p.y + (p.down ? 0.02 : 0.06); });
+    flags.forEach((f, i) => { f.material = i <= me.cp ? flagOnMat : flagMat; });
+    group.userData.ring.rotation.y = time; group.userData.ring.position.y = world.stage.goal.y + 1.5 + Math.sin(time * 2) * 0.15;
+    const floor = world.floorY(me.x, me.z, me.y + 0.01);
+    shadow.visible = floor > -90; shadow.position.set(me.x, floor + 0.03, me.z); shadow.scale.setScalar(Math.max(0.35, 1 - (me.y - floor) * 0.06));
+
+    // 部屋にいる間：自分の位置を 1 秒に 10 回まで送る（動いたときだけ）。自分が動かした箱の場所も知らせる
+    if (room) {
+      sendT += dt;
+      if (sendT >= 0.1) {
+        sendT = 0;
+        const s = [me.x, me.y, me.z, me.ry].map(v => Math.round(v * 100) / 100).concat(me.walk ? 1 : 0, act, me.carry ? me.carry.id + 1 : 0);
+        if (s.join() !== lastSent) { lastSent = s.join(); roomApi.send(s); }
+        for (const c of world.crates) if (c.moved && !c.held) { c.moved = false; c.seen = nonce(); roomApi.putItem('c' + c.id, { p: [c.x, c.y, c.z].map(v => Math.round(v * 100) / 100), n: c.seen, g: run }); }
+      }
+    }
+
+    // 三人称カメラ：後ろ上から見下ろす。落ちたときに視点が一気に飛ばないよう、高さはなめらかに追う
+    const sx = Math.sin(yaw), sz = Math.cos(yaw);
+    camY += (me.y - Math.min(me.air, 12) * 0.5 - camY) * (1 - Math.exp(-dt * 8));
+    camera.position.set(me.x + sx * 6, camY + 3.4, me.z + sz * 6);
+    camera.lookAt(me.x, camY + 1.1, me.z);
+    renderer.render(scene, camera);
+  };
+  loadStage(0, 0);
+  renderer.setAnimationLoop(frame);
+
+  window.__adv = { get me() { return me; }, get world() { return world; }, get stage() { return stageIndex; }, get state() { return { grabbing, holding, heldBy, run, drag: dragMode(), room: room?.code, players: remotes.size + 1 }; },
+    set yaw(v) { yaw = v; }, keys, load: i => loadStage(i, nonce()), jump, grabStart, grabEnd, tick: frame };   // 動作確認用
+}
+</script>
+</body>
+</html>

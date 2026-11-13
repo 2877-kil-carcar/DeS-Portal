@@ -15,8 +15,10 @@ const firebaseConfig = Object.freeze({
   messagingSenderId: "918572931204",
   appId: "1:918572931204:web:a1e2db96dda922b4538ad1",
 });
-const ROOM_PATH = "museum/room";
-export const MAX_PLAYERS = 6;
+let ROOM_PATH = "museum/room";
+export let MAX_PLAYERS = 6;
+// 別の遊び（冒険 adventure.html）は、別の部屋・別の人数で同じ仕組みを使う。enter より前に呼ぶ
+export function setup(path, max) { ROOM_PATH = path; MAX_PLAYERS = max; }
 const TIMEOUT_MS = 15000;
 
 export const cleanName = v => String(v || "").replace(/[<>\n\r]/g, "").trim().slice(0, 12);
