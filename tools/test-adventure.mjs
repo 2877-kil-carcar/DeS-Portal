@@ -2,6 +2,8 @@
 // 自動操縦：目的地へ歩き、足元がなくなれば跳び、登れる縁があればつかんでよじ登る。
 import assert from 'node:assert/strict';
 import { STAGES, makeWorld, makePlayer } from '../apps/gallery/adventure-world.js';
+// 1 秒あたりのコマ数（遅いスマホでも解けるかを見るときは FPS=30 や FPS=20 を付けて走らせる）
+const FPS = +process.env.FPS || 60, DT = 1 / FPS;
 
 function bot(index) {
   const w = makeWorld(STAGES[index]), p = makePlayer(w), name = STAGES[index].name;
@@ -9,15 +11,17 @@ function bot(index) {
   const where = () => `(${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)})`;
   const api = { w, p, get falls() { return falls; } };
   const tick = api.tick = (mx = 0, mz = 0) => {
-    now += 1000 / 60; w.step(1 / 60, now, [[p.x, p.y, p.z]]); p.step(1 / 60, mx, mz);
+    now += 1000 * DT; w.step(DT, now, [[p.x, p.y, p.z]]); p.step(DT, mx, mz);
     if (p.events.includes('fell')) { falls++; api.fellAt = api.last; }
     if (p.events.includes('goal')) p.goal = true;
     p.events.length = 0; api.last = where();
+    for (const m of w.movers) { m.rise = m.f > (m.pf ?? m.f); m.fall = m.f < (m.pf ?? m.f); m.pf = m.f; }   // 動く床が、いまどちらへ動いているか
+    for (const k of w.winds) { k.began = k.active && !k.was; k.was = k.active; }
   };
-  api.wait = (what, pred, seconds = 30) => { for (let i = 0; i < seconds * 60; i++) { if (pred()) return; tick(); } assert.fail(`${name}: 「${what}」を待ちきれない ${where()}`); };
+  api.wait = (what, pred, seconds = 30) => { for (let i = 0; i < seconds * FPS; i++) { if (pred()) return; tick(); } assert.fail(`${name}: 「${what}」を待ちきれない ${where()}`); };
   // target は [x, z] か、それを返す関数（動く床を追うとき）。until があれば、着くかわりにその条件で終わる（風に乗っている間など）
   api.go = (target, until, seconds = 25) => {
-    for (let i = 0; i < seconds * 60; i++) {
+    for (let i = 0; i < seconds * FPS; i++) {
       const [tx, tz] = typeof target === 'function' ? target() : target, dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
       if (until ? until() : d < 0.3 && p.grounded) { if (!p.carry) p.grabEnd(); return; }
       if (d < 0.05) { tick(); continue; }
@@ -141,6 +145,58 @@ b.go([3, 87]); b.go([0, 87]);
 assert.ok(Math.abs(b.p.y - 25) < 0.01, );
 b.go([0, 105.5]);
 finish(b, 2);
+
+// ── ステージ 4：のこぎり → ワープ（離れ島から箱を持ち帰る）→ 門 → プレス機 2 台 → 大砲 → ふみ板 2 枚の門 → のこぎりの橋 → くずれる床 ──
+b = bot(3);
+{ const m = b.w.movers, p = b.p;
+  b.go([-1.3, 7.6]); b.wait('のこぎり 1 が遠ざかる', () => m[0].f > 0.45 && m[0].rise);
+  b.go([-1.3, 13.6]); b.wait('のこぎり 2 が遠ざかる', () => m[1].f < 0.3 && m[1].fall);
+  b.go([-1.3, 17.5]); b.go([0, 22]);
+  b.go([0, 25], () => p.x < -10);                                        // まん中のワープ台 → 離れ島
+  const c = b.w.crates[0], d0 = Math.hypot(p.x - c.x, p.z - c.z);
+  b.grab(0, [c.x + (p.x - c.x) / d0, c.z + (p.z - c.z) / d0]);
+  b.go([-12.5, 25], () => p.x > -5);                                     // 箱を持ったまま、帰りのワープ台
+  assert.equal(p.carry, c, 'ワープで箱を落とした');
+  b.go([3, 25], () => p.z > 35);                                         // 右のワープ台 → 先の島
+  const t = b.w.plates[0], ux = t.x - p.x, uz = t.z - p.z, u = Math.hypot(ux, uz);
+  b.go([t.x - ux / u * 0.95, t.z - uz / u * 0.95]); p.grabEnd();
+  b.wait('門が開く', () => m[2].f > 0.98, 6);
+  b.go([0, 48.2]); b.wait('プレス機 1 が上がる', () => m[3].f < 0.12 && m[3].fall);
+  b.go([0, 51.6]); b.wait('プレス機 2 が上がる', () => m[4].f > 0.88 && m[4].rise);
+  b.go([0, 60]);
+  b.go([0, 73.5]);                                                       // 大砲で向こう岸へ
+  b.carry(1, 1); b.carry(2, 2);
+  b.wait('門が開く', () => m[5].f > 0.98, 6);
+  b.go([1.25, 78]); b.go([1.25, 88]); b.go([0, 97]);                     // のこぎりの横をすり抜け、くずれる床を渡る
+}
+finish(b, 3);
+
+// プレス機の下にいると、つぶされてやり直しになる。のこぎりも同じ
+b = bot(3); b.p.x = 0; b.p.y = 0; b.p.z = 50; b.p.cp = 2;
+b.wait('プレス機につぶされる', () => b.falls === 1, 8);
+b.wait('着地', () => b.p.grounded, 6); b.p.x = 0; b.p.y = 0; b.p.z = 9;
+b.wait('のこぎりに当たる', () => b.falls === 2, 6);
+console.log('PASS the press and the saws send you back to the checkpoint');
+
+// ── ステージ 5：氷の橋と横風 → 速いベルトとのこぎり → 風で上へ → 大きな観覧車 → くずれる床 → 大砲で頂上へ ──
+b = bot(4);
+{ const m = b.w.movers, p = b.p;
+  b.go([-0.8, 4.3]); b.wait('横風が吹きはじめる', () => b.w.winds[0].began);   // 風が吹いている間に近づき、やんだすきに風の通り道を抜ける
+  b.go([-0.8, 19.5]); b.go([0, 25]);
+  b.go([-1.4, 28.3]); b.wait('のこぎりが手前の端へ戻ってくる', () => m[0].fall && m[0].f < 0.1);   // 乗りはじめの合図（抜けられるのは 1 周のうち 4 分の 1 ほど）
+  b.go([-1.4, 44.5]); b.go([0, 47]);
+  b.go([0, 50.3]); b.go([0, 54], () => p.y > 7.7); b.go([0, 60.5]);
+  assert.ok(Math.abs(p.y - 7) < 0.01, `風で上の足場に乗れていない (y=${p.y})`);
+  b.go([0, 63.8]);
+  const low = () => [2, 3, 4].find(k => Math.abs(b.center(k)[1] - 68.6) < 0.5 && m[k].box.y1 < 7.3);
+  b.wait('観覧車のかごが下に来る', () => low() != null);
+  const car = low();
+  b.go(() => b.center(car), () => p.on === m[car].box && Math.abs(b.center(car)[1] - p.z) < 0.5);
+  b.wait('かごが高い足場の横へ下りてくる', () => b.center(car)[1] > 72.8 && m[car].box.y1 > 12.9 && m[car].box.y1 < 14.2);
+  b.go([0, 79.5]);
+  b.go([0, 103]);                                                        // くずれる床を渡り、そのまま大砲で頂上へ
+}
+finish(b, 4);
 
 // ── 落ちたら、最後に通ったセーブ地点の真上（空）から落ちてきて再開する ──
 b = bot(0); b.go([0, 8]); b.go([0, 13]); b.go([0, 18]);

@@ -26,7 +26,7 @@
     background: rgba(13,4,6,0.78); border: 1px solid rgba(212,175,55,0.45); border-radius: 999px; padding: 5px 8px 5px 14px; font-size: 13px;
   }
   #roomInfo { font-weight: 700; color: #FFE566; }
-  #stageInfo { top: 12px; right: 12px; pointer-events: none; }
+  #stageInfo { top: 12px; right: 12px; }
   #banner {
     top: 26%; left: 50%; transform: translateX(-50%); z-index: 4; pointer-events: none; white-space: nowrap;
     font-size: 26px; font-weight: 800; color: #FFE566; text-shadow: 0 2px 8px #000; background: rgba(13,4,6,0.72); padding: 10px 24px; border-radius: 16px;
@@ -35,13 +35,14 @@
     left: 50%; bottom: 20px; transform: translateX(-50%); max-width: min(52%, 460px); pointer-events: none; text-align: center;
     font-size: 13px; line-height: 1.5; color: #fff; background: rgba(13,4,6,0.6); padding: 8px 14px; border-radius: 12px;
   }
-  #roomPanel { inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; background: rgba(5,2,3,0.8); }
-  #roomPanel .box {
+  #stageList { display: flex; flex-direction: column; gap: 8px; }
+  #roomPanel, #stagePanel { inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; background: rgba(5,2,3,0.8); }
+  #roomPanel .box, #stagePanel .box {
     width: min(92%, 340px); max-height: 94%; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 18px;
     background: #1a0a0e; border: 1px solid rgba(212,175,55,0.45); border-radius: 16px;
   }
-  #roomPanel h2 { font-size: 18px; color: #FFE566; }
-  #roomPanel p { font-size: 12px; line-height: 1.6; color: rgba(240,224,192,0.8); }
+  #roomPanel h2, #stagePanel h2 { font-size: 18px; color: #FFE566; }
+  #roomPanel p, #stagePanel p { font-size: 12px; line-height: 1.6; color: rgba(240,224,192,0.8); }
   #roomPanel label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
   #roomPanel input {
     font: inherit; font-size: 16px; padding: 8px 10px; border-radius: 8px; color: #F0E0C0;
@@ -68,10 +69,18 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=3.99">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.00">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
-<div class="ui pill small" id="stageInfo"></div>
+<button class="ui pill small" id="stageInfo" aria-label="ステージを選ぶ"></button>
+<div class="ui" id="stagePanel" role="dialog" aria-label="ステージを選ぶ" hidden>
+  <div class="box">
+    <h2>🗺 ステージを選ぶ</h2>
+    <p>選んだステージを最初から始めます。部屋にいるときは、全員がそのステージへ移ります。</p>
+    <div id="stageList"></div>
+    <button class="pill small" id="stageClose">とじる</button>
+  </div>
+</div>
 <div class="ui" id="banner" role="status" hidden></div>
 <div class="ui" id="hint" role="status" hidden></div>
 <div class="ui" id="roomPanel" role="dialog" aria-label="みんなで冒険" hidden>
@@ -86,7 +95,7 @@
     <button class="pill small" id="roomClose">とじる</button>
   </div>
 </div>
-<div class="ui" id="help">移動：WASD / 左下スティック<br>視点：画面をドラッグ<br>ジャンプ：Space<br>つかむ：G を押している間（箱・段の縁・仲間）<br>段の縁をつかんだら、前へ倒すとよじ登る<br>仲間を持ったままジャンプで投げる</div>
+<div class="ui" id="help">移動：WASD / 左下スティック<br>視点：画面をドラッグ<br>ジャンプ：Space<br>つかむ：G を押している間（箱・段の縁・仲間）<br>段の縁をつかんだら、前へ倒すとよじ登る<br>仲間を持ったままジャンプで投げる<br>仲間の頭には乗れる（跳んでつかんでよじ登る）</div>
 <div class="ui" id="acts"><button class="act" id="actGrab">つかむ</button><button class="act" id="actJump">ジャンプ</button></div>
 <div class="ui" id="stick" aria-label="移動スティック"><div id="knob"></div></div>
 <div class="ui" id="msg"><p id="msgText"></p><a class="pill" href="index.html">ギャラリーを開く</a></div>
@@ -99,7 +108,7 @@
    キャラの体（ラグドール）は美術館 museum.html と同じ作り。
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
-import { STAGES, makeWorld, makePlayer } from './adventure-world.js?v=3.99';
+import { STAGES, makeWorld, makePlayer } from './adventure-world.js?v=4.00';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -129,7 +138,10 @@ function start() {
   // ── ステージの見た目 ──
   // 足場の色（adventure-world.js の色番号順）：草の島（土色。上に草を敷く）／石／木／動く床／門
   //   氷／トランポリン／ベルトコンベア（模様は下で流す）／（空き）／くずれる床
-  const MATS = [0x9b7653, 0xc9c2b4, 0xc49a62, 0xf2c94c, 0xd9534f, 0xc8efff, 0xff7eb6, 0x4a4f57, 0xffffff, 0xd8c7a0].map(c => std(c));
+  //   のこぎり（赤く光る）／くずれる床／大砲台
+  const MATS = [0x9b7653, 0xc9c2b4, 0xc49a62, 0xf2c94c, 0xd9534f, 0xc8efff, 0xff7eb6, 0x4a4f57, 0xe01f3d, 0xd8c7a0, 0xff8a1f].map(c => std(c));
+  MATS[8].emissive.set(0x7a0010); MATS[8].metalness = 0.6; MATS[8].roughness = 0.3;
+  const warpMat = new THREE.MeshBasicMaterial({ color: 0xa35cff }), warpGlow = new THREE.MeshBasicMaterial({ color: 0xd9b8ff, transparent: true, opacity: 0.35, depthWrite: false });
   MATS[5].roughness = 0.12;
   const windMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.16, depthWrite: false });
   const beltTex = paint(64, 64, g => {                                                // ベルトの矢印（流れる向きへ動かす）
@@ -172,13 +184,20 @@ function start() {
     for (const b of st.boxes) if (b.belt) {                                           // ベルトの上面に、流れる矢印を重ねる
       const w = b.x1 - b.x0, d = b.z1 - b.z0, tex = beltTex.clone(); tex.repeat.set(w / 2, d / 2); tex.needsUpdate = true;
       const top = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 }));
-      top.position.set((b.x0 + b.x1) / 2, b.y1 + 0.01, (b.z0 + b.z1) / 2); group.add(top); belts.push({ tex, b });
+      // 矢印の先は、そのままだと北の逆（-z）を向く。流れる向きへ回す
+      // shortcut: 前後（z 方向）に流れるベルトだけを想定。横向きのベルトを作るときは、板の縦横も入れ替える
+      top.rotation.y = Math.atan2(-b.belt[0], -b.belt[1]);
+      top.position.set((b.x0 + b.x1) / 2, b.y1 + 0.01, (b.z0 + b.z1) / 2); group.add(top); belts.push({ tex, speed: Math.hypot(...b.belt) });
     }
     gusts = world.winds.map(k => {                                                    // 風の通り道（吹いている間だけ見える）
       const m = boxMesh(k, windMat, group); m.userData.wind = k; return m;
     });
     for (const m of world.movers) { const mesh = boxMesh(m.box, MATS[m.b.c], group); mesh.userData.m = m; moving.push(mesh); }
     for (const c of world.crates) moving.push(boxMesh(c.box, crateMats[+!!c.heavy], group));
+    for (const k of world.warps) {                                                    // ワープ台：むらさきの円盤と、立ちのぼる光
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.08, 28), warpMat); disc.position.set(k.x, k.y + 0.04, k.z); group.add(disc);
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 2.4, 20, 1, true), warpGlow); beam.position.set(k.x, k.y + 1.2, k.z); group.add(beam);
+    }
     for (const p of world.plates) {
       const m = new THREE.Mesh(new THREE.CylinderGeometry(p.w / 2, p.w / 2, 0.12, 24), padMat); m.position.set(p.x, p.y + 0.06, p.z); group.add(m); pads.push(m);
     }
@@ -193,7 +212,7 @@ function start() {
       const cloud = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), cloudMat);
       cloud.position.set((r(12.9) - 0.5) * 90, -9 - r(78.2) * 14 + (k % 5 ? 0 : 26), r(39.3) * 110 - 15); cloud.scale.set(5 + r(4.1) * 7, 1.2 + r(9.7), 3 + r(2.3) * 5); group.add(cloud);
     }
-    $('stageInfo').textContent = `ステージ ${i + 1}/${STAGES.length}　${st.name}`;
+    $('stageInfo').textContent = `🗺 ${i + 1}/${STAGES.length}　${st.name}`;
     banner(`ステージ ${i + 1}　${st.name}`, 2500); hint(st.cps[0].hint);
     hero.pts = null;                                                                  // 体も新しい場所から作り直す
   }
@@ -339,7 +358,8 @@ function start() {
   let grabbing = false, holding = null, holdT = 0, heldBy = null, struggle = 0, lastIx = 0;   // つかむを押している／持ち上げている仲間／自分を持っている仲間
   const panel = $('roomPanel'), roomMsg = t => { $('roomMsg').textContent = t; };
   const nonce = () => Date.now() + Math.random();
-  const busy = () => !panel.hidden;
+  const stagePanel = $('stagePanel');
+  const busy = () => !panel.hidden || !stagePanel.hidden;
   function nameTag(name, color) {
     const tex = paint(256, 64, g => {
       g.fillStyle = color; g.beginPath(); g.roundRect(4, 8, 248, 48, 24); g.fill();
@@ -366,6 +386,7 @@ function start() {
       c.seen = d.n;
       const at = d.p.map(v => +v || 0);
       if (c.heavy) c.net = at;                                                        // 重い箱は、知らされた場所へなめらかに寄せる（メインループ）
+      else if (c.held && c.held !== 'me') c.pending = at;                              // まだ仲間の手元にある：放したと分かった時点で、この場所に置く
       else if (me.carry !== c) { [c.x, c.y, c.z] = at; c.vy = 0; world.fit(c); }       // 自分が持っている箱は、自分の手元を優先
     }
     $('roomInfo').textContent = `${code}・${Object.keys(players).length}/3`;
@@ -395,7 +416,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=3.99'); roomApi.setup('adventure/room', 3); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.00'); roomApi.setup('adventure/room', 3); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
@@ -406,6 +427,14 @@ function start() {
     }
     $('roomCreate').disabled = $('roomJoin').disabled = false;
   }
+  // ステージ選択：1 人ならその場で、部屋にいれば全員で、選んだステージを最初から始める
+  STAGES.forEach((st, i) => {
+    const b = document.createElement('button'); b.className = 'pill'; b.textContent = `${i + 1}　${st.name}`;
+    b.addEventListener('click', () => { stagePanel.hidden = true; const n = nonce(); if (room) roomApi.setMatch({ stage: i, n }); else loadStage(i, n); });
+    $('stageList').append(b);
+  });
+  $('stageInfo').addEventListener('click', () => { stagePanel.hidden = false; });
+  $('stageClose').addEventListener('click', () => { stagePanel.hidden = true; });
   $('roomBtn').addEventListener('click', () => { panel.hidden = false; roomMsg(''); try { $('roomName').value ||= localStorage.getItem('museum:name') || ''; } catch (_) {} });
   $('roomClose').addEventListener('click', () => { panel.hidden = true; });
   $('roomCreate').addEventListener('click', () => enterRoom(true));
@@ -438,8 +467,12 @@ function start() {
   function dragMode() {
     const c = me.carry; if (!c?.heavy || !room) return 'drive';
     let hands = 1, pulled = false;
-    for (const [id, r] of remotes) if (r.target[6] === c.id + 1) { hands++; if (r.target[4] && (!wantMove || id < roomMe)) pulled = true; }
-    return hands < Math.min(2, remotes.size + 1) ? 'stuck' : pulled ? 'follow' : 'drive';
+    let near = 1;                                                                     // 箱の近く（25m 以内）にいる人数。遠くにいる・離席している仲間は数えない（1 人でも進めるように）
+    for (const [id, r] of remotes) {
+      if (Math.hypot(r.fig.g.position.x - c.x, r.fig.g.position.z - c.z) < 25) near++;
+      if (r.target[6] === c.id + 1) { hands++; if (r.target[4] && (!wantMove || id < roomMe)) pulled = true; }
+    }
+    return hands < Math.min(2, near) ? 'stuck' : pulled ? 'follow' : 'drive';
   }
   function jump() {
     if (busy() || heldBy) return;
@@ -451,7 +484,8 @@ function start() {
     grabbing = true;
     const c = me.grabStart();                                                         // 箱が先。目の前に箱があるのに、横の仲間をつかんでしまわないように
     if (c) { if (c.heavy && dragMode() === 'stuck') banner('重い！　もう1人つかんで', 2000); return; }
-    const id = me.grounded && (!me.hang || me.hang.flat) ? friendInFront() : null;
+    // 地面にいるときに目の前の仲間をつかむと、持ち上げる。跳んでからつかむと、仲間の頭へよじ登る
+    const id = me.grounded && (!me.hang || me.hang.flat || me.hang.b.friend) ? friendInFront() : null;
     if (id) { me.grabEnd(); holding = id; holdT = 0; roomApi.fx(id, { k: 'grab', n: nonce(), by: roomMe }); }
   }
   function grabEnd() { grabbing = false; if (holding) release('drop'); me.grabEnd(); }
@@ -460,7 +494,7 @@ function start() {
     if (f.k === 'grab') { if (!heldBy && remotes.has(f.by)) { if (holding) release('drop'); me.grabEnd(); heldBy = f.by; struggle = 0; me.frozen = true; banner('持ち上げられた！　いやならスティックを左右に振る', 2500); } }
     else if (!heldBy) return;
     else { heldBy = null; me.frozen = false; me.vy = 0; me.grounded = false;
-      if (f.k === 'throw') { me.kvx = (+f.dx || 0) * 9; me.kvz = (+f.dz || 0) * 9; me.vy = 6.5; } }
+      if (f.k === 'throw') { me.kvx = (+f.dx || 0) * 4; me.kvz = (+f.dz || 0) * 4; me.vy = 6.5; } }
   }
 
   // ── メインループ ──
@@ -495,13 +529,24 @@ function start() {
         g.rotation.y += Math.atan2(Math.sin(tr - g.rotation.y), Math.cos(tr - g.rotation.y)) * k;
       }
       const c = world.crates[r.target[6] - 1];
-      for (const o of world.crates) if (o.held === id && o !== c) o.held = null;       // 放した（置き場所は、放した人からの知らせで決まる）
+      for (const o of world.crates) if (o.held === id && o !== c) {                    // 放した（置き場所は、放した人からの知らせで決まる）
+        o.held = null;
+        if (o.pending) { [o.x, o.y, o.z] = o.pending; o.pending = null; o.vy = 0; world.fit(o); }
+      }
+      if (c && !c.heavy && me.carry === c && id < roomMe) { me.carry = null; c.held = null; }   // 同じ箱を同時につかんだら、id が先の人のもの
       if (c && !c.heavy && (c.held === id || !c.held)) { c.held = id; c.x = g.position.x + Math.sin(g.rotation.y) * 0.75; c.y = g.position.y + 0.55; c.z = g.position.z + Math.cos(g.rotation.y) * 0.75; world.fit(c); }
     }
 
+    // 仲間の体も足場・壁になる：ぶつかるし、頭の上に乗れる（肩車で高い所へ届く）。持ち上げている・持ち上げられている相手とは当たらない
+    world.extra = [];
+    for (const [id, r] of remotes) {
+      if (id === holding || id === heldBy || r.target[5] === ACT.HELD) continue;
+      const q = r.fig.g.position;
+      world.extra.push({ x0: q.x - 0.25, x1: q.x + 0.25, z0: q.z - 0.25, z1: q.z + 0.25, y0: q.y, y1: q.y + 1.3, friend: true });
+    }
     // 世界を 1 コマ進める（ふみ板を押すのは全員の足と箱。持ち上げられている人は押さない）
     const bodies = [[me.x, me.y, me.z]]; for (const r of remotes.values()) { const q = r.fig.g.position; bodies.push([q.x, q.y, q.z]); }
-    world.step(dt, Date.now(), bodies);
+    world.step(dt, room ? roomApi.serverNow() : Date.now(), bodies);                 // 部屋ではサーバーの時計を使う（端末の時計がずれていても、動く床が全員で同じ位置になる）
 
     // 持ち上げている側：仲間がいなくなる・抜けたら放す／持ち上げられている側：相手の手元へ運ばれ、スティックを振ると抜ける
     if (holding) { holdT += dt; const r = remotes.get(holding); if (!r || (holdT > 0.8 && r.target[5] !== ACT.HELD)) release('drop'); }
@@ -543,10 +588,11 @@ function start() {
     }
     moving.forEach(m => {
       m.userData.fit();
-      const k = m.userData.m;                                                         // くずれる床は、落ちる前にがたがた震える
+      const k = m.userData.m;                                                         // くずれる床は、落ちる前にがたがた震える。のこぎりは回る
+      if (k?.b.hurt) m.rotation.y = time * 9;
       if (k?.mode === 'crumble' && k.clock > 0 && k.clock < 1) m.position.x += Math.sin(time * 70) * 0.04;
     });
-    for (const k of belts) { k.tex.offset.x -= k.b.belt[0] * dt / 2; k.tex.offset.y -= k.b.belt[1] * dt / 2; }
+    for (const k of belts) k.tex.offset.y -= k.speed * dt / 2;                       // 矢印を、先の向きへ流す
     for (const m of gusts) { m.visible = m.userData.wind.active; m.scale.x = (m.userData.wind.x1 - m.userData.wind.x0) * (0.9 + Math.sin(time * 9) * 0.08); }
     pads.forEach((m, i) => { const p = world.plates[i]; m.material = p.down ? padOnMat : padMat; m.position.y = p.y + (p.down ? 0.02 : 0.06); });
     flags.forEach((f, i) => { f.material = i <= me.cp ? flagOnMat : flagMat; });

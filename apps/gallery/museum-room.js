@@ -62,11 +62,14 @@ export function pickHost(ids) {
 }
 
 let db, pid, myRef, myFxRef, stopListening;
+// サーバーの時計（ミリ秒）。端末の時計はずれていることがあるので、全員で同じ動きにしたいもの（冒険の動く床）はこれを使う
+let clockOffset = 0;
+export const serverNow = () => Date.now() + clockOffset;
 
 /* 部屋を作る（create: true）か、コードで入る。onRoom(code, players, 自分の id, 自分宛ての合図, 試合の状態, アイテム) は部屋の内容が変わるたびに呼ばれ、
    自分が部屋から消えたら onGone() が呼ばれる。失敗時は userMessage つきのエラーを投げる */
 export async function enter({ create, code, name, onRoom, onGone }) {
-  if (!db) { db = getDatabase(initializeApp(firebaseConfig, "museum-room")); pid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`; }
+  if (!db) { db = getDatabase(initializeApp(firebaseConfig, "museum-room")); onValue(ref(db, ".info/serverTimeOffset"), snap => { clockOffset = +snap.val() || 0; }); pid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`; }
   if (create) code = makeCode();
   const roomRef = ref(db, ROOM_PATH);
   myRef = ref(db, `${ROOM_PATH}/players/${pid}`);

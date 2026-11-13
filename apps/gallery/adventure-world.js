@@ -16,6 +16,11 @@ const CP = (x, y, z, hint) => ({ x, y, z, hint });                          // �
 const crumble = (x, top, z) => ({ b: B(x, top, z, 3, 2, 0.4, 9), to: [0, -16, 0], mode: 'crumble', speed: 9 });   // くずれる床：乗ると 1 秒後に落ち、しばらくして戻る
 // 風：下から吹き上げる（on のふみ板のどれかが押されている間だけ。on がなければ常に）
 const wind = (x, z, w, d, y0, y1, on) => ({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2, y0, y1, up: 7, on });
+// 横風：period ミリ秒ごとに「吹く・やむ」をくり返し、吹いている間は push（毎秒 m）の向きへ流される
+const gust = (x, z, w, d, y0, y1, push, period) => ({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2, y0, y1, push, period });
+const saw = (x, floor, z) => Object.assign(B(x, floor + 0.6, z, 1.2, 1.2, 0.6, 8), { hurt: true });   // のこぎり：さわるとやり直し（色 8）。高さ 0.6m で、うまく跳べば越えられる
+const cannon = (x, top, z, v) => Object.assign(B(x, top, z, 2, 2, 0.3, 10), { fling: v });   // 大砲台：乗ると [横 x, 上, 横 z] の速さで打ち出される（色 10）
+const warp = (x, y, z, to) => ({ x, y, z, to });                           // ワープ台：乗ると to へ飛ぶ
 
 /* 動く床・門（movers）: b を to だけ動かす。
    mode 'always' 行ったり来たりし続ける／'loop' ふみ板（on）が押されている間だけ行き来し、離すと元へ戻る／'hold' 押されている間だけ動いた先にいる
@@ -73,18 +78,53 @@ export const STAGES = [
       CP(0, 10, 51, 'ふみ板が押されている間、風が吹き上げる。風に乗って上へ'), CP(0, 17, 64, '観覧車がいちばん下に来たら飛び乗ろう。ぐるっと回って、奥の高い足場で降りる'),
       CP(0, 22, 81, '重い箱を壁に寄せて登ろう'), CP(0, 25, 87, 'くずれる床を渡って、ピンクの台でゴールへ！')],
     goal: { x: 0, y: 28, z: 105.5 } },
+  { name: 'ひみつの遺跡', sky: ['#3b5a78', '#c9e4d6'], kill: -12,
+    boxes: [B(0, 0, 0, 10, 10, 3, 1), B(0, 0, 12, 4, 14, 1, 1), B(0, 0, 23, 8, 8, 3, 1), B(-14, 0, 25, 6, 6, 3), B(0, 0, 41, 8, 10, 3, 1), B(0, 0, 51, 3, 10, 1, 2),
+      B(0, 0, 60, 8, 8, 3, 1), cannon(0, 0.1, 63, [0, 9, 7]), B(0, 0, 73.5, 8, 10, 3), B(0, 0, 83.5, 3, 10, 1, 2), B(0, 0, 96.8, 8, 8, 3, 1)],
+    plates: [P(3, 0, 40), P(-3, 0, 75), P(3, 0, 75)],
+    // ワープ台：左は同じ島の入口へ戻る／中は箱のある離れ島へ／右は先の島へ。離れ島の台で戻ってこられる
+    warps: [warp(-3, 0, 25, [0, 0, 20.5]), warp(0, 0, 25, [-14.5, 0, 23.5]), warp(3, 0, 25, [0, 0, 38]), warp(-12.5, 0, 25, [-1.5, 0, 22])],
+    movers: [{ b: saw(-1.4, 0, 9), to: [2.8, 0, 0], mode: 'always', period: 2200 },
+      { b: saw(1.4, 0, 15), to: [-2.8, 0, 0], mode: 'always', period: 2200 },
+      { b: B(0, 3.2, 47, 3, 0.6, 3.2, 4), to: [0, -3.3, 0], mode: 'hold', on: [0] },
+      { b: B(0, 5, 50, 3, 1.6, 2.5, 4), to: [0, -2.45, 0], mode: 'always', period: 2600, speed: 9 },         // プレス機（上から下りてくる）
+      { b: B(0, 2.55, 53.5, 3, 1.6, 2.5, 4), to: [0, 2.45, 0], mode: 'always', period: 2600, speed: 9 },     // プレス機（逆のタイミング）
+      { b: B(0, 3.2, 79.5, 3, 0.6, 3.2, 4), to: [0, -3.3, 0], mode: 'hold', on: [1, 2] },
+      { b: saw(0, 0, 81.5), to: [0, 0, 5], mode: 'always', period: 2600 },
+      crumble(0, 0, 89.6), crumble(0, 0, 91.7)],
+    crates: [{ x: -15.5, y: 0, z: 26.5, s: 0.8 }, { x: -2.5, y: 0, z: 71, s: 0.8 }, { x: 2.5, y: 0, z: 71, s: 0.8 }],
+    cps: [CP(0, 0, 0, 'のこぎりにさわるとやり直し。すきを見て通るか、跳び越えよう'), CP(0, 0, 23, 'むらさきの台はワープ。どれが先へ進む台かな？'),
+      CP(0, 0, 38, '門を開けるには、ふみ板に乗せるものがいる（だれかが乗ってもOK）。戻って探そう'), CP(0, 0, 60, 'オレンジの台は大砲。乗ると遠くへ打ち出される'),
+      CP(0, 0, 73.5, 'ふみ板2枚で門が開く。その先はのこぎりと、くずれる床')],
+    goal: { x: 0, y: 0, z: 97 } },
+  { name: 'ゆきやまの頂上', sky: ['#9fb7d9', '#ffffff'], kill: -12,
+    boxes: [B(0, 0, 0, 10, 10, 3), ice(B(0, 0, 13, 3, 16, 1)), B(0, 0, 25, 8, 8, 3), belt(B(0, 0, 36, 4, 14, 1), 0, 2.5), B(0, 0, 47, 8, 8, 3),
+      B(0, 0, 54, 3, 3, 0.5, 1), B(0, 7, 60.5, 6, 8, 2, 1), B(0, 13, 79.5, 8, 8, 2), B(0, 13, 92, 4, 4, 2, 1), cannon(0, 13.1, 93, [0, 10, 7]), B(0, 16, 104, 8, 12, 3)],
+    plates: [],
+    winds: [gust(0, 13, 5, 3, 0, 3, [3, 0], 3500), wind(0, 54, 3, 3, 0, 9.5)],
+    movers: [{ b: saw(-1.4, 0, 34), to: [2.8, 0, 0], mode: 'always', period: 1800 },
+      { b: saw(-1.4, 0, 39), to: [2.8, 0, 0], mode: 'always', period: 1800 },
+      { b: B(0, 13, 67.5, 3, 3, 0.5, 3), orbit: 6, plane: 'zy', period: -18000, phase: 0 },
+      { b: B(0, 13, 67.5, 3, 3, 0.5, 3), orbit: 6, plane: 'zy', period: -18000, phase: 1 / 3 },
+      { b: B(0, 13, 67.5, 3, 3, 0.5, 3), orbit: 6, plane: 'zy', period: -18000, phase: 2 / 3 },
+      crumble(0, 13, 84.6), crumble(0, 13, 86.7), crumble(0, 13, 88.8)],
+    crates: [],
+    cps: [CP(0, 0, 0, '氷の橋に横風が吹く。風がやんだすきに渡ろう'), CP(0, 0, 25, 'ベルトは速い。のこぎりは跳び越えるか、すきを見て通る'),
+      CP(0, 0, 47, '風に乗って上へ'), CP(0, 7, 60.5, '観覧車で、もっと高い足場へ'), CP(0, 13, 79.5, 'くずれる床を渡って、大砲で頂上へ！')],
+    goal: { x: 0, y: 16, z: 103 } },
 ];
 
 export function makeWorld(stage) {
-  const w = { stage, list: [] };
+  const w = { stage, list: [], extra: [] };                                          // extra：呼び出し側が毎コマ入れる箱（仲間の体。friend: true）
   w.movers = stage.movers.map(m => ({ ...m, f: 0, o: [0, 0, 0], d: [0, 0, 0], clock: 0, box: { ...m.b } }));
   w.movers.forEach(m => { m.box.m = m; });
   w.plates = stage.plates.map(p => ({ ...p, down: false }));
   w.winds = (stage.winds || []).map(z => ({ ...z, active: false }));
+  w.warps = stage.warps || [];
   w.crates = stage.crates.map((c, id) => ({ ...c, id, home: { ...c }, vy: 0, held: null, on: null, box: { c: 2 } }));
   const fit = c => { const h = c.s / 2, b = c.box; b.x0 = c.x - h; b.x1 = c.x + h; b.z0 = c.z - h; b.z1 = c.z + h; b.y0 = c.y; b.y1 = c.y + c.s; b.crate = c; };
   w.fit = fit;
-  const relist = () => { w.list = [...stage.boxes, ...w.movers.map(m => m.box), ...w.crates.filter(c => !c.held).map(c => c.box)]; };
+  const relist = () => { w.list = [...stage.boxes, ...w.movers.map(m => m.box), ...w.crates.filter(c => !c.held).map(c => c.box), ...w.extra]; };
 
   // (x, z) の真下で、足の高さ y から歩いて上がれる範囲にある、いちばん高い箱（なければ null ＝ 下は空）
   w.groundBox = (x, z, y, skip) => {
@@ -116,7 +156,7 @@ export function makeWorld(stage) {
     const press = bodies.concat(w.crates.filter(c => !c.held).map(c => [c.x, c.y, c.z]));
     for (const p of w.plates) p.down = press.some(q => Math.abs(q[0] - p.x) < p.w / 2 + 0.15 && Math.abs(q[2] - p.z) < p.d / 2 + 0.15 && q[1] > p.y - 0.1 && q[1] < p.y + 0.3);
     const anyDown = on => !on || on.some(i => w.plates[i].down);
-    for (const k of w.winds) k.active = anyDown(k.on);
+    for (const k of w.winds) k.active = anyDown(k.on) && (!k.period || Math.floor(now / k.period) % 2 === 0);
     for (const m of w.movers) {
       let o;
       if (m.orbit) {                                                                  // 円を回る
@@ -171,6 +211,7 @@ export function makePlayer(w) {
     const c = st.cps[p.cp];
     p.grabEnd(); Object.assign(p, { x: c.x + (Math.random() - 0.5), y: c.y + 14, z: c.z + (Math.random() - 0.5), vy: 0, grounded: false, on: null, hvx: 0, hvz: 0, kvx: 0, kvz: 0 });
   };
+  const die = () => { p.respawn(); p.events.push('fell'); };
   p.jump = () => { if (p.grounded && !p.hang && !p.frozen) { p.vy = JUMP; p.grounded = false; } };
 
   /* つかむ（押している間ずっと）：目の前の箱 → 持つ（重い箱は押し引き）／登れる縁 → ぶら下がる（前へ倒すとよじ登る）／壁 → 張りつく。
@@ -209,7 +250,10 @@ export function makePlayer(w) {
     if (p.hang?.b.m) { const d = p.hang.b.m.d; p.x += d[0]; p.y += d[1]; p.z += d[2]; }
     if (p.on?.belt && !w.blocked(p.x + p.on.belt[0] * dt, p.z + p.on.belt[1] * dt, p.y)) { p.x += p.on.belt[0] * dt; p.z += p.on.belt[1] * dt; }   // ベルトに運ばれる
     const hit = w.blocked(p.x, p.z, p.y);                                            // 動く床や壁に押されたら、その動きのぶん押し出される
-    if (hit?.m) { p.x += hit.m.d[0]; p.z += hit.m.d[2]; if (w.blocked(p.x, p.z, p.y) === hit && hit.m.d[1] < 0) p.y = hit.y0 - BODY; }
+    if (hit?.m) {
+      if (hit.m.d[1] < -1e-4 && p.grounded && hit.y0 > p.y + 0.3) return die();      // 上から下りてきたものと地面にはさまれた（プレス機）
+      p.x += hit.m.d[0]; p.z += hit.m.d[2];
+    }
 
     const [fx, fz] = facing(), len = Math.hypot(mx, mz), input = len > 0.05 && !p.hang;
     const heavy = p.carry?.heavy ? p.carry : null;
@@ -236,27 +280,37 @@ export function makePlayer(w) {
         if (heavy) {                                                                  // 重い箱：箱が進めるときだけ、箱ごと進む
           if (w.blocked(heavy.x + ax, heavy.z + az, heavy.y, heavy.box, heavy.s / 2, heavy.s) || w.blocked(p.x + ax, p.z + az, p.y, heavy.box)) continue;
           heavy.x += ax; heavy.z += az; heavy.moved = true; w.fit(heavy);
-        } else if (w.blocked(p.x + ax, p.z + az, p.y, hit?.crate ? hit : undefined)) continue;   // 箱にめり込んでいたら、その箱は無視して抜け出せる
+        } else if (w.blocked(p.x + ax, p.z + az, p.y, hit?.crate || hit?.friend ? hit : undefined)) continue;   // 箱や仲間にめり込んでいたら、それは無視して抜け出せる
         p.x += ax; p.z += az;
       }
-      const decay = Math.exp(-dt * 4.5); p.kvx *= decay; p.kvz *= decay;
+      const decay = Math.exp(-dt * (p.grounded ? 4.5 : 0.8)); p.kvx *= decay; p.kvz *= decay;   // 打ち出された勢いは、空中ではあまり落ちない
     }
     p.walk = Math.hypot(p.hvx, p.hvz) > 0.4;
 
     // 上下動：歩いているだけなら足元の面に沿う。足元がなくなれば落ち、跳べば上がる。風の中では吹き上げられる
     const blow = !p.hang && w.windAt(p.x, p.y, p.z);
-    if (blow) { p.vy = Math.min(blow.up, p.vy + 28 * dt); p.grounded = false; }
+    if (blow?.up) { p.vy = Math.min(blow.up, p.vy + 28 * dt); p.grounded = false; }
+    if (blow?.push && !w.blocked(p.x + blow.push[0] * dt, p.z + blow.push[1] * dt, p.y)) { p.x += blow.push[0] * dt; p.z += blow.push[1] * dt; }   // 横風に流される
     const g = w.groundBox(p.x, p.z, p.y), gy = g ? g.y1 : -99;
     if (!p.hang) {
       if (p.grounded && p.vy <= 0 && p.y - gy < 0.45) p.y = gy;
       else { p.vy -= GRAV * dt; p.y += p.vy * dt; p.grounded = p.y <= gy; if (p.grounded) { p.y = gy; p.vy = 0; } }
       if (p.grounded && g?.bounce) { p.vy = g.bounce; p.grounded = false; }           // トランポリン
+      if (p.grounded && g?.fling) { [p.kvx, p.vy, p.kvz] = g.fling; p.grounded = false; }   // 大砲台
     }
     p.on = p.grounded ? g : null;
     p.falling = !p.grounded && !p.hang && p.vy < -8;                                 // 長く落ちている（空から落ちてくる姿勢にする）
     if (p.carry && !p.carry.heavy) { const c = p.carry, [ax, az] = facing(); c.x = p.x + ax * 0.75; c.y = p.y + 0.55; c.z = p.z + az * 0.75; }
 
-    if (p.y < st.kill) { p.respawn(); p.events.push('fell'); }
+    // 落ちた・のこぎりにさわった（乗った）→ セーブ地点からやり直し
+    if (p.y < st.kill || (p.grounded && g?.hurt) || w.blocked(p.x, p.z, p.y, undefined, R + 0.08)?.hurt) return die();
+    p.warpT = Math.max(0, (p.warpT || 0) - dt);
+    if (p.grounded && !p.warpT) for (const k of w.warps) {                            // ワープ台（続けて飛ばないよう、着いてから 1.5 秒は働かない）
+      if (Math.hypot(k.x - p.x, k.z - p.z) > 0.8 || Math.abs(k.y - p.y) > 0.5) continue;
+      if (p.carry?.heavy) p.grabEnd();
+      [p.x, p.y, p.z] = k.to; p.hvx = p.hvz = 0; p.warpT = 1.5; p.on = null; p.events.push('warp');
+      break;
+    }
     if (p.grounded) {
       st.cps.forEach((c, i) => { if (i > p.cp && Math.hypot(c.x - p.x, c.z - p.z) < 2.2 && Math.abs(c.y - p.y) < 1) { p.cp = i; p.events.push('cp'); } });
       if (!p.done && Math.hypot(st.goal.x - p.x, st.goal.z - p.z) < 1.6 && Math.abs(st.goal.y - p.y) < 1) { p.done = true; p.events.push('goal'); }
