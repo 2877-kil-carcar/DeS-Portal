@@ -68,7 +68,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=3.98">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=3.99">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui pill small" id="stageInfo"></div>
@@ -99,7 +99,7 @@
    キャラの体（ラグドール）は美術館 museum.html と同じ作り。
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
-import { STAGES, makeWorld, makePlayer } from './adventure-world.js?v=3.98';
+import { STAGES, makeWorld, makePlayer } from './adventure-world.js?v=3.99';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -128,7 +128,15 @@ function start() {
 
   // ── ステージの見た目 ──
   // 足場の色（adventure-world.js の色番号順）：草の島（土色。上に草を敷く）／石／木／動く床／門
-  const MATS = [0x9b7653, 0xc9c2b4, 0xc49a62, 0xf2c94c, 0xd9534f].map(c => std(c));
+  //   氷／トランポリン／ベルトコンベア（模様は下で流す）／（空き）／くずれる床
+  const MATS = [0x9b7653, 0xc9c2b4, 0xc49a62, 0xf2c94c, 0xd9534f, 0xc8efff, 0xff7eb6, 0x4a4f57, 0xffffff, 0xd8c7a0].map(c => std(c));
+  MATS[5].roughness = 0.12;
+  const windMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.16, depthWrite: false });
+  const beltTex = paint(64, 64, g => {                                                // ベルトの矢印（流れる向きへ動かす）
+    g.fillStyle = '#4a4f57'; g.fillRect(0, 0, 64, 64); g.strokeStyle = '#f2c94c'; g.lineWidth = 7;
+    g.beginPath(); g.moveTo(10, 44); g.lineTo(32, 20); g.lineTo(54, 44); g.stroke();
+  });
+  beltTex.wrapS = beltTex.wrapT = THREE.RepeatWrapping;
   const grassMat = std(0x7ecb5c), padMat = std(0xf5c211, 0.6), padOnMat = std(0x57e389, 0.6), poleMat = std(0xffffff, 0.6);
   const flagMat = std(0xb8b8b8, 0.8), flagOnMat = std(0xffb400, 0.8), cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
   const goalMat = new THREE.MeshBasicMaterial({ color: 0xfff27a });
@@ -144,7 +152,7 @@ function start() {
     m.userData.fit(); return m;
   };
 
-  let world, me, group, stageIndex = -1, run = 0, moving = [], pads = [], flags = [];
+  let world, me, group, stageIndex = -1, run = 0, moving = [], pads = [], flags = [], belts = [], gusts = [];
   let bannerTimer, hintTimer;
   function banner(text, ms) { $('banner').textContent = text; $('banner').hidden = false; clearTimeout(bannerTimer); bannerTimer = setTimeout(() => { $('banner').hidden = true; }, ms); }
   function hint(text) { $('hint').textContent = text; $('hint').hidden = false; clearTimeout(hintTimer); hintTimer = setTimeout(() => { $('hint').hidden = true; }, 9000); }
@@ -160,7 +168,16 @@ function start() {
       boxMesh(b, MATS[b.c], group);
       if (b.c === 0) boxMesh({ x0: b.x0 - 0.06, x1: b.x1 + 0.06, y0: b.y1 - 0.25, y1: b.y1 + 0.01, z0: b.z0 - 0.06, z1: b.z1 + 0.06 }, grassMat, group);
     }
-    for (const m of world.movers) moving.push(boxMesh(m.box, MATS[m.b.c], group));
+    belts = [];
+    for (const b of st.boxes) if (b.belt) {                                           // ベルトの上面に、流れる矢印を重ねる
+      const w = b.x1 - b.x0, d = b.z1 - b.z0, tex = beltTex.clone(); tex.repeat.set(w / 2, d / 2); tex.needsUpdate = true;
+      const top = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 }));
+      top.position.set((b.x0 + b.x1) / 2, b.y1 + 0.01, (b.z0 + b.z1) / 2); group.add(top); belts.push({ tex, b });
+    }
+    gusts = world.winds.map(k => {                                                    // 風の通り道（吹いている間だけ見える）
+      const m = boxMesh(k, windMat, group); m.userData.wind = k; return m;
+    });
+    for (const m of world.movers) { const mesh = boxMesh(m.box, MATS[m.b.c], group); mesh.userData.m = m; moving.push(mesh); }
     for (const c of world.crates) moving.push(boxMesh(c.box, crateMats[+!!c.heavy], group));
     for (const p of world.plates) {
       const m = new THREE.Mesh(new THREE.CylinderGeometry(p.w / 2, p.w / 2, 0.12, 24), padMat); m.position.set(p.x, p.y + 0.06, p.z); group.add(m); pads.push(m);
@@ -203,30 +220,32 @@ function start() {
     scene.add(g);
     return { g, parts: [b, head, limb(ARM, 0.078), limb(ARM, 0.078), limb(LEG, 0.1), limb(LEG, 0.1)] };
   }
-  const ACT = { NONE: 0, REACH: 2, HELD: 3, OUCH: 6 };                                // 他の人へ伝える見た目の動作（番号は美術館と同じ）
-  /* 姿勢：まず「目標の姿勢」を決め、粒をそこへばねで寄せる。腕・脚の角度は負が前。air は足元から浮いている高さ */
-  function pose(fig, dt, moving, t, breathe, act, time, air) {
-    const s = moving ? Math.sin(t) : 0, sway = Math.sin(time * 1.3), w = Math.sin(time * 9);
-    // ふだん：腕をだらんと前に垂らし、前のめりで左右によたよた歩く
-    let aL = moving ? -0.3 + s * 0.6 : sway * 0.08, aR = moving ? -0.3 - s * 0.6 : -sway * 0.08;   // 腕の前後
-    let oL = 0.3 + Math.abs(s) * 0.35, oR = oL;                                                    // 腕の開き
-    let lL = -s * 0.7, lR = s * 0.7;                                                               // 脚の前後
-    let bx = moving ? 0.25 : 0.03, by = s * 0.3, bz = moving ? s * 0.26 : sway * 0.06;             // 体の前傾・ひねり・横揺れ
-    let hx = -s * 0.1, hz = moving ? -0.06 : 0;                                                    // 頭は体に遅れてついてくる
-    // 力の入れ具合 [ばねの強さ, 収まりやすさ]：胴／頭／左手／右手／足。腕はふだん力を抜いてあり、ほぼ重力でぶらぶらする
-    let kT = [400, 14], kH = [250, 8], kL = [40, 3], kR = kL, kF = [300, 14];
-    const limp = [3, 1.5], firm = [600, 25];
+  const ACT = { NONE: 0, REACH: 2, HELD: 3, HANG: 4, FALL: 5, OUCH: 6 };              // 他の人へ伝える見た目の動作
+  /* 姿勢：まず「目標の姿勢」を決め、粒をそこへばねで寄せる。腕・脚の角度は負が前。airborne は足が地面についていない間。
+     ばねはかなり弱い：自分で立っていられないくらい脱力していて、頭は垂れ、腕はほぼ重力まかせ、止まっていてもふらつく */
+  function pose(fig, dt, moving, t, breathe, act, time, airborne) {
+    const s = moving ? Math.sin(t) : 0, w = Math.sin(time * 9), sway = Math.sin(time * 0.9) + Math.sin(time * 2.3) * 0.5;
+    // ふだん：腕をだらんと垂らし、大きく前のめりで左右によたよた歩く
+    let aL = moving ? -0.2 + s * 0.5 : sway * 0.1, aR = moving ? -0.2 - s * 0.5 : -sway * 0.1;     // 腕の前後
+    let oL = 0.25 + Math.abs(s) * 0.3, oR = oL;                                                    // 腕の開き
+    let lL = -s * 0.75, lR = s * 0.75;                                                             // 脚の前後
+    let bx = moving ? 0.38 : 0.08 + sway * 0.05, by = s * 0.35, bz = moving ? s * 0.38 : sway * 0.14;   // 体の前傾・ひねり・横揺れ
+    let hx = -s * 0.12, hz = moving ? -0.08 : 0;                                                   // 頭は体に遅れてついてくる
+    // 力の入れ具合 [ばねの強さ, 収まりやすさ]：胴／頭／左手／右手／足
+    let kT = [150, 7], kH = [45, 3], kL = [10, 2], kR = kL, kF = [200, 11];
+    const limp = [3, 1.5], firm = [500, 22];
     if (act === ACT.HELD) {                                                           // 仲間に持たれた：胴だけ運ばれ、頭と手足は脱力
-      bx = 0.4; kT = [150, 8]; kH = [20, 2]; kL = kR = kF = limp;
+      bx = 0.4; kT = [110, 7]; kH = [12, 2]; kL = kR = kF = limp;
     } else if (act === ACT.OUCH) {                                                    // 投げられた：のけぞって万歳
-      aL = aR = -2.6; oL = oR = 1; lL = lR = -0.9; bx = -0.8; kT = [120, 5]; kH = [10, 2]; kL = kR = kF = limp;
-    } else if (act === ACT.REACH) {                                                   // つかむ：両腕を前へ突き出す（箱を持つ・仲間を持つ）
-      aL = -1.9 + w * 0.12; aR = -1.9 - w * 0.12; oL = oR = 0.05; bx = 0.1; bz += Math.sin(time * 5) * 0.12; kL = kR = firm;
-      if (air > 0.15) { aL = aR = -2.8; bx = -0.1; lL = Math.sin(time * 5) * 0.5; lR = -lL; kT = [8, 2]; kH = [8, 2]; kF = limp; }   // ぶら下がり：手だけで支え、体は垂れる
-    } else if (air > 2.5) {                                                           // 空から落ちてくる：大の字で力が抜ける
-      aL = aR = -1.5; oL = oR = 1.3; lL = 0.5; lR = -0.5; bx = 1.1; kT = [60, 4]; kH = [20, 2]; kL = kR = kF = [12, 2];
-    } else if (air > 0.15) {                                                          // 跳んでいる：万歳して脚をばたつかせる
-      aL = -2.6 + w * 0.4; aR = -2.6 - w * 0.4; oL = oR = 0.7; lL = 0.7 * w; lR = -0.7 * w; bx = -0.15; kL = kR = [120, 6]; kF = [80, 6];
+      aL = aR = -2.6; oL = oR = 1; lL = lR = -0.9; bx = -0.8; kT = [80, 4]; kH = [10, 2]; kL = kR = kF = limp;
+    } else if (act === ACT.HANG) {                                                    // 縁にぶら下がる・よじ登る：手だけで支え、体は垂れる
+      aL = aR = -2.8; oL = oR = 0.1; bx = -0.1; lL = Math.sin(time * 4) * 0.5; lR = -lL; kL = kR = firm; kT = [8, 2]; kH = [8, 2]; kF = limp;
+    } else if (act === ACT.REACH) {                                                   // つかむ：両腕を前へ突き出す（箱を持つ・押す・仲間を持つ）
+      aL = -1.9 + w * 0.1; aR = -1.9 - w * 0.1; oL = oR = 0.05; bx = moving ? 0.35 : 0.15; bz += Math.sin(time * 4) * 0.12; kL = kR = firm;
+    } else if (act === ACT.FALL) {                                                    // 長く落ちている：大の字で力が抜ける
+      aL = aR = -1.5; oL = oR = 1.3; lL = 0.5; lR = -0.5; bx = 1.1; kT = [50, 4]; kH = [15, 2]; kL = kR = kF = [10, 2];
+    } else if (airborne) {                                                            // 跳んでいる：万歳して脚をばたつかせる
+      aL = -2.6 + w * 0.4; aR = -2.6 - w * 0.4; oL = oR = 0.7; lL = 0.7 * w; lR = -0.7 * w; bx = -0.15; kL = kR = [90, 5]; kF = [60, 5];
     }
     // 目標の姿勢での粒の位置（体の中の座標 → 世界の座標）
     const g = fig.g, T = fig.targets ||= REST.concat(REST.slice(0, 4)).map(v => v.clone());
@@ -286,9 +305,14 @@ function start() {
   const canvas = $('c');
   // 横向き表示のあいだは、見た目の「横」が端末の縦方向になるので、指の動きを読み替える
   const acrossOf = e => turned() ? e.clientY : e.clientX;
-  let dragId = null, lastX = 0;
-  canvas.addEventListener('pointerdown', e => { dragId = e.pointerId; lastX = acrossOf(e); canvas.setPointerCapture(e.pointerId); });
-  canvas.addEventListener('pointermove', e => { if (e.pointerId === dragId) { yaw -= (acrossOf(e) - lastX) * 0.006; lastX = acrossOf(e); } });
+  const downOf = e => turned() ? -e.clientX : e.clientY;                              // 見た目の「下」向き
+  let dragId = null, lastX = 0, lastY = 0, pitch = 0.42;                              // pitch：カメラの見下ろす角度（上下にドラッグで変える）
+  canvas.addEventListener('pointerdown', e => { dragId = e.pointerId; lastX = acrossOf(e); lastY = downOf(e); canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', e => {
+    if (e.pointerId !== dragId) return;
+    yaw -= (acrossOf(e) - lastX) * 0.006; pitch = Math.min(1.3, Math.max(-0.15, pitch + (downOf(e) - lastY) * 0.004));
+    lastX = acrossOf(e); lastY = downOf(e);
+  });
   const endDrag = e => { if (e.pointerId === dragId) dragId = null; };
   canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
   const stick = $('stick'), knob = $('knob');
@@ -340,8 +364,9 @@ function start() {
       const c = world.crates[+key.slice(1)];
       if (!c || d.g !== run || d.n === c.seen || !Array.isArray(d.p)) continue;
       c.seen = d.n;
-      // 自分が運んでいる・押している最中の箱は、自分の手元を優先
-      if (me.carry !== c || (c.heavy && !me.walk)) { [c.x, c.y, c.z] = d.p.map(v => +v || 0); c.vy = 0; world.fit(c); }
+      const at = d.p.map(v => +v || 0);
+      if (c.heavy) c.net = at;                                                        // 重い箱は、知らされた場所へなめらかに寄せる（メインループ）
+      else if (me.carry !== c) { [c.x, c.y, c.z] = at; c.vy = 0; world.fit(c); }       // 自分が持っている箱は、自分の手元を優先
     }
     $('roomInfo').textContent = `${code}・${Object.keys(players).length}/3`;
     $('roomHud').hidden = false; $('roomBtn').hidden = true;
@@ -370,7 +395,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=3.98'); roomApi.setup('adventure/room', 3); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=3.99'); roomApi.setup('adventure/room', 3); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
@@ -406,12 +431,15 @@ function start() {
     if (remotes.has(holding)) roomApi.fx(holding, { k: kind, n: nonce(), dx: fx, dz: fz });
     holding = null;
   }
-  // 重い箱：部屋に 2 人以上いるときは 2 人でつかまないと動かない。人数がそろえば、つかんでいるだれが歩いても動く
-  // shortcut: 2 人が別々の向きへ同時に押すと、置き場所が端末ごとに少しずれる（手を止めた時点で、最後に知らせた人の場所にそろう）
+  /* 重い箱：部屋に 2 人以上いるときは 2 人でつかまないと動かない。
+     人数がそろえば、歩いた人が箱を動かし（drive）、ほかのつかんでいる人は箱ごと引かれていく（follow）。
+     2 人が同時に歩いたら、id が先の人が動かす。箱の場所を知らせるのは動かしている人だけ（放した人は知らせない） */
+  let wantMove = false;                                                               // いまスティックを倒しているか
   function dragMode() {
     const c = me.carry; if (!c?.heavy || !room) return 'drive';
-    let hands = 1; for (const r of remotes.values()) if (r.target[6] === c.id + 1) hands++;
-    return hands < Math.min(2, remotes.size + 1) ? 'stuck' : 'drive';
+    let hands = 1, pulled = false;
+    for (const [id, r] of remotes) if (r.target[6] === c.id + 1) { hands++; if (r.target[4] && (!wantMove || id < roomMe)) pulled = true; }
+    return hands < Math.min(2, remotes.size + 1) ? 'stuck' : pulled ? 'follow' : 'drive';
   }
   function jump() {
     if (busy() || heldBy) return;
@@ -421,11 +449,12 @@ function start() {
   function grabStart() {
     if (busy() || heldBy || grabbing) return;
     grabbing = true;
-    const id = me.grounded ? friendInFront() : null;
-    if (id) { holding = id; holdT = 0; roomApi.fx(id, { k: 'grab', n: nonce(), by: roomMe }); }
-    else if (me.grabStart()?.heavy && dragMode() === 'stuck') banner('重い！　もう1人つかんで', 2000);
+    const c = me.grabStart();                                                         // 箱が先。目の前に箱があるのに、横の仲間をつかんでしまわないように
+    if (c) { if (c.heavy && dragMode() === 'stuck') banner('重い！　もう1人つかんで', 2000); return; }
+    const id = me.grounded && (!me.hang || me.hang.flat) ? friendInFront() : null;
+    if (id) { me.grabEnd(); holding = id; holdT = 0; roomApi.fx(id, { k: 'grab', n: nonce(), by: roomMe }); }
   }
-  function grabEnd() { grabbing = false; if (holding) release('drop'); const c = me.grabEnd(); if (c) c.moved = true; }
+  function grabEnd() { grabbing = false; if (holding) release('drop'); me.grabEnd(); }
   // 自分宛ての合図を体に反映する
   function onFx(f) {
     if (f.k === 'grab') { if (!heldBy && remotes.has(f.by)) { if (holding) release('drop'); me.grabEnd(); heldBy = f.by; struggle = 0; me.frozen = true; banner('持ち上げられた！　いやならスティックを左右に振る', 2500); } }
@@ -444,6 +473,16 @@ function start() {
     let iy = stickV.y + (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
     const len = Math.hypot(ix, iy); if (len > 1) { ix /= len; iy /= len; }
     if (busy()) ix = iy = 0;
+    wantMove = Math.hypot(ix, iy) > 0.05;
+    // ほかの人が動かしている重い箱：知らされた場所へなめらかに寄せる（自分が動かしている最中は、自分の手元を優先）
+    for (const c of world.crates) {
+      if (!c.net) continue;
+      if (me.carry === c && wantMove && dragMode() === 'drive') { c.net = null; continue; }
+      const k = 1 - Math.exp(-dt * 14); c.x += (c.net[0] - c.x) * k; c.z += (c.net[2] - c.z) * k;
+      if (Math.abs(c.net[1] - c.y) > 0.5) { c.y = c.net[1]; c.vy = 0; }
+      if (Math.hypot(c.net[0] - c.x, c.net[2] - c.z) < 0.01) c.net = null;
+      world.fit(c);
+    }
 
     // 仲間：受け取った位置へなめらかに寄せる。仲間が持っている軽い箱は、その人の手元に描く
     for (const [id, r] of remotes) {
@@ -494,14 +533,21 @@ function start() {
     // 見た目を合わせる
     hero.g.position.set(me.x, me.y, me.z); hero.g.rotation.y = me.ry;
     const breathe = Math.sin(time * 2.2);
-    const act = heldBy ? ACT.HELD : Math.hypot(me.kvx, me.kvz) > 1.5 ? ACT.OUCH : holding || grabbing ? ACT.REACH : ACT.NONE;
-    pose(hero, dt, me.walk, walkT, breathe, act, time, me.air);
+    const act = heldBy ? ACT.HELD : Math.hypot(me.kvx, me.kvz) > 1.5 ? ACT.OUCH : me.hang && !me.hang.flat ? ACT.HANG
+      : holding || grabbing ? ACT.REACH : me.falling ? ACT.FALL : ACT.NONE;
+    pose(hero, dt, me.walk, walkT, breathe, act, time, !me.grounded);
     for (const [id, r] of remotes) {
       const g = r.fig.g, mv = r.target[4];
-      if (mv) r.walkT += dt * 11;
-      pose(r.fig, dt, !!mv, r.walkT, breathe, id === holding ? ACT.HELD : r.target[5], time, g.position.y - world.floorY(g.position.x, g.position.z, g.position.y + 0.01));
+      if (mv) r.walkT += dt * 8;
+      pose(r.fig, dt, !!mv, r.walkT, breathe, id === holding ? ACT.HELD : r.target[5], time, g.position.y - world.floorY(g.position.x, g.position.z, g.position.y + 0.01) > 0.15);
     }
-    moving.forEach(m => m.userData.fit());
+    moving.forEach(m => {
+      m.userData.fit();
+      const k = m.userData.m;                                                         // くずれる床は、落ちる前にがたがた震える
+      if (k?.mode === 'crumble' && k.clock > 0 && k.clock < 1) m.position.x += Math.sin(time * 70) * 0.04;
+    });
+    for (const k of belts) { k.tex.offset.x -= k.b.belt[0] * dt / 2; k.tex.offset.y -= k.b.belt[1] * dt / 2; }
+    for (const m of gusts) { m.visible = m.userData.wind.active; m.scale.x = (m.userData.wind.x1 - m.userData.wind.x0) * (0.9 + Math.sin(time * 9) * 0.08); }
     pads.forEach((m, i) => { const p = world.plates[i]; m.material = p.down ? padOnMat : padMat; m.position.y = p.y + (p.down ? 0.02 : 0.06); });
     flags.forEach((f, i) => { f.material = i <= me.cp ? flagOnMat : flagMat; });
     group.userData.ring.rotation.y = time; group.userData.ring.position.y = world.stage.goal.y + 1.5 + Math.sin(time * 2) * 0.15;
@@ -519,11 +565,12 @@ function start() {
       }
     }
 
-    // 三人称カメラ：後ろ上から見下ろす。落ちたときに視点が一気に飛ばないよう、高さはなめらかに追う
-    const sx = Math.sin(yaw), sz = Math.cos(yaw);
-    camY += (me.y - Math.min(me.air, 12) * 0.5 - camY) * (1 - Math.exp(-dt * 8));
-    camera.position.set(me.x + sx * 6, camY + 3.4, me.z + sz * 6);
-    camera.lookAt(me.x, camY + 1.1, me.z);
+    // 三人称カメラ：キャラの少し上を中心に、決まった距離で回る（左右・上下にドラッグ）。
+    // 高さはキャラの高さだけを、少し遅れて追う。足元に穴があってもカメラは落ちない（跳んでいる間に下を向かない）
+    camY += (me.y - camY) * (1 - Math.exp(-dt * 5));
+    const flat = Math.cos(pitch) * 6.5;
+    camera.position.set(me.x + Math.sin(yaw) * flat, camY + 1.3 + Math.sin(pitch) * 6.5, me.z + Math.cos(yaw) * flat);
+    camera.lookAt(me.x, camY + 1.3, me.z);
     renderer.render(scene, camera);
   };
   loadStage(0, 0);
