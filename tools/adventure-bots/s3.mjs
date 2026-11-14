@@ -41,16 +41,22 @@ export default (b, { assert, fresh }) => {
   q.go([-7.3, 3.5]); q.climb([-7.3, 3.5], [-10, 3.5]);                       // 手ぶらなら、西の塔のあみを登れる
   q.go([-9.6, -4]); q.go(() => q.center(5)); idle(q, 3);
   assert.equal(q.w.movers[5].f, 0, '手ぶらの 1 人で、ゴールのリフトが動いた');
-  q.go([-5.4, -3]); q.face(0, 0); q.p.grabStart(); q.p.jump(); idle(q, 3, 0.8, 0.6);   // リフトの東の端から台へ跳んでつかもうとしても、届かず広場へ落ちる
-  assert.ok(!q.p.goal && q.p.y < 1 && q.falls === 0, `リフトなしでゴールの台に届いた ${q.where()}`); q.p.grabEnd();
+  q.go([-5.4, -3]); q.face(0, 0); q.p.grabStart(); q.p.jump(); idle(q, 3, 0.8, 0.6);   // 止まったリフトの東の端から柱のほうへ跳んでつかもうとしても、広場へ落ちる
+  assert.ok(!q.p.goal && q.p.y < 1 && q.falls === 0, `リフトなしでゴールに届いた ${q.where()}`); q.p.grabEnd();
 
   q = fresh();                                                               // おもさ板に箱 1 つでは、リフトは動かない
   set(q, 0, 12.4, 3.5, -2); idle(q, 3); assert.ok(!q.w.plates[0].down && q.w.movers[4].f === 0, '箱 1 つでリフトが動いた');
   q.grab(3); toA(q); q.go([8.8, 9.5]); q.go(() => q.center(4));             // 止まったリフトから、せんぷうき箱を持って北の屋根へは跳び乗れない
   assert.throws(() => q.go([3, 9.5], null, 4)); idle(q, 1);
   assert.ok(q.p.y < 4 && q.p.carry === q.w.crates[3], `荷物を持って、止まったリフトから北の屋根へ跳び乗れた ${q.where()}`);
-  q.p.grabEnd(); q.hoist([5.7, 9.5], [3, 9.5]);                              // 手ぶらなら、つかんで 1.5m の段を登れる
+  q.p.grabEnd(); q.hoist([5.7, 9.5], [3, 9.5]);                              // 手ぶらなら、跳んでつかんで 2.35m の段を登れる
   assert.ok(near(q.p.y, 5) && q.falls === 0, `手ぶらで止まったリフトから北の屋根へ登れない ${q.where()}`);
+
+  q = fresh();                                                               // 止まったリフトに箱 1 つの踏み台を置いても、せんぷうき箱を持って北の屋根へは上がれない（おもさ板を飛ばせない）
+  const deck = q.w.movers[4].box.y1; set(q, 0, 5.5, deck, 9.5); set(q, 3, 7.4, deck, 9.5);
+  q.place(7.9, deck, 9.5); q.tick(); q.face(7.4, 9.5); q.p.grabStart(); q.go([6.7, 9.5]);
+  for (const k of [0, 1]) { q.face(0, 9.5); q.p.jump(); land(q, -1, 0); }   // 箱の上へ跳び乗り、そこから北の屋根へ跳ぶ
+  idle(q, 1, -1, 0); assert.ok(q.p.y < 4 && q.p.carry === q.w.crates[3], `箱 1 つの踏み台で、せんぷうき箱を持って北の屋根に乗れた ${q.where()}`);
 
   q = fresh();                                                               // 広場のせんぷうき箱では、荷物を西の塔（8.2m）へ上げられない
   q.grab(3); q.put(-7.3, -1); q.grab(0); q.go([-6.2, -1]); q.face(-7.3, -1); q.p.jump();
@@ -103,8 +109,13 @@ export default (b, { assert, fresh }) => {
   q.grab(3, [6.2, 4]); q.go([4.6, 1.5]); toA(q); liftToB(q); q.put(-7, 13);
   perch(q); q.go([-3, 12]); q.go([-3, 15.2]); q.put(-3, 17); q.wait('落とした箱が、出窓へ戻る', () => near(q.w.crates[2].x, 3) && near(q.w.crates[2].y, 8) && q.w.crates[2].on, 6);   // 北の屋根の奥から落とす
   perch(q); fanToC(q);
-  q.go([-9.6, -4]); q.go(() => q.center(5)); q.ride(5, 1);                   // ゴールのリフトで上がって、台にふれずに広場へ飛びおりる
-  q.go([-4, -6], null, 8); assert.ok(q.p.y < 1 && !q.p.goal && q.p.carry === q.w.crates[2]);
-  q.wait('ゴールのリフトが、だれもいなくなると帰る', () => q.w.movers[5].f === 0, 10);
-  toA(q); liftToB(q); fanToC(q); goalRide(q); finished(q, 'わるい順番');
+  q.go([-9.6, -4]); q.go(() => q.center(5)); q.wait('ゴールのリフトが半分まで上がる', () => q.w.movers[5].f > 0.5, 8);   // 上がる途中で、箱をリフトに置いて広場へ飛びおりる
+  q.p.grabEnd(); q.go([-4, -6], null, 8); assert.ok(q.p.y < 1 && !q.p.goal && q.w.crates[2].on === q.w.movers[5].box, `箱をリフトに置いて飛びおりられない ${q.where()}`);
+  q.wait('ゴールのリフトが、箱を乗せたまま西の塔へ帰る', () => q.w.movers[5].f === 0, 10);   // 柱の上に動かない台がないので、置いた箱は、かならずリフトごと帰ってくる
+  q.climb([-7.3, 3.5], [-10, 3.5]); q.grab(2, [q.w.crates[2].x - 1, q.w.crates[2].z]);   // リフトの上で持てば、そのまま動き出す
+  q.go(() => q.center(5)); q.ride(5, 1); q.go([0, 0]); finished(q, 'わるい順番');
+
+  q = fresh();                                                               // 箱を持ったまま広場へ落ちても、もう一度上げなおせる
+  set(q, 0, 12.4, 3.5, -2); set(q, 1, 13.6, 3.5, -2); set(q, 3, -7, 5, 13); set(q, 2, -3, 0, 0); q.grab(2); q.go([0, -5]);
+  q.wait('リフトが動く', () => q.w.movers[4].f > 0.1, 4); toA(q); liftToB(q); fanToC(q); goalRide(q); finished(q, '箱を持って落ちたあと');
 };

@@ -82,11 +82,12 @@ const railEnd = (crate, at) => ({ kind: 'rail', crate, at });               // �
                   ハンドルが 1m より遠く（横か、高さ）へ離れても、手が離れる（p.crank が null、p.grab が false になる）。リフトに乗って、リフトの上のハンドルを回す人は、
                   一緒に上がるので離れない。地面からリフトの上のハンドルを回すと、リフトが 1m 上がった所で手が離れる（だから地面には、動かないハンドルを置く）
    crates に足せるもの
-     cell(x, y, z)  でんち（軽い箱）。落とすと元の場所へ戻る
+     cell(x, y, z)  でんち（軽い箱）。落とすと元の場所へ戻る（どの箱も、のこぎりの上に乗ったときも、元の場所へ戻る）
      fan(x, y, z)   せんぷうき箱（軽い箱）。置いてある間だけ、箱のまん中から前後左右 1m・箱の上面から 0.1〜3.5m 上に、人だけを吹き上げる風を出す。
                     持っている間・落ちている間・ほかの箱（台車も）や仲間の頭の上に置いてある間は止まる
      軽い箱は、放すと目の前 0.95m に置かれる。そこか、そこまでの途中がふさがっていれば（うすい壁や門でも）、後ろに置かれる
      重い箱（レールの箱も）は、つかんだまま、つかめる距離より遠く（横 箱の半分＋1m、高さ 1.2m）へ離れると、手が離れる（動く床に運ばれながら、岸のレバーは動かせない）
+     重い箱（レールの箱はのぞく）は、動かない箱（壁）に重なると、いちばん近い面から外へすべり出る（毎秒 4m）。段の縁から押し落とした箱は、段の壁から離れて下に着く
      mass: n        おもさ板・てんびんで数える重さ（省くと、軽い箱 1・重い箱 2）
      lever(x, y, z, 'x' か 'z')　レバーのつまみ（0.6m のレールの箱。レールは 1.6m）。置いた場所が min の端で、そこから +1.6m が max の端。端から押して、反対の端の信号が押されるまで 1.4 秒
      cart(x, y, z, 'x' か 'z', min, max)　台車（1.4m のレールの箱）。押して踏み台にする：上から跳んでつかめば、台車の床から 4.1m の段まで届く（設計は 3.8m まで）
@@ -110,10 +111,12 @@ const railEnd = (crate, at) => ({ kind: 'rail', crate, at });               // �
    w.step(dt, now, bodies, grips) の grips には、自分の p.crank と、仲間が回しているハンドルの番号（仲間ごとの s[7]）を、全部入れる（同じ番号が 2 つあってもよい）。
    巻き上げる床 m は、だれもつかんでいない間、m.rel = { f, t }（手が離れたときの f と、そのときの now）だけから位置を決める。
    自分の手が離れたら（p.crank が番号から null に変わったコマ。放した・跳んだ・ハンドルが遠ざかった・やり直し）、そのハンドルで動く床ごとに、
-     rel = { f: w.movers[番号].f, t: 最後の w.step に渡した now } を作り、w.release(番号, rel) を呼び、同じ rel を、だれが放したか（自分の番号）と一緒に仲間へ知らせる
+     rel = { f: w.movers[番号].f, t: 最後の w.step に渡した now } を作り、w.release(番号, rel) を呼び、同じ rel を、だれが（自分の番号）どのハンドルを放したかと一緒に仲間へ知らせる
      （ほかの人がまだつかんでいても、かならず知らせる。items に、もっと新しい t の知らせがあれば、上書きしない）。
-   仲間が手を放した知らせを受けたら（あとから入ったときに items から読んだ知らせも同じ）、w.release(番号, rel) を呼び、その仲間の s[7] を、次に値が変わるまで grips に入れない
-   （「つかんでいる」の知らせが遅れて残っていても、数えない。同じハンドルをつかんでいる、ほかの人や自分は、そのまま数える）。w.release は、t の新しい知らせを残す。
+   仲間が手を放した知らせを受けたら（あとから入ったときに items から読んだ知らせも同じ）、w.release(番号, rel) を呼ぶ。その仲間の s[7] が、放したハンドルのままで、
+   知らせが新しい（t が 2 秒以内）なら、その s[7] を、次に値が変わるまで grips に入れない（「つかんでいる」の知らせが遅れて残っていても、数えない。古い知らせのあとで
+   つかみなおした手や、同じハンドルをつかんでいるほかの人・自分は、そのまま数える）。w.release は、t の新しい知らせを残す。
+   仲間の s[6]（持っている箱）と s[7] は、その仲間がいまの出発（ステージを始めた回）で送ったものだけを使う（ステージを替えた直後に残っている、前のステージの値は使わない）。
    その床のハンドルを、まだほかのだれかが本当につかんでいれば、床は進みつづけ、その人が放したときの知らせで決まる。こうして、最後に放した人の rel が、全員の端末に残る。
    shortcut: 放してから、仲間の端末で s[7] が消える前に同じハンドルをつかみなおすと、その仲間の端末では、次に放すまで床が進まない（放した知らせで、同じ位置にそろう）
 
@@ -149,7 +152,8 @@ const railEnd = (crate, at) => ({ kind: 'rail', crate, at });               // �
          [0, 11, 12]   てっぺん 6.0　T0 で 12.5、T3 で 11.7   [0, 12, 12]  てっぺん 7.1　T0 で 12.9、T3 で 12.3
          [0, 12, 15]   てっぺん 7.1　T0 で 16.1、T3 で 15.4   [0, 13, 5.6] てっぺん 8.3　T5 で 5.7、T8 で 5.0
          [0, 14, 6]    てっぺん 9.7　T8 で 6.0
-         ほかの向きへ飛ばすには、横の速さ（x と z）を同じ大きさのまま回す。着地させる足場は、この着地点を中心に 6×6 以上 */
+         ほかの向きへ飛ばすには、横の速さ（x と z）を同じ大きさのまま回す。着地させる足場は、この着地点を中心に 6×6 以上。
+         大砲台・カタパルトで飛んでいる間（着地するか、つかまるまで）は、スティックで動けるのは毎秒 0.8m まで：倒しつづけても、台と同じ高さへ下りてくるまでに、着地点は 2.1m までしかずれない */
 // ステージのファイル（adventure-stages/sN.js）へ渡す「作り方」一式
 export const kit = { B, ice, pad, belt, P, CP, crumble, wind, gust, saw, cannon, warp, cell, socket, WP, fan, net, launcher, lever, cart, railEnd };
 
@@ -304,7 +308,12 @@ export function makeWorld(stage) {
       const g = w.footing(c.x, c.z, c.y, c.box, h, c.s), gy = g ? g.y1 : -99;
       if (c.vy <= 0 && c.y - gy < 0.05) { c.y = gy; c.vy = 0; c.on = g; }
       else { c.on = null; c.vy -= GRAV * dt; c.y += c.vy * dt; if (c.y <= gy) { c.y = gy; c.vy = 0; } }
-      if (c.y < stage.kill) { Object.assign(c, c.home, { vy: 0 }); c.moved = true; }                          // 落とした箱は元の場所へ戻る
+      if (c.y < stage.kill || c.on?.hurt) { Object.assign(c, c.home, { vy: 0, on: null }); c.moved = true; }   // 落とした箱と、のこぎりの上に乗った箱は、元の場所へ戻る（のこぎりには、もう運ばれない）
+      const k = c.heavy && w.wall(c.x, c.z, c.y, c.box, h, c.s);                     // 重い箱が壁に重なったら（段の縁から押し落とすと、段の壁に重なって下りる）、近い面から外へすべり出る：重なったままでは、押しても引いても動かない
+      if (k) {
+        const out = [c.x - k.x0 + h, k.x1 + h - c.x, c.z - k.z0 + h, k.z1 + h - c.z], i = out.indexOf(Math.min(...out)), a = i < 2 ? 'x' : 'z';
+        c[a] = out[i] > 4 * dt ? c[a] + (i % 2 ? 4 : -4) * dt : [k.x0 - h, k.x1 + h, k.z0 - h, k.z1 + h][i]; c.moved = true;
+      }
       fit(c);
     }
     relist();
@@ -324,10 +333,13 @@ export function makePlayer(w) {
   // セーブ地点の真上、空から落ちてくる
   p.respawn = () => {
     const c = st.cps[p.cp];
-    p.grabEnd(); Object.assign(p, { x: c.x + (Math.random() - 0.5), y: c.y + 14, z: c.z + (Math.random() - 0.5), vy: 0, grounded: false, on: null, hvx: 0, hvz: 0, kvx: 0, kvz: 0 });
+    p.grabEnd(); Object.assign(p, { x: c.x + (Math.random() - 0.5), y: c.y + 14, z: c.z + (Math.random() - 0.5), vy: 0, grounded: false, on: null, hvx: 0, hvz: 0, kvx: 0, kvz: 0, flung: false });
   };
   const die = () => { p.respawn(); p.events.push('fell'); };
-  p.jump = () => { if (p.grounded && !p.hang && !p.frozen) { p.vy = JUMP; p.grounded = false; } };
+  p.jump = () => {
+    if (p.hang?.flat && !p.hang.climb && p.y - w.floorY(p.x, p.z, p.y) < 0.05) { p.hang = null; p.grounded = true; }   // 地面で壁に張りついているだけなら、「つかむ」を押したまま跳べる（跳んだ先で縁に届けば、つかまる）
+    if (p.grounded && !p.hang && !p.frozen) { p.vy = JUMP; p.grounded = false; }
+  };
 
   // 目の前の縁にぶら下がる。縁がなければ壁に張りつく（あみなら登れる。ふつうの壁に張りつくのは flat のときだけ）
   const cling = flat => {
@@ -402,8 +414,11 @@ export function makePlayer(w) {
 
     const [fx, fz] = facing(), len = Math.hypot(mx, mz), input = len > 0.05 && !p.hang;
     const heavy = p.carry?.heavy ? p.carry : null;
-    // めり込んでいる箱 hit の、いちばん近い面までの深さ（これが減る向きへは、いつでも出られる）
-    const depth = (x, z) => Math.min(x - hit.x0, hit.x1 - x, z - hit.z0, hit.z1 - z);
+    // 箱 b の、いちばん近い面までの深さ（めり込んでいるとき、これが減る向きへは、いつでも出られる）
+    const depth = (b, x, z) => Math.min(x - b.x0, b.x1 - x, z - b.z0, b.z1 - z), inside = (b, x, z) => x > b.x0 - R && x < b.x1 + R && z > b.z0 - R && z < b.z1 + R && b.y1 > p.y + STEP && b.y0 < p.y + BODY;
+    // (x, z) へ進めないか。いまめり込んでいる箱は、別に見る：木箱や仲間なら無視して抜け出せる。壁や動く床からは、奥へ向かわない向きへだけ動ける（面に沿って横へも出られる：動く床と壁の間にはさまれたとき）。
+    // めり込んでいる箱が 2 つ以上あっても、1 つずつ同じ決まりで見る（となり合う壁の境目に落ちても、出られる）
+    const stop = (x, z) => w.list.some(b => inside(b, x, z) && !(inside(b, p.x, p.z) && (b.crate || b.friend || depth(b, x, z) <= depth(b, p.x, p.z))));
     if (p.hang?.climb) {                                                              // あみ：前後で上り下り、左右で横へ動く
       const b = p.hang.b, u = mx * fx + mz * fz, s = mx * fz - mz * fx, nx = p.x + fz * s * dt, nz = p.z - fx * s * dt, ny = p.y + 1.2 * u * dt, qx = nx + fx * 0.6, qz = nz + fz * 0.6;
       const off = qx <= b.x0 - R || qx >= b.x1 + R || qz <= b.z0 - R || qz >= b.z1 + R || b.y0 >= ny + BODY;   // あみの横か下へ外れる
@@ -422,7 +437,7 @@ export function makePlayer(w) {
     else if (heavy && drag === 'follow') {                                           // ほかの人が動かしている重い箱に、つかんだまま引かれていく
       p.hvx = p.hvz = 0; p.x = heavy.x + p.off[0]; p.z = heavy.z + p.off[1];
     } else {
-      const speed = heavy ? (drag === 'stuck' && !heavy.solo ? 0 : 1.2) : p.carry ? 2.3 : SPEED, rail = heavy?.rail;   // solo の箱は、人数が足りなくても 1 人で動かせる
+      const speed = heavy ? (drag === 'stuck' && !heavy.solo ? 0 : 1.2) : p.flung ? 0.8 : p.carry ? 2.3 : SPEED, rail = heavy?.rail;   // solo の箱は、人数が足りなくても 1 人で動かせる。大砲台・カタパルトで飛んでいる間は、少ししか舵がきかない（着地点が、足場から外れない）
       if (input && !heavy) {                                                          // もたもた振り向く（重い箱をつかんでいる間は、向きを変えない）
         let d = Math.atan2(mx, mz) - p.ry; d = Math.atan2(Math.sin(d), Math.cos(d));
         p.ry += d * Math.min(1, dt * 4.5);
@@ -438,7 +453,7 @@ export function makePlayer(w) {
           if (rail && ((rail.axis === 'x') === !!axis || to < rail.min || to > rail.max)) continue;
           if (w.blocked(heavy.x + ax, heavy.z + az, heavy.y, heavy.box, heavy.s / 2, heavy.s) || w.blocked(p.x + ax, p.z + az, p.y, heavy.box)) continue;
           heavy.x += ax; heavy.z += az; heavy.moved = true; w.fit(heavy);
-        } else if (w.blocked(p.x + ax, p.z + az, p.y, hit && (hit.crate || hit.friend || depth(p.x + ax, p.z + az) <= depth(p.x, p.z)) ? hit : undefined)) continue;   // 箱や仲間にめり込んでいたら、それは無視して抜け出せる。壁や動く床からは、奥へ向かわない向きへだけ動ける（面に沿って横へも出られる：動く床と壁の間にはさまれたとき）
+        } else if (stop(p.x + ax, p.z + az)) continue;
         p.x += ax; p.z += az;
       }
       const decay = Math.exp(-dt * (p.grounded ? 4.5 : 0.8)); p.kvx *= decay; p.kvz *= decay;   // 打ち出された勢いは、空中ではあまり落ちない
@@ -455,9 +470,10 @@ export function makePlayer(w) {
       else { p.vy -= GRAV * dt; p.y += p.vy * dt; p.grounded = p.y <= gy; if (p.grounded) { p.y = gy; p.vy = 0; } }
       if (p.grounded && g?.bounce) { p.vy = g.bounce; p.grounded = false; }           // トランポリン
       const shot = p.grounded && (g?.fling || g?.aimV);                               // 大砲台・カタパルト（カタパルトは、条件が合っている間だけ）
-      if (shot) { [p.kvx, p.vy, p.kvz] = shot; p.grounded = false; }
+      if (shot) { [p.kvx, p.vy, p.kvz] = shot; p.grounded = false; p.flung = true; }
     }
     p.on = p.grounded ? g : null;
+    if (p.grounded || p.hang) p.flung = false;
     if (!p.grounded) { p.crank = null; if (p.carry?.heavy) p.grabEnd(); }            // 地面を離れたら、ハンドルからも重い箱からも手が離れる（つかんだまま飛ぶと、箱を空中で引きずる）
     p.falling = !p.grounded && !p.hang && p.vy < -8;                                 // 長く落ちている（空から落ちてくる姿勢にする）
     if (p.carry && !p.carry.heavy) { const c = p.carry, [ax, az] = facing(); c.x = p.x + ax * 0.75; c.y = p.y + 0.55; c.z = p.z + az * 0.75; }

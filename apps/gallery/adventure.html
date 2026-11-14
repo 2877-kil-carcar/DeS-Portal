@@ -36,10 +36,13 @@
     left: 50%; bottom: 20px; transform: translateX(-50%); max-width: min(52%, 460px); pointer-events: none; text-align: center;
     font-size: 13px; line-height: 1.5; color: #fff; background: rgba(13,4,6,0.6); padding: 8px 14px; border-radius: 12px;
   }
-  #stageList { display: flex; flex-direction: column; gap: 8px; }
+  #stageList { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }              /* 2 列にならべる：スマホの横向きでも、下の「もどる」「とじる」まで見える */
+  #stageList .pill { font-size: 13px; padding: 10px 6px; }
+  #stagePanel .row { display: flex; gap: 8px; align-items: center; }
+  #toSave { flex: 1; }
   #roomPanel, #stagePanel { inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; background: rgba(5,2,3,0.8); }
   #roomPanel .box, #stagePanel .box {
-    width: min(92%, 340px); max-height: 94%; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 18px;
+    width: min(92%, 380px); max-height: 94%; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 18px;
     background: #1a0a0e; border: 1px solid rgba(212,175,55,0.45); border-radius: 16px;
   }
   #roomPanel h2, #stagePanel h2 { font-size: 18px; color: #FFE566; }
@@ -70,7 +73,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.01">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.02">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <button class="ui pill small" id="stageInfo" aria-label="ステージを選ぶ"></button>
@@ -80,8 +83,7 @@
     <h2>🗺 ステージを選ぶ</h2>
     <p>選んだステージを最初から始めます。部屋にいるときは、全員がそのステージへ移ります。</p>
     <div id="stageList"></div>
-    <button class="pill" id="toSave">セーブ地点へもどる</button>
-    <button class="pill small" id="stageClose">とじる</button>
+    <div class="row"><button class="pill" id="toSave">セーブ地点へもどる</button><button class="pill small" id="stageClose">とじる</button></div>
   </div>
 </div>
 <div class="ui" id="banner" role="status" hidden></div>
@@ -111,8 +113,8 @@
    キャラの体（ラグドール）は美術館 museum.html と同じ作り。
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
-import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.01';
-import { STAGES } from './adventure-stages.js?v=4.01';
+import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.02';
+import { STAGES } from './adventure-stages.js?v=4.02';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -225,7 +227,9 @@ function start() {
   function loadStage(i, n, st = STAGES[i]) {
     if (group) { scene.remove(group); group.traverse(o => { if (o.geometry && !KEEP.has(o.geometry)) o.geometry.dispose(); if (o.material?.userData.tmp) o.material.dispose(); }); }
     live = []; scene.background?.dispose();                                           // 前のステージの空の絵も捨てる
-    stageIndex = i; run = n; holding = heldBy = null; grabbing = false; lastCrank = null; yaw = st.yaw ?? Math.PI; chipN = -1; $('goalChip').hidden = !st.objective;
+    stageIndex = i; run = n; holding = heldBy = null; grabbing = false; lastCrank = null; yaw = st.yaw ?? Math.PI; chipN = -1;
+    // ゴールが出発点より高いステージは、はじめから見上げぎみにする（出発点から、ゴールの光の柱が見える）
+    pitch = Math.max(-0.2, 0.42 - Math.max(0, Math.atan2(st.goal.y - st.cps[0].y, Math.hypot(st.goal.x - st.cps[0].x, st.goal.z - st.cps[0].z)))); $('goalChip').hidden = !st.objective;
     world = makeWorld(st); me = makePlayer(world); group = new THREE.Group(); scene.add(group); moving = []; pads = []; flags = [];
     scene.background = paint(2, 256, g => { const k = g.createLinearGradient(0, 0, 0, 256); k.addColorStop(0, st.sky[0]); k.addColorStop(1, st.sky[1]); g.fillStyle = k; g.fillRect(0, 0, 2, 256); });
     scene.fog = new THREE.Fog(st.sky[1], 60, 260);
@@ -306,9 +310,11 @@ function start() {
         const lamps = m.on.map((s, i) => {
           const o = mid + (i - (n - 1) / 2) * 0.6, p = world.plates[s], lamp = part(ball, offMat, group, cx + (wide ? o : 0), y - 0.3, cz + (wide ? 0 : o), 0.4);
           if (i < need && need < n) part(hoop, flagOnMat, group, lamp.position.x, y - 0.3, lamp.position.z, 0.62).rotation.y = wide ? 0 : Math.PI / 2;
+          const from = p.kind === 'rail' ? world.crates[p.crate].home : p;             // 信号（レバーなら、つまみの置き場所）から、ランプへ細い線。ランプと一緒に光る
+          lamp.userData.wire = rod(offMat, [from.x, from.y + 0.04, from.z], [lamp.position.x, y - 0.3, lamp.position.z], 0.05);
           lamp.userData.p = p; lamp.userData.on = p.kind === 'rail' ? (p.at === 'min' ? markA : markB) : goalMat; return lamp;   // レバーの信号は、レバーの端の印と同じ色で光る
         });
-        live.push(() => { for (const l of lamps) { const p = l.userData.p; l.material = (m.load ? p.held >= m.load : p.down) ? l.userData.on : offMat; } });
+        live.push(() => { for (const l of lamps) { const p = l.userData.p; l.material = l.userData.wire.material = (m.load ? p.held >= m.load : p.down) ? l.userData.on : offMat; } });
       }
     }
     for (const c of world.crates) {
@@ -337,6 +343,7 @@ function start() {
     world.handles.forEach((h, i) => {                                                 // まきあげハンドル：柱の上の輪（回している間、回る）と、その上の輪の目もり
       const g = new THREE.Group(), m = world.movers.find(m => m.mode === 'crank' && m.handles.includes(i)); group.add(g);
       part(cyl, darkMat, g, 0, 0.45, 0, 0.14, 0.9, 0.14);
+      if (m && h.ride == null) { const b = m.b; rod(steelMat, [h.x, h.y + 0.9, h.z], [(b.x0 + b.x1) / 2 + m.to[0], b.y1 + m.to[1], (b.z0 + b.z1) / 2 + m.to[2]], 0.05); }   // くさり：動かないハンドルから、その床が行き着く場所へ（どのハンドルが、どの床を動かすか）
       const wheel = part(tile, wheelMat, g, 0, 0.95, 0, 0.9), gauge = part(new THREE.RingGeometry(0.2, 0.3, 24), goalMat, g, 0, 1.75, 0);
       live.push((time, dt, now) => {
         g.position.set(h.x, h.y, h.z); if (gripped.includes(i)) wheel.rotation.y += dt * 5;
@@ -358,8 +365,10 @@ function start() {
       m.userData.p = p; pads.push(m);
     }
     st.cps.forEach((c, k) => {                                                        // セーブ地点の旗（通ると金色になる）
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 8), poleMat); pole.position.set(c.x - 2.4, c.y + 1.1, c.z); group.add(pole);
-      const flag = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.45, 0.03), k ? flagMat : flagOnMat); flag.position.set(c.x - 2.02, c.y + 1.95, c.z); group.add(flag); flags.push(flag);
+      // 旗は、地点の西 2.4m に立てる。そこに足場がなければ、東・南・北のうち、足場のある側へ
+      const [dx, dz] = [[-2.4, 0], [2.4, 0], [0, -2.4], [0, 2.4]].find(([dx, dz]) => world.floorY(c.x + dx, c.z + dz, c.y + 0.01) === c.y) || [-2.4, 0];
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 8), poleMat); pole.position.set(c.x + dx, c.y + 1.1, c.z + dz); group.add(pole);
+      const flag = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.45, 0.03), k ? flagMat : flagOnMat); flag.position.set(c.x + dx + 0.38, c.y + 1.95, c.z + dz); group.add(flag); flags.push(flag);
     });
     const ring = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.12, 10, 40), goalMat); ring.position.set(st.goal.x, st.goal.y + 1.5, st.goal.z); group.add(ring);
     group.userData.ring = ring;
@@ -593,7 +602,7 @@ function start() {
   canvas.addEventListener('pointerdown', e => { dragId = e.pointerId; lastX = acrossOf(e); lastY = downOf(e); canvas.setPointerCapture(e.pointerId); });
   canvas.addEventListener('pointermove', e => {
     if (e.pointerId !== dragId) return;
-    yaw -= (acrossOf(e) - lastX) * 0.006; pitch = Math.min(1.3, Math.max(-0.15, pitch + (downOf(e) - lastY) * 0.004));
+    yaw -= (acrossOf(e) - lastX) * 0.006; pitch = Math.min(1.3, Math.max(-0.8, pitch + (downOf(e) - lastY) * 0.004));   // 下は -0.8 まで：足元から、頭の上の高い足場を見上げられる
     lastX = acrossOf(e); lastY = downOf(e);
   });
   const endDrag = e => { if (e.pointerId === dragId) dragId = null; };
@@ -633,9 +642,12 @@ function start() {
     tag.scale.set(1.1, 0.275, 1); tag.position.y = 1.72; tag.renderOrder = 90;
     return tag;
   }
+  // 仲間の手を離れた軽い箱 c：放した人が知らせてきた置き場所があれば、そこに置く
+  const letGo = c => { c.held = null; if (c.pending) { [c.x, c.y, c.z] = spot(c.pending); c.pending = null; c.vy = 0; world.fit(c); } };
+  // shortcut: ハンドルを回したまま通信が切れた仲間は、「放した」知らせを書けない。床の戻りはじめが、端末ごとに少しずれる（戻りきるか、次にだれかが放せばそろう）。気になるなら、id が先の人に代わりに知らせを書かせる
   function dropRemote(id) {
     const r = remotes.get(id); scene.remove(r.fig.g); r.tag.material.map.dispose(); r.tag.material.dispose(); remotes.delete(id);
-    for (const c of world.crates) if (c.held === id) c.held = null;
+    for (const c of world.crates) if (c.held === id) letGo(c);
   }
   // 箱の知らせ d の場所。動く床の上に置かれた箱（d.m がその床の番号）は、この端末でのその床のずれを足す
   const spot = d => { const o = world.movers[d.m]?.o; return d.p.map((v, i) => (+v || 0) + (o ? o[i] : 0)); };
@@ -668,14 +680,17 @@ function start() {
         r.fig.g.add(r.tag); r.fig.g.position.set(+q.s[0] || 0, +q.s[1] || 0, +q.s[2] || 0); remotes.set(rid, r);
       }
       r.target = q.s.map(v => +v || 0);
+      // 持っている箱（s[6]）とハンドル（s[7]）は、いまの出発（s[8] が run と同じ）で送られたものだけを使う。ステージを替えた直後は、仲間の前のステージの値が残っている
+      if (q.s.length > 8 && r.target[8] !== run) r.target[6] = r.target[7] = 0;      // s[8] のない古い版の仲間は、これまでどおり
     }
     /* 巻き上げる床から手を放した知らせ（あとから入ったときに残っていた知らせも同じ）：床は、その f と時刻から位置を決める。
-       放した人の「つかんでいる」（s[7]）は、次に値が変わるまで数えない（遅れて残っているだけかもしれない）。仲間を作ったあとで読む */
+       放した人の「つかんでいる」（s[7]）が、放したハンドル（h）のままなら、次に値が変わるまで数えない（遅れて残っているだけかもしれない）。
+       2 秒より前の知らせでは止めない（あとから入った・しばらく止まっていた端末：いまの s[7] は、そのあとでつかみなおした手）。仲間を作ったあとで読む */
     for (const [key, d] of Object.entries(boxes || {})) {
       const i = +key.slice(1), k = key[0] === 'k' && world.movers[i];
       if (!k || k.mode !== 'crank' || d.g !== run || d.n === k.seen || !(d.f >= 0 && d.f <= 1 && d.t > 0)) continue;
       k.seen = d.n; world.release(i, { f: d.f, t: d.t });
-      const r = remotes.get(d.by); if (r) r.mute = r.target[7];
+      const r = remotes.get(d.by); if (r && (d.h == null || r.target[7] === d.h + 1) && roomApi.serverNow() - d.t < 2000) r.mute = r.target[7];   // h のない古い版の知らせは、どのハンドルでも
     }
   }
   function leftRoom(message) {
@@ -690,7 +705,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.01'); roomApi.setup('adventure/room', 3); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.02'); roomApi.setup('adventure/room', 3); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
@@ -813,10 +828,7 @@ function start() {
         g.rotation.y += Math.atan2(Math.sin(tr - g.rotation.y), Math.cos(tr - g.rotation.y)) * k;
       }
       const c = world.crates[r.target[6] - 1];
-      for (const o of world.crates) if (o.held === id && o !== c) {                    // 放した（置き場所は、放した人からの知らせで決まる）
-        o.held = null;
-        if (o.pending) { [o.x, o.y, o.z] = spot(o.pending); o.pending = null; o.vy = 0; world.fit(o); }
-      }
+      for (const o of world.crates) if (o.held === id && o !== c) letGo(o);            // 放した（置き場所は、放した人からの知らせで決まる）
       if (c && !c.heavy && me.carry === c && id < roomMe) { me.carry = null; me.grabEnd(); c.held = null; }   // 同じ箱を同時につかんだら、id が先の人のもの（自分の手は空に戻す）
       if (c && !c.heavy && (c.held === id || !c.held)) { c.held = id; c.x = g.position.x + Math.sin(g.rotation.y) * 0.75; c.y = g.position.y + 0.55; c.z = g.position.z + Math.cos(g.rotation.y) * 0.75; world.fit(c); }
     }
@@ -855,7 +867,7 @@ function start() {
     if (lastCrank != null && me.crank !== lastCrank) world.movers.forEach((m, i) => {
       if (m.mode !== 'crank' || !m.handles.includes(lastCrank)) return;
       world.release(i, { f: m.f, t: now });
-      if (room && m.last.t === now) { m.seen = nonce(); roomApi.putItem('k' + i, { f: m.f, t: now, n: m.seen, g: run, by: roomMe }); }
+      if (room && m.last.t === now) { m.seen = nonce(); roomApi.putItem('k' + i, { f: m.f, t: now, n: m.seen, g: run, by: roomMe, h: lastCrank }); }
     });
     lastCrank = me.crank;
     for (const e of me.events) {
@@ -925,8 +937,8 @@ function start() {
       sendT += dt;
       if (sendT >= 0.1) {
         sendT = 0;
-        // s = [x, y, z, 向き, 歩いているか, 動作, 持っている箱の番号 + 1, 回しているハンドルの番号 + 1]（終わりの 2 つは、なければ 0。古い版は s[7] を読まないだけ）
-        const s = [me.x, me.y, me.z, me.ry].map(v => Math.round(v * 100) / 100).concat(me.walk ? 1 : 0, act, me.carry ? me.carry.id + 1 : 0, me.crank == null ? 0 : me.crank + 1);
+        // s = [x, y, z, 向き, 歩いているか, 動作, 持っている箱の番号 + 1, 回しているハンドルの番号 + 1, 何回目の出発か（run）]（箱とハンドルは、なければ 0。古い版は s[7]・s[8] を読まないだけ）
+        const s = [me.x, me.y, me.z, me.ry].map(v => Math.round(v * 100) / 100).concat(me.walk ? 1 : 0, act, me.carry ? me.carry.id + 1 : 0, me.crank == null ? 0 : me.crank + 1, run);
         if (s.join() !== lastSent) { lastSent = s.join(); roomApi.send(s); }
         // 箱の場所は、置いて止まってから知らせる（落ちている途中の場所は書かない）。動く床の上なら、その床の番号と、床から見た場所を書く
         for (const c of world.crates) if (c.moved && !c.held && (c.on || c.rail)) {

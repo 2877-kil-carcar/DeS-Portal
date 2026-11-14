@@ -19,7 +19,7 @@ let ROOM_PATH = "museum/room";
 export let MAX_PLAYERS = 6;
 // 別の遊び（冒険 adventure.html）は、別の部屋・別の人数で同じ仕組みを使う。enter より前に呼ぶ
 export function setup(path, max) { ROOM_PATH = path; MAX_PLAYERS = max; }
-const TIMEOUT_MS = 15000;
+const TIMEOUT_MS = 15000, ALIVE_MS = 120000;
 
 export const cleanName = v => String(v || "").replace(/[<>\n\r]/g, "").trim().slice(0, 12);
 export const cleanCode = v => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
@@ -32,11 +32,14 @@ const withTimeout = promise => Promise.race([promise, new Promise((_, ng) => set
 
 /* 部屋へ入れるかを決める（通信なしで確かめられるよう、Firebase に依存しない形にしてある）。
    戻り値：{ room } で書き込む／{ error } で中止。room が null のときは、まだサーバーの内容を知らない可能性がある */
-export function decideEntry(room, { create, code, pid, name }) {
+export function decideEntry(room, { create, code, pid, name, now = Date.now() }) {
   const players = room?.players || {}, count = Object.keys(players).length;
   if (create) {
-    if (count) return { error: "すでに部屋があります。部屋のコードを教えてもらって入ってください。" };
-    room = { code, createdAt: Date.now(), players: {} };
+    // 画面を開いたまま眠った端末は、部屋に残りつづける。「いるよ」の知らせ（at）が 2 分とだえた人は、もういない扱いにして、部屋を作り直せるようにする
+    // （at を送らない古い版の人は、部屋ができて 6 時間たつまでは、いる扱い）
+    const here = Object.values(players).some(q => q.at ? now - q.at < ALIVE_MS : now - (room.createdAt || 0) < 6 * 3600e3);
+    if (here) return { error: "すでに部屋があります。部屋のコードを教えてもらって入ってください。" };
+    room = { code, createdAt: now, players: {} };
   } else {
     if (!room) return { room: null };                                  // 空のまま書いてサーバーの本当の内容を確かめさせる
     if (room.code !== code) return { error: "その部屋は見つかりません。コードを確かめてください。" };
@@ -45,7 +48,7 @@ export function decideEntry(room, { create, code, pid, name }) {
   }
   // チームは人数の少ない方へ（同数なら 0）
   const reds = Object.values(room.players).filter(q => q.team === 0).length;
-  room.players[pid] = { name, team: reds * 2 <= Object.keys(room.players).length ? 0 : 1, s: [0, 0, 0, 0, 0] };
+  room.players[pid] = { name, team: reds * 2 <= Object.keys(room.players).length ? 0 : 1, s: [0, 0, 0, 0, 0], at: now };
   return { room };
 }
 
@@ -61,7 +64,7 @@ export function pickHost(ids) {
   return [...ids].sort()[0] ?? null;
 }
 
-let db, pid, myRef, myFxRef, stopListening;
+let db, pid, myRef, myFxRef, stopListening, beat;
 // サーバーの時計（ミリ秒）。端末の時計はずれていることがあるので、全員で同じ動きにしたいもの（冒険の動く床）はこれを使う
 let clockOffset = 0;
 export const serverNow = () => Date.now() + clockOffset;
@@ -78,7 +81,7 @@ export async function enter({ create, code, name, onRoom, onGone }) {
   onDisconnect(myFxRef).remove().catch(() => {});
   let error = "";
   const result = await withTimeout(runTransaction(roomRef, room => {
-    const d = decideEntry(room, { create, code, pid, name });
+    const d = decideEntry(room, { create, code, pid, name, now: serverNow() });
     error = d.error || "";
     return d.error ? undefined : d.room;
   }));
@@ -91,6 +94,8 @@ export async function enter({ create, code, name, onRoom, onGone }) {
     if (!me?.name || room.code !== code) { leave(); onGone(); return; }  // 通信が切れて消された／部屋が作り直された
     onRoom(room.code, room.players, pid, room.fx?.[pid], room.match, room.items);
   });
+  // 30 秒ごとに「いるよ」を知らせる（眠った端末は止まるので、2 分で、いない扱いになる）
+  beat = setInterval(() => { if (myRef && stopListening) set(ref(db, `${ROOM_PATH}/players/${pid}/at`), serverNow()).catch(() => {}); }, 30000);
   return { code };
 }
 
@@ -126,7 +131,7 @@ export async function takeItem(id) {
 
 export function leave() {
   if (!myRef) return;
-  stopListening?.(); stopListening = null;
+  stopListening?.(); stopListening = null; clearInterval(beat);
   onDisconnect(myRef).cancel().catch(() => {});
   onDisconnect(myFxRef).cancel().catch(() => {});
   remove(myRef).catch(() => {}); remove(myFxRef).catch(() => {});

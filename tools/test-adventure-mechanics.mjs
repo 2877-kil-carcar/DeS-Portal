@@ -4,6 +4,7 @@
 // 重い箱をつかんだままのカタパルト・load: n の猶予・乗ると動く床とてんびんの「行ったり来たりしない」「あとから入った端末」・箱の上のせんぷうき箱・跳んでつかむ（hoist）。
 // 見直し（2 回め）の検査：仲間の頭の上のせんぷうき箱・動く床が人や箱を動かない箱の中へ運ばない・遠ざかった重い箱から手が離れる・同じハンドルを 2 人で回す・
 // となり合うソケット・あみの真下からつかまない・うすい壁ごしに箱を置かない・となりの岸に立つ人は乗っていない扱い・遅れて見える仲間とリフト・レールの箱の c.on・いることにした仲間。
+// 公開後の見直しの検査：となり合う 2 つの箱の境目からの脱出・段から押し落とした重い箱・のこぎりの上の箱・壁に張りついたまま跳ぶ・飛んでいる間の舵。
 // 最後に、ステージの点検（tools/lint-adventure.mjs）が、わざと入れたまちがいを見つけることも確かめる。
 // 使い方：node tools/test-adventure-mechanics.mjs          … 毎秒 60 コマで
 //         FPS=20 node tools/test-adventure-mechanics.mjs   … 遅い端末のコマ数で
@@ -675,6 +676,56 @@ group('いることにした仲間（b.friend・b.friendGrip）：ハンドル�
   b.place(6, 0.3, -5); b.friend = [2.6, 0, -5, 1]; b.friendGrip = 0;
   b.wait('仲間が地面のハンドルを回して、リフトが上がる', () => w.movers[0].f === 1 && near(p.y, 3.3), 4);
   b.friendGrip = null; run(b, 1); assert.ok(w.movers[0].rel, '仲間が放しても、放した扱いにならない');
+});
+
+group('めり込みからの脱出：となり合う 2 つの箱の境目に重なっても、歩いて出られる', () => {
+  const wall = B(0, 3, 5, 4, 2, 3), panel = B(0, 3, 3.9, 2, 0.2, 3);                // 壁（z 4〜6）の南の面に付けた、うすい板（x -1〜1、z 3.8〜4）
+  const b = bot({ boxes: [floor, panel, wall] }), { p, w } = b;
+  b.place(1.2, 0, 3.95);                                                           // 板の東の端のすぐ横：板にも壁にも重なっている
+  assert.ok(w.blocked(p.x, p.z, p.y) === panel && w.blocked(p.x, p.z, p.y, panel) === wall, '検査の前提：2 つの箱に重なっている');
+  run(b, 0.5, 0, 1); assert.ok(p.z <= 3.95 + 1e-9, `壁の奥へ進めてしまう (z=${p.z})`);
+  run(b, 1, 0, -1); assert.ok(p.z < 3.4 && !w.blocked(p.x, p.z, p.y), `2 つの箱の境目から出られない ${b.where()}`);
+});
+
+group('重い箱：段の縁から押し落としても、段の壁に重なったままにならない（下でまた動かせる）', () => {
+  const deck = B(0, 3, 9, 8, 6, 3);                                                // 高さ 3m の段（z 6〜12）。南の面が、広場に面した壁
+  const b = bot({ boxes: [floor, deck], crates: [{ x: 0, y: 3, z: 7.2, s: 1.4, heavy: true, solo: true }], cps: [CP(0, 3, 10)] }), { p, w } = b, c = w.crates[0];
+  b.grab(0, [0, 8.3]); hold(b, '箱を段の南の縁から押し落とす', 0, -1, () => c.y === 0 && c.on, 8); p.grabEnd();
+  run(b, 0.5); assert.ok(c.z <= 6 - 0.7 + 1e-9 && !w.wall(c.x, c.z, c.y, c.box, 0.7, 1.4) && c.moved, `落とした重い箱が、段の壁に重なっている (z=${c.z})`);
+  b.place(0, 0, c.z - 1.3); b.grab(0, [0, c.z - 1.2]); const z0 = c.z; run(b, 1.5, 0, -1);
+  assert.ok(c.z < z0 - 0.8, `落とした重い箱を、下で動かせない (z=${c.z})`); p.grabEnd();
+});
+
+group('箱：のこぎりの上に乗ったら、元の場所へ戻る', () => {
+  const b = bot({ boxes: [floor, saw(-6, 0, 0)], movers: [{ b: saw(4, 0, 0), to: [0, 0, 3], mode: 'always', period: 2000 }], crates: [cell(-4, 0, -4), { x: 4, y: 0, z: -6, s: 0.8 }] }), [c, box] = b.w.crates;
+  move(c, 4, 0.6, (b.w.movers[0].box.z0 + b.w.movers[0].box.z1) / 2); move(box, -6, 0.6, 0); c.moved = false; run(b, 0.2);
+  assert.deepEqual([c.x, c.y, c.z, c.moved], [-4, 0, -4, true], '行き来するのこぎりに乗ったでんちが、元の場所へ戻らない');
+  assert.deepEqual([box.x, box.y, box.z], [4, 0, -6], '動かないのこぎりに乗った箱が、元の場所へ戻らない');
+});
+
+group('壁に張りついたまま跳ぶ：「つかむ」を押してから跳んでも、縁に届けばつかまる', () => {
+  const ledge = B(0, 2.4, 8, 6, 4, 3.4), b = bot({ boxes: [floor, ledge] }), { p } = b;
+  b.place(0, 0, 5.69); p.ry = 0; p.grabStart(); assert.ok(p.hang?.flat && !p.hang.climb, '検査の前提：届かない壁に張りついている');
+  p.jump(); assert.ok(!p.hang && p.vy > 0 && p.grab, '壁に張りついていると、跳べない');
+  hold(b, '押したまま前へ倒して、縁をよじ登る', 0, 1, () => p.grounded && !p.hang && near(p.y, 2.4));
+  p.grabEnd();
+});
+
+group('大砲台・カタパルト：飛んでいる間は、舵が少ししかきかない（倒しつづけても、着地点は 2.1m までしかずれない）', () => {
+  const land = (pad, mx, mz) => {                                                  // 台と同じ高さまで落ちてきたときの場所
+    const t = bot({ kill: -40, boxes: [B(0, 0, -6, 4, 6, 1), pad], cps: [CP(0, 0, -6)] }), q = t.p;
+    t.place(0, 0.1, 0); t.tick(); assert.ok(q.flung, '打ち出されていない');
+    while (q.vy > 0 || q.y > 0.1) t.tick(mx, mz);
+    return [q.x, q.z];
+  };
+  for (const pad of [() => launcher(0, 0.1, 0, [{ v: [0, 12, 15] }]), () => launcher(0, 0.1, 0, [{ v: [0, 9, 7] }]), () => cannon(0, 0.1, 0, [-6, 14, 0])]) {
+    const [x0, z0] = land(pad(), 0, 0); let worst = 0;
+    for (let k = 0; k < 8; k++) { const [x, z] = land(pad(), Math.sin(k * Math.PI / 4), Math.cos(k * Math.PI / 4)); worst = Math.max(worst, Math.hypot(x - x0, z - z0)); }
+    assert.ok(worst < 2.3, `飛んでいる間に、スティックで ${worst.toFixed(2)}m も動けた`);
+  }
+  const b = bot({ boxes: [floor, cannon(0, 0.1, 0, [0, 6, 3])] }), { p } = b;       // 着地したあとは、ふつうに歩ける
+  b.place(0, 0.1, 0); b.tick(); b.wait('着地', () => p.grounded, 4); assert.ok(!p.flung);
+  const z0 = p.z; run(b, 2, 0, 1); assert.ok(p.z > z0 + 4, `着地したあとも、歩くのが遅い (${p.z - z0})`);
 });
 
 group('ステージの点検（lint）：正しいステージは通し、わざと入れたまちがいは 1 つずつ見つける', () => {

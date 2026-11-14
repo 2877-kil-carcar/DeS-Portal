@@ -87,7 +87,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.01">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.02">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
@@ -885,7 +885,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      roomApi ||= await import('./museum-room.js?v=3.90');
+      roomApi ||= await import('./museum-room.js?v=4.02');
       await roomApi.enter({ create, code, name: roomApi.cleanName(name) || 'ななし', onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
       try { localStorage.setItem('museum:name', name); } catch (_) {}
       panel.hidden = true; roomMsg('');

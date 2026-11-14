@@ -24,6 +24,8 @@ export default (b, { assert, fresh }) => {
   // 中の岸で、レバーのつまみを dx の向きの端まで押す
   const flip = (q, dx) => { const k = q.w.crates[KNOB]; q.push(KNOB, [k.x - dx * 0.85, 0.5], dx, 0); };
   // 波止場から、柱のあみを登り、木の橋でデッキへ
+  // デッキの東の石垣（x 6.6〜7.0）を、from から跳んで越えて to へ（でんちを持っていても跳べる）
+  const hop = (q, from, to) => { q.go(from); q.face(...to); q.p.jump(); q.go(to); };
   const toDeck = q => { q.climb([19, 18.6], [19, 20]); q.go([12, 20]); q.go([4, 20]); };
   // デッキで、でんちをソケットへ入れ、リフトで塔へ
   const finish = q => {
@@ -65,10 +67,10 @@ export default (b, { assert, fresh }) => {
   b.wait('赤い皿が沈み、青い皿がでんちを乗せて上がる', () => m[A].f === 1, 10);
   assert.ok(near(c[CELL].y, 5) && near(c[BLOCK].y, 0.05), `でんちがデッキの高さにない (y=${c[CELL].y})`);
   // 上がった青い皿に乗って、でんちを取る（2 対 2 で上がったまま）
-  b.go([5.5, 16.6]); b.grab(CELL, [c[CELL].x - 0.6, c[CELL].z + 0.8]); b.tick();
+  hop(b, [6.1, 16.6], [7.45, 16.6]); b.grab(CELL, [c[CELL].x - 0.6, c[CELL].z + 0.8]); b.tick();
   assert.ok(p.on === m[A].box && m[A].f === 1, `青い皿の上で、でんちを取れていない／皿が下がった ${b.where()}`);
   // ソケットへ入れて、リフトで塔のゴールへ（空になった青い皿は下り、重い箱はデッキの高さへ戻る）
-  b.go([4, 14]); b.wait('青い皿が下り、重い箱がデッキの高さへ戻る', () => m[A].f === 0 && near(c[BLOCK].y, 5), 10);
+  hop(b, [7.45, p.z], [6, p.z]); b.go([4, 14]); b.wait('青い皿が下り、重い箱がデッキの高さへ戻る', () => m[A].f === 0 && near(c[BLOCK].y, 5), 10);
   finish(b);
 
   // ── ほかの道：先にあみでデッキへ上がって重い箱を赤い皿へ／島へはプレス機の下を北へ／でんちはベルトに乗せて南へ／大砲で中の岸へ／でんちを持って青い皿に乗って上がる
@@ -95,19 +97,19 @@ export default (b, { assert, fresh }) => {
   q.grab(CELL); q.go([16, 2.5]); q.go([16, 14]);
   // でんちを持って青い皿に乗る：持った人 2 対 重い箱 2 で、いっしょに上がる。デッキへ降りる
   q.go([10.5, 15.5]); q.go([7.85, 15.5]); q.wait('青い皿が、でんちを持った人を乗せて上がる', () => q.w.movers[A].f === 1, 10);
-  q.go([5, 15.5]); finish(q);
+  hop(q, [7.45, 15.5], [5, 15.5]); finish(q);
 
   // ── 仲間がいるときの答え（いることにした仲間の体）
   // 2 人が赤い皿に乗れば、重い箱のかわりになる
   q = fresh(); move(q, CELL, 7.85, 0.05, 15.5); q.place(12, 0, 15.5, 3);
   q.friend = [7.85, 5, 9.5, 2]; q.wait('2 人が赤い皿に乗ると、青い皿がでんちを乗せて上がる', () => q.w.movers[A].f === 1, 10);
-  toDeck(q); q.grab(CELL); q.go([4, 14]);
+  toDeck(q); hop(q, [6.1, 16.6], [7.45, 16.6]); q.grab(CELL, [q.w.crates[CELL].x - 0.6, q.w.crates[CELL].z + 0.8]); hop(q, [7.45, q.p.z], [6, q.p.z]); q.go([4, 14]);
   q.friend = null; finish(q);
   // 2 人が赤い皿に乗っている間に、でんちを持って青い皿に乗れば、いっしょに上がる
   q = fresh(); move(q, CELL, 11, 0, 17); q.place(12, 0, 15.5, 3); q.grab(CELL);
   q.friend = [7.85, 5, 9.5, 2]; idle(q, 1); assert.equal(q.w.movers[A].f, 0, '青い皿が空なのに上がった');
   q.go([10.5, 15.5]); q.go([7.85, 15.5]); q.wait('でんちを持った人が上がる', () => q.w.movers[A].f === 1, 10);
-  q.go([5, 15.5]); q.friend = null; finish(q);
+  hop(q, [7.45, 15.5], [5, 15.5]); q.friend = null; finish(q);
   // 仲間がレバーを動かしてくれれば、中の岸で待つだけで橋が入れかわる
   q = fresh(); move(q, CELL, 15, 0, -4); q.place(14, 0, -3, 1); q.grab(CELL);
   move(q, KNOB, 16.8, 0, 0.5); q.wait('橋 Z が上がる', () => q.w.movers[Z].f === 1, 6);
@@ -134,7 +136,7 @@ export default (b, { assert, fresh }) => {
   q.put(13.5, -3); flip(q, 1); q.wait('橋 Z が上がる', () => q.w.movers[Z].f === 1, 6);
   q.grab(CELL); q.go([16, 2.5]); q.go([16, 14]); q.go([10.5, 15.5]); q.put(7.85, 15.5);
   q.wait('重い箱がもう赤い皿にあるので、青い皿がすぐ上がる', () => q.w.movers[A].f === 1, 10);
-  toDeck(q); q.go([5.5, 14]); q.grab(CELL, [q.w.crates[CELL].x - 1.15, q.w.crates[CELL].z]);   // デッキに立ったまま、皿のでんちを取る
+  toDeck(q); q.go([5.5, 14]); q.grab(CELL, [6.95, q.w.crates[CELL].z]);   // デッキの石垣の上に立ったまま、皿のでんちを取る
   q.go([4, 14]); q.wait('青い皿が下りる', () => q.w.movers[A].f === 0, 10);
   finish(q);
 
@@ -154,4 +156,15 @@ export default (b, { assert, fresh }) => {
   q.face(0, 24); q.p.jump(); q.p.grabStart(); let top = 0;
   for (let i = 0; i < 3 * q.FPS; i++) { q.tick(0, 1); top = Math.max(top, q.p.y); }
   assert.ok(top < 9 && !q.p.goal, `積んだ箱から、塔に手が届いてしまう (いちばん上 ${top.toFixed(2)})`);
+  // 2 人でも：リフトの上の重い箱に仲間（の体）が立ち、その頭から跳んでつかんでも、塔には届かない
+  move(q, BLOCK, -3.75, 5.2, 22.5); q.w.extra = [{ x0: -4, x1: -3.5, z0: 22.25, z1: 22.75, y0: 6.6, y1: 7.9, friend: true }];
+  q.place(-3.75, 7.9, 22.5); idle(q, 0.5); assert.ok(near(q.p.y, 7.9), `検査の前提：仲間の頭の上に立っていない ${q.where()}`);
+  q.face(0, 22.5); q.p.jump(); q.p.grabStart(); top = 0;
+  for (let i = 0; i < 3 * q.FPS; i++) { q.tick(1, 0); top = Math.max(top, q.p.y); }
+  assert.ok(top < 12 && !q.p.goal, `仲間の頭から、塔に手が届いてしまう (いちばん上 ${top.toFixed(2)})`);
+  // 重い箱は、デッキの縁の石垣で止まり、広場や下の青い皿へは落ちない（落ちると、壁にめり込んで二度と動かせない）
+  q = fresh(); q.place(-4, 5, 11, 4); move(q, BLOCK, 0, 5, 9); q.push(BLOCK, [0, 10.3], 0, -1);
+  assert.ok(near(q.w.crates[BLOCK].y, 5) && q.w.crates[BLOCK].z > 8, `重い箱が、デッキから広場へ落ちた ${JSON.stringify([q.w.crates[BLOCK].x, q.w.crates[BLOCK].y, q.w.crates[BLOCK].z])}`);
+  move(q, BLOCK, 4, 5, 15.5); q.push(BLOCK, [2.8, 15.5], 1, 0);
+  assert.ok(near(q.w.crates[BLOCK].y, 5) && q.w.crates[BLOCK].x < 6, `重い箱が、デッキから青い皿へ落ちた ${JSON.stringify([q.w.crates[BLOCK].x, q.w.crates[BLOCK].y])}`);
 };

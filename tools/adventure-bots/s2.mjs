@@ -1,5 +1,5 @@
 // ステージ 2「くるくる港」を 1 人で解く手順：荷物を LA の板へ → 時計島へ飛ぶ → 大砲で帰る → 東（ベルト・重さの橋）で でんち A → 西（メリーゴーラウンド・高い段）で でんち B → とうのカタパルトで塔の上へ
-// 手順のほかに、別の道（屋根の でんち C・北からの重さの橋・はしけ・くずれる床・荷物の踏み台）、仲間との答え、かぞえ錠の組み合わせ、
+// 手順のほかに、別の道（屋根の でんち C・北からの重さの橋・はしけ・くずれる床・荷物の踏み台・輪の両まわり）、仲間との答え、かぞえ錠の組み合わせ、
 // わざと悪い順番、できてはいけないこと（錠なしで橋のすき間を渡る・錠が閉じたまま塔へ）も、新しいボット fresh() で確かめる
 const tools = (b, assert) => {
   const { w, p } = b, m = w.movers, k = w.plates, c = w.crates, S = w.stage.boxes;
@@ -90,7 +90,22 @@ export default (b, { assert, fresh }) => {
 
   for (const route of Object.values(routes)) route(fresh(), assert);
 };
-export const routes = { roofByLongShot, ringOtherWay, worstOrder, friends, lockSubsets, impossible };
+export const routes = { roofByLongShot, ringOtherWay, ringBothWays, worstOrder, friends, lockSubsets, impossible };
+
+// 輪を両まわり：南→西（メリーゴーラウンド）→北（くずれる床）→東（はしけを北の岸から）→南（ベルト）、
+// 南→東→北（はしけ）→西（くずれる床を、荷物を持って西へ）→南（メリーゴーラウンド）。どのつなぎも、両方の向きに通れる
+function ringBothWays(b, assert) {
+  const T = tools(b, assert), { p } = T;
+  T.toWest(); b.go([-18.5, 46]); b.go([-3, 46]);
+  assert.equal(T.at(), T.quayN, `くずれる床を東へ渡れない ${b.where()}`);
+  b.go([6, 46]); T.ferry(1, [20, 46]); assert.equal(T.at(), T.S[9], `はしけで東の桟橋に着いていない ${b.where()}`);
+  b.go([20, 26]); b.go([20, 16]); T.eastHome(); assert.equal(T.at(), T.quayS);
+  T.toEast(); b.go([20, 26]); b.go([20, 46]); b.go([17.6, 46]); T.ferry(0, [5, 46]);
+  b.grab(6); b.go([-6, 46]); b.go([-18.5, 46]);                                     // 荷物を持って、くずれる床を西へ
+  assert.equal(T.at(), T.S[11], `くずれる床を、荷物を持って西へ渡れない ${b.where()}`);
+  b.go([-18.5, 26]); b.go([-18.5, 17]); T.westHome();
+  assert.ok(T.at() === T.quayS && b.falls === 0, `両まわりで落ちた（${b.falls} 回）${b.where()}`);
+}
 
 // 別の道：荷物 2 こを LA の板に置くと、遠いねらいで西の屋根 X へ。でんち C を取り、屋根から時計島へ下りる
 function roofByLongShot(b, assert) {
