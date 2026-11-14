@@ -1,23 +1,35 @@
-// もふもふ冒険の 3 ステージが「1 人で最後まで解ける」ことを、描画も通信もなしで検査する。
-// 自動操縦：目的地へ歩き、足元がなくなれば跳び、登れる縁があればつかんでよじ登る。
+// もふもふ冒険の各ステージが「1 人で最後まで解ける」ことを、描画も通信もなしで検査する。
+// 自動操縦：目的地へ歩き、足元がなくなれば跳び、登れる縁があればつかんでよじ登る（跳ばないと届かない段は hoist、あみは climb）。
+// ステージごとの手順は tools/adventure-bots/sN.mjs（ステージ apps/gallery/adventure-stages/sN.js と 1 対 1）。
+// 使い方：node tools/test-adventure.mjs            … 全ステージ
+//         node tools/test-adventure.mjs 3 5        … ステージ 3 と 5 だけ
+//         FPS=20 node tools/test-adventure.mjs     … 遅い端末のコマ数（毎秒 20 コマ）で
 import assert from 'node:assert/strict';
-import { STAGES, makeWorld, makePlayer } from '../apps/gallery/adventure-world.js';
-// 1 秒あたりのコマ数（遅いスマホでも解けるかを見るときは FPS=30 や FPS=20 を付けて走らせる）
+import fs from 'node:fs';
+import path from 'node:path';
+import { kit, makeWorld, makePlayer } from '../apps/gallery/adventure-world.js';
 const FPS = +process.env.FPS || 60, DT = 1 / FPS;
 
-function bot(index) {
-  const w = makeWorld(STAGES[index]), p = makePlayer(w), name = STAGES[index].name;
+export function makeBot(stage) {
+  const w = makeWorld(stage), p = makePlayer(w), name = stage.name;
   let now = 0, falls = 0;
   const where = () => `(${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)})`;
-  const api = { w, p, get falls() { return falls; } };
+  // friend：いることにする仲間の体 [x, y, z, 重さ]（2 人で解く答えを、通信なしで確かめる）。いなければ null。動く床の上に置けば、床と一緒に運ばれる
+  // friendGrip：その仲間が回しているハンドルの番号（なければ null）
+  const api = { w, p, FPS, friend: null, friendGrip: null, get falls() { return falls; }, get now() { return now; } };
   const tick = api.tick = (mx = 0, mz = 0) => {
-    now += 1000 * DT; w.step(DT, now, [[p.x, p.y, p.z]]); p.step(DT, mx, mz);
+    const me = [p.x, p.y, p.z, p.carry && !p.carry.heavy ? 2 : 1], f = api.friend;  // 軽い箱を持っている間は、2 人ぶんの重さ
+    const g = f && w.groundBox(f[0], f[2], f[1]), deck = g && Math.abs(f[1] - g.y1) < 0.05 && g.m;   // 仲間が立っている動く床（宙に浮いて見える仲間は、運ばれない）
+    now += 1000 * DT; w.step(DT, now, f ? [me, f] : [me], [p.crank, api.friendGrip].filter(h => h != null));
+    if (deck) deck.d.forEach((v, i) => { f[i] += v; });
+    p.step(DT, mx, mz);
     if (p.events.includes('fell')) { falls++; api.fellAt = api.last; }
     if (p.events.includes('goal')) p.goal = true;
     p.events.length = 0; api.last = where();
     for (const m of w.movers) { m.rise = m.f > (m.pf ?? m.f); m.fall = m.f < (m.pf ?? m.f); m.pf = m.f; }   // 動く床が、いまどちらへ動いているか
     for (const k of w.winds) { k.began = k.active && !k.was; k.was = k.active; }
   };
+  api.where = where;
   api.wait = (what, pred, seconds = 30) => { for (let i = 0; i < seconds * FPS; i++) { if (pred()) return; tick(); } assert.fail(`${name}: 「${what}」を待ちきれない ${where()}`); };
   // target は [x, z] か、それを返す関数（動く床を追うとき）。until があれば、着くかわりにその条件で終わる（風に乗っている間など）
   api.go = (target, until, seconds = 25) => {
@@ -39,21 +51,25 @@ function bot(index) {
     assert.fail(`${name}: 目的地 ${typeof target === 'function' ? target() : target} に着けない ${where()}`);
   };
   api.face = (x, z) => { p.ry = Math.atan2(x - p.x, z - p.z); };
-  // 箱 i のそばへ行ってつかむ（from: つかむときに立つ場所）
-  api.grab = (i, from) => { const c = w.crates[i]; api.go(from); api.face(c.x, c.z); assert.equal(p.grabStart(), c, `${name}: 箱 ${i} をつかめない ${where()}`); };
+  // 箱 i のそばへ行ってつかむ（from: つかむときに立つ場所。省くと、いまいる側から近づく）
+  api.grab = (i, from) => {
+    const c = w.crates[i], d0 = Math.hypot(p.x - c.x, p.z - c.z);
+    api.go(from || [c.x + (p.x - c.x) / d0, c.z + (p.z - c.z) / d0]); api.face(c.x, c.z);
+    assert.equal(p.grabStart(), c, `${name}: 箱 ${i} をつかめない ${where()}`);
+  };
+  // 持っている軽い箱を、(x, z) の上に置く
+  api.put = (x, z) => { const ux = x - p.x, uz = z - p.z, u = Math.hypot(ux, uz); api.go([x - ux / u * 0.95, z - uz / u * 0.95]); p.grabEnd(); };
   // 軽い箱 i を、ふみ板 plate の上へ運んで置く
   api.carry = (i, plate) => {
-    const c = w.crates[i], t = w.plates[plate], d0 = Math.hypot(p.x - c.x, p.z - c.z);
-    api.grab(i, [c.x + (p.x - c.x) / d0, c.z + (p.z - c.z) / d0]);
-    const ux = t.x - p.x, uz = t.z - p.z, u = Math.hypot(ux, uz);
-    api.go([t.x - ux / u * 0.75, t.z - uz / u * 0.75]); p.grabEnd();
+    const t = w.plates[plate];
+    api.grab(i); api.put(t.x, t.z);
     api.wait(`ふみ板 ${plate} が押される`, () => t.down, 3);
   };
   // 重い箱 i を、進めなくなるまで (dx, dz) の向きへ押す
   api.push = (i, from, dx, dz) => {
     api.grab(i, from);
     let last = 1e9, still = 0;
-    for (let n = 0; n < 60 * 40 && still < 30; n++) { tick(dx, dz); const c = w.crates[i], q = c.x * dx + c.z * dz; still = Math.abs(q - last) < 1e-4 ? still + 1 : 0; last = q; }
+    for (let n = 0; n < FPS * 40 && still < FPS / 2; n++) { tick(dx, dz); const c = w.crates[i], q = c.x * dx + c.z * dz; still = Math.abs(q - last) < 1e-4 ? still + 1 : 0; last = q; }
     p.grabEnd();
   };
   api.center = m => { const k = w.movers[m].box; return [(k.x0 + k.x1) / 2, (k.z0 + k.z1) / 2]; };
@@ -63,147 +79,60 @@ function bot(index) {
   api.ride = (m, frac) => api.wait(`動く床 ${m} が${frac ? '行き先' : '出発点'}に着く`, () => Math.abs(w.movers[m].f - frac) < 0.03);
   // 上下する床 m が下りてくるのを待つ（上がっている間に踏み出すと、床の下へ落ちる）
   api.board = m => { let prev = 2; api.wait(`動く床 ${m} が下りてくる`, () => { const f = w.movers[m].f, ok = f < 0.3 && f < prev; prev = f; return ok; }); };
+  // 乗ると動く床 m（mode 'ride'）で向こう岸へ渡り、off へ降りる。だれもいなくなった床が、出発点へ帰ることも確かめる
+  api.tram = (m, off) => {
+    const k = w.movers[m];
+    api.go(() => api.center(m)); api.wait(`乗ると動く床 ${m} が行き先に着く`, () => k.f > 0.97);
+    api.go(off);
+    api.wait(`乗ると動く床 ${m} が出発点へ帰る`, () => k.f < 0.03, (k.wait ?? 1.5) + Math.hypot(...k.to) / (k.speed || 2.5) + 2);
+  };
+  // せんぷうき箱 i を spot に置き、その風に乗って高さ ledgeY を越えてから、landing へ降りる
+  api.fanUp = (i, spot, ledgeY, landing) => {
+    const c = w.crates[i];
+    api.grab(i); api.put(...spot); api.wait(`せんぷうき箱 ${i} の風が出る`, () => w.winds.some(k => k.fan === c && k.active), 3);
+    api.face(c.x, c.z); p.jump();
+    api.go([c.x, c.z], () => p.y > ledgeY);
+    api.go(landing);
+  };
+  // あみを登る：foot（あみの前の地面）へ行き、top（登った先）の向きにあみをつかんで、てっぺんまで登る
+  api.climb = (foot, top) => {
+    api.go(foot); api.face(...top); p.grabStart();
+    assert.ok(p.hang?.climb, `${name}: あみをつかめない ${where()}`);
+    const net = p.hang.b, [fx, fz] = p.facing();
+    for (let n = 0; p.hang || p.y < net.y1 - 0.01; n++) { assert.ok(p.hang && n < FPS * 40, `${name}: あみを登りきれない ${where()}`); tick(fx, fz); }
+    p.grabEnd(); api.go(top);
+  };
+  // 跳んでつかまないと届かない段（地面から 1.7〜2.4m。箱や台車の上からなら、そこから 2.4m まで）をよじ登る：
+  // foot（段の前）へ行き、top（登った先）のほうを向いて跳び、「つかむ」を押したまま前へ倒しつづける
+  api.hoist = (foot, top) => {
+    api.go(foot); api.face(...top); const [fx, fz] = p.facing(), from = p.y;
+    p.jump(); p.grabStart();
+    for (let n = 0; !(p.grounded && p.y > from + 1.2); n++) { assert.ok(n < FPS * 6, `${name}: 跳んでつかんでも、段によじ登れない ${where()}`); tick(fx, fz); }
+    p.grabEnd(); api.go(top);
+  };
+  // ハンドル h のそばへ行ってつかみ、pred が合うまで回しつづけてから放す
+  api.crank = (h, pred) => {
+    const k = w.handles[h], d0 = Math.hypot(p.x - k.x, p.z - k.z), ux = (p.x - k.x) / d0, uz = (p.z - k.z) / d0;
+    api.go(() => [k.x + ux * 0.5, k.z + uz * 0.5]); api.face(k.x, k.z); p.grabStart();   // 動く床に付いたハンドルは、床と一緒に動くので追いかける
+    assert.equal(p.crank, h, `${name}: ハンドル ${h} をつかめない ${where()}`);
+    tick(); api.wait(`ハンドル ${h} を回しきる`, pred, 60); p.grabEnd();               // 少なくとも 1 コマは回す（もう行ききっている床も、止まっている時間が数えなおしになる）
+  };
+  // 検査のために、キャラをその場所へ置く（セーブ地点 cp も指定できる）
+  api.place = (x, y, z, cp) => { Object.assign(p, { x, y, z, vy: 0, hvx: 0, hvz: 0, grounded: true }); if (cp != null) p.cp = cp; };
   api.wait('空から着地', () => p.grounded, 6);
   return api;
 }
-const finish = (b, index) => {
-  assert.ok(b.p.goal, `${STAGES[index].name}: ゴールに着いていない`);
-  assert.equal(b.falls, 0, `${STAGES[index].name}: 途中で ${b.falls} 回落ちた（最後は ${b.fellAt} の近く）`);
-  assert.equal(b.p.cp, STAGES[index].cps.length - 1, `${STAGES[index].name}: 通っていないセーブ地点がある`);
-  console.log(`PASS stage ${index + 1} 「${STAGES[index].name}」 is solvable alone`);
-};
 
-// ── ステージ 1：跳ぶ → よじ登る → 箱で門を開ける → トランポリン → くずれる床 → 上下する床 → 回る床 ──
-let b = bot(0);
-b.go([0, 8]); b.go([0, 13]); b.go([0, 18]);
-assert.ok(Math.abs(b.p.y - 2.6) < 0.01, '段をよじ登れていない');
-b.carry(0, 0);
-b.wait('門が開く', () => b.w.movers[0].f > 0.98, 5);
-b.go([0, 20]); b.go([0, 26.5]); b.go([0, 39]);
-b.go([0, 47]);                                                           // 途中のトランポリンで上の島へ
-assert.ok(Math.abs(b.p.y - 5.6) < 0.01, `トランポリンで上の島に乗れていない (y=${b.p.y})`);
-b.go([0, 62.5]);                                                         // くずれる床 4 枚を止まらず渡る
-b.go([0, 65.7]); b.board(5); b.go([0, 68.25]); b.ride(5, 1); b.go([0, 74]);
-b.go([0, 77.4]);
-const docked = m => Math.hypot(b.center(m)[0], b.center(m)[1] - 79.5) < 0.7;
-b.wait('回る床が岸に来る', () => docked(6) || docked(7));
-const spin = docked(6) ? 6 : 7;
-b.go(() => b.center(spin));
-b.wait('回る床が向こう岸に着く', () => b.center(spin)[1] > 88.2 && Math.abs(b.center(spin)[0]) < 1.2);
-b.go([0, 95.5]);
-finish(b, 0);
-
-// 門は、ふみ板が押されていない間は閉まっている。くずれる床は、乗ったままだと一緒に落ちる
-b = bot(0); b.go([0, 8]); b.go([0, 13]); b.go([0, 18]);
-assert.ok(b.w.blocked(0, 28, 2.6), '門が最初から開いている');
-b.p.x = 0; b.p.y = 5.6; b.p.z = 51.1; b.p.cp = 3;
-b.wait('くずれる床と一緒に落ちはじめる', () => b.p.y < 2, 8);
-console.log('PASS gate stays shut without the plate; a crumbling tile drops whoever lingers');
-
-// ── ステージ 2：重い箱を足場に → ふみ板 2 枚の門 → 逆向きのベルトと押し出し壁 → 時間制限の門 → 行き来する床 → トランポリン 2 段 → ふみ板で上がる橋 ──
-b = bot(1);
-b.push(0, [3, -0.1], 0, 1);
-assert.ok(b.w.crates[0].z > 5.2, `重い箱が壁ぎわまで動いていない (z=${b.w.crates[0].z})`);
-b.go([3, 9]);
-assert.ok(Math.abs(b.p.y - 3) < 0.01, `箱を足場に壁を登れていない (y=${b.p.y})`);
-b.carry(1, 0); b.carry(2, 1);
-b.wait('門が開く', () => b.w.movers[0].f > 0.98, 5);
-b.go([0, 23.5]); b.go([0, 38]); b.go([0, 41.5]);
-b.wait('押し出し壁が引っ込みはじめる', () => b.w.movers[1].f > 0.97);
-b.go([0, 62]);                                                           // ベルトをさかのぼる。途中でふみ板（時間制限の門）も踏む
-b.go([0, 80]);
-assert.ok(b.w.movers[3].f > 0.5, '時間制限の門が、通る前に閉まっていた');
-b.go([0, 83.5]);
-b.hop(4); b.hop(5); b.hop(6);
-b.wait('島の正面に来る', () => Math.abs(b.p.x) < 2.5); b.go(() => [b.p.x, 100.5]);
-b.go([0, 101]); b.go([0, 109.5]); b.go([0, 117]);                                        // トランポリン 2 段
-assert.ok(Math.abs(b.p.y - 9) < 0.01, `トランポリンで上まで登れていない (y=${b.p.y})`);
-b.carry(3, 3);
-b.wait('橋が上がる', () => b.w.movers[7].f > 0.98, 5);
-b.go([0, 119.5]); b.go([0, 133]);
-finish(b, 1);
-
-// ── ステージ 3：ふみ板のエレベーター → 氷 → 風で上へ → 観覧車 → 重い箱で壁を登る → くずれる床とトランポリン ──
-b = bot(2);
-b.carry(0, 0);
-b.go([0, 6.5]); b.go([0, 9]); b.go([0, 13]); b.go([0, 14.2]);
-b.board(0); b.go([0, 16.75]); b.ride(0, 1); b.go([0, 23]);
-b.go([0, 51]);                                                           // 氷の道
-b.carry(1, 2);
-assert.ok(b.w.winds[0].active, 'ふみ板を押しても風が吹かない');
-b.go([0, 53.5]); b.go([0, 57.5], () => b.p.y > 17.7); b.go([0, 64]);      // 風に乗って上がり、上の足場へ
-assert.ok(Math.abs(b.p.y - 17) < 0.01, `風で上の足場に乗れていない (y=${b.p.y})`);
-b.go([0, 67.3]);
-const low = () => [1, 2, 3].find(m => Math.abs(b.center(m)[1] - 72.1) < 0.5 && b.w.movers[m].box.y1 < 17.3);   // いちばん下へ着く少し手前から動き出す
-b.wait('観覧車のかごが下に来る', () => low() != null);
-const car = low();
-b.go(() => b.center(car), () => b.p.on === b.w.movers[car].box && Math.abs(b.center(car)[1] - b.p.z) < 0.5);
-b.wait('かごが高い足場の横へ下りてくる', () => b.center(car)[1] > 75.4 && b.w.movers[car].box.y1 > 21.9 && b.w.movers[car].box.y1 < 23.2);
-b.go([0, 81]);
-b.push(2, [3, 78.9], 0, 1);
-b.go([3, 87]); b.go([0, 87]);
-assert.ok(Math.abs(b.p.y - 25) < 0.01, );
-b.go([0, 105.5]);
-finish(b, 2);
-
-// ── ステージ 4：のこぎり → ワープ（離れ島から箱を持ち帰る）→ 門 → プレス機 2 台 → 大砲 → ふみ板 2 枚の門 → のこぎりの橋 → くずれる床 ──
-b = bot(3);
-{ const m = b.w.movers, p = b.p;
-  b.go([-1.3, 7.6]); b.wait('のこぎり 1 が遠ざかる', () => m[0].f > 0.45 && m[0].rise);
-  b.go([-1.3, 13.6]); b.wait('のこぎり 2 が遠ざかる', () => m[1].f < 0.3 && m[1].fall);
-  b.go([-1.3, 17.5]); b.go([0, 22]);
-  b.go([0, 25], () => p.x < -10);                                        // まん中のワープ台 → 離れ島
-  const c = b.w.crates[0], d0 = Math.hypot(p.x - c.x, p.z - c.z);
-  b.grab(0, [c.x + (p.x - c.x) / d0, c.z + (p.z - c.z) / d0]);
-  b.go([-12.5, 25], () => p.x > -5);                                     // 箱を持ったまま、帰りのワープ台
-  assert.equal(p.carry, c, 'ワープで箱を落とした');
-  b.go([3, 25], () => p.z > 35);                                         // 右のワープ台 → 先の島
-  const t = b.w.plates[0], ux = t.x - p.x, uz = t.z - p.z, u = Math.hypot(ux, uz);
-  b.go([t.x - ux / u * 0.95, t.z - uz / u * 0.95]); p.grabEnd();
-  b.wait('門が開く', () => m[2].f > 0.98, 6);
-  b.go([0, 48.2]); b.wait('プレス機 1 が上がる', () => m[3].f < 0.12 && m[3].fall);
-  b.go([0, 51.6]); b.wait('プレス機 2 が上がる', () => m[4].f > 0.88 && m[4].rise);
-  b.go([0, 60]);
-  b.go([0, 73.5]);                                                       // 大砲で向こう岸へ
-  b.carry(1, 1); b.carry(2, 2);
-  b.wait('門が開く', () => m[5].f > 0.98, 6);
-  b.go([1.25, 78]); b.go([1.25, 88]); b.go([0, 97]);                     // のこぎりの横をすり抜け、くずれる床を渡る
+// ここから下は、このファイルを直接動かしたときだけ（tools/test-adventure-mechanics.mjs は makeBot だけを借りる）
+const dir = new URL('../apps/gallery/adventure-stages/', import.meta.url);
+const all = fs.readdirSync(dir).map(f => /^s(\d+)\.js$/.exec(f)).filter(Boolean).map(m => +m[1]).sort((a, b) => a - b);
+const only = process.argv.slice(2).map(Number).filter(n => n > 0);
+for (const n of path.basename(process.argv[1] || '') !== 'test-adventure.mjs' ? [] : only.length ? only : all) {
+  const stage = (await import(new URL(`s${n}.js`, dir).href)).default(kit);
+  const script = (await import(new URL(`./adventure-bots/s${n}.mjs`, import.meta.url).href)).default;
+  const fresh = () => makeBot(stage), b = fresh();
+  await script(b, { assert, fresh, stage });
+  assert.ok(b.p.goal, `${stage.name}: ゴールに着いていない ${b.where()}`);
+  assert.equal(b.falls, 0, `${stage.name}: 途中で ${b.falls} 回落ちた（最後は ${b.fellAt} の近く）`);
+  console.log(`PASS stage ${n} 「${stage.name}」 is solvable alone`);
 }
-finish(b, 3);
-
-// プレス機の下にいると、つぶされてやり直しになる。のこぎりも同じ
-b = bot(3); b.p.x = 0; b.p.y = 0; b.p.z = 50; b.p.cp = 2;
-b.wait('プレス機につぶされる', () => b.falls === 1, 8);
-b.wait('着地', () => b.p.grounded, 6); b.p.x = 0; b.p.y = 0; b.p.z = 9;
-b.wait('のこぎりに当たる', () => b.falls === 2, 6);
-console.log('PASS the press and the saws send you back to the checkpoint');
-
-// ── ステージ 5：氷の橋と横風 → 速いベルトとのこぎり → 風で上へ → 大きな観覧車 → くずれる床 → 大砲で頂上へ ──
-b = bot(4);
-{ const m = b.w.movers, p = b.p;
-  b.go([-0.8, 4.3]); b.wait('横風が吹きはじめる', () => b.w.winds[0].began);   // 風が吹いている間に近づき、やんだすきに風の通り道を抜ける
-  b.go([-0.8, 19.5]); b.go([0, 25]);
-  b.go([-1.4, 28.3]); b.wait('のこぎりが手前の端へ戻ってくる', () => m[0].fall && m[0].f < 0.1);   // 乗りはじめの合図（抜けられるのは 1 周のうち 4 分の 1 ほど）
-  b.go([-1.4, 44.5]); b.go([0, 47]);
-  b.go([0, 50.3]); b.go([0, 54], () => p.y > 7.7); b.go([0, 60.5]);
-  assert.ok(Math.abs(p.y - 7) < 0.01, `風で上の足場に乗れていない (y=${p.y})`);
-  b.go([0, 63.8]);
-  const low = () => [2, 3, 4].find(k => Math.abs(b.center(k)[1] - 68.6) < 0.5 && m[k].box.y1 < 7.3);
-  b.wait('観覧車のかごが下に来る', () => low() != null);
-  const car = low();
-  b.go(() => b.center(car), () => p.on === m[car].box && Math.abs(b.center(car)[1] - p.z) < 0.5);
-  b.wait('かごが高い足場の横へ下りてくる', () => b.center(car)[1] > 72.8 && m[car].box.y1 > 12.9 && m[car].box.y1 < 14.2);
-  b.go([0, 79.5]);
-  b.go([0, 103]);                                                        // くずれる床を渡り、そのまま大砲で頂上へ
-}
-finish(b, 4);
-
-// ── 落ちたら、最後に通ったセーブ地点の真上（空）から落ちてきて再開する ──
-b = bot(0); b.go([0, 8]); b.go([0, 13]); b.go([0, 18]);
-assert.equal(b.p.cp, 1);
-for (let i = 0; i < 900 && !b.falls; i++) b.tick(1, 0);                  // 東の縁から落ちる
-assert.equal(b.falls, 1, '落ちてもやり直しにならない');
-assert.ok(b.p.y > 10 && Math.hypot(b.p.x, b.p.z - 18) < 1, `セーブ地点の真上に戻っていない (${b.p.x}, ${b.p.y}, ${b.p.z})`);
-b.wait('セーブ地点へ着地', () => b.p.grounded, 6);
-assert.ok(Math.abs(b.p.y - 2.6) < 0.01);
-console.log('PASS falling restarts from the last checkpoint, dropping from the sky');
