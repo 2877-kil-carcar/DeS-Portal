@@ -87,7 +87,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.07">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.08">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
@@ -647,7 +647,7 @@ function start() {
   const white = std(0xffffff, 0.55);
   // やられた後の「半スケルトン」：体を半透明にして、中の骨を見せる
   const ghostMat = new THREE.MeshStandardMaterial({ color: 0xcfe6ff, roughness: 0.4, transparent: true, opacity: 0.28, depthWrite: false });
-  const boneMat = std(0xf4f0e4, 0.7), socketMat = std(0x111111, 1);
+  const boneMat = std(0xf4f0e4, 0.7), socketMat = std(0x111111, 1), GLOVE_MATS = [std(0xe2485a, 0.6), std(0x3d8bff, 0.6)];   // グローブ：赤チーム／青チーム
   // 「背景と同化」：色を消してほぼ透明にする。光の当たり方（つや）は残るので、立体の形はうっすら分かる
   const camoMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.15, transparent: true, opacity: 0.13, depthWrite: false });
   const camoSelfMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.15, transparent: true, opacity: 0.4, depthWrite: false });
@@ -685,15 +685,19 @@ function start() {
       return pivot;
     };
     const arms = [limb(ARM, 0.078), limb(ARM, 0.078)], legs = [limb(LEG, 0.1), limb(LEG, 0.1)];
+    // グローブ：手先にチームの色の丸。部屋に入っている間だけ出す。相手から見えない同化の間は隠す（色で居場所がばれるので）
+    const gloves = arms.map(a => { const o = new THREE.Mesh(new THREE.SphereGeometry(0.105, 16, 12), GLOVE_MATS[0]); o.position.y = -ARM; o.visible = false; a.add(o); return o; });
     scene.add(g);
     const fig = { g, parts: [b, head, ...arms, ...legs], down: false };
     // 見た目の切り替え：'normal' ふつう／'down' やられた半スケルトン／'camo' 背景と同化／'camoSelf' 同化（自分と味方には少し濃く見せる）
-    fig.look = 'normal';
+    fig.look = 'normal'; fig.team = -1;                                                // team：0 赤／1 青／-1 部屋の外（グローブなし）
+    const showGloves = () => gloves.forEach(o => { if (fig.team >= 0) o.material = GLOVE_MATS[fig.team]; o.visible = fig.team >= 0 && fig.look !== 'camo'; });
+    fig.setTeam = t => { if (fig.team !== t) { fig.team = t; showGloves(); } };
     fig.setLook = look => {
       if (fig.look === look) return;
       fig.look = look; fig.down = look === 'down';
       const material = look === 'down' ? ghostMat : look === 'camo' ? camoMat : look === 'camoSelf' ? camoSelfMat : white;
-      skin.forEach(o => { o.material = material; }); bones.forEach(o => { o.visible = fig.down; }); eyes.forEach(o => { o.visible = look === 'normal' || look === 'camoSelf'; });
+      skin.forEach(o => { o.material = material; }); bones.forEach(o => { o.visible = fig.down; }); eyes.forEach(o => { o.visible = look === 'normal' || look === 'camoSelf'; }); showGloves();
     };
     return fig;
   }
@@ -824,6 +828,7 @@ function start() {
     clearTimeout(bannerTimer); bannerTimer = setTimeout(() => { $('banner').hidden = true; }, ms);
   }
   function refreshHud(count) {
+    hero.setTeam(myTeam); ghost.setTeam(myTeam);
     if (count) room.count = count;
     $('roomInfo').textContent = `${room.code}・${room.count}/6・${TEAM_NAMES[myTeam]}`;
     $('roomInfo').style.color = TEAM_COLORS[myTeam];
@@ -907,7 +912,7 @@ function start() {
       let r = remotes.get(id);
       if (r && (r.name !== name || r.team !== team)) { dropRemote(id); r = null; }
       if (!r) {
-        r = { fig: makeFigure(), tag: nameTag(name, team), target: q.s, walkT: 0, team, name, hp: 100 };
+        r = { fig: makeFigure(), tag: nameTag(name, team), target: q.s, walkT: 0, team, name, hp: 100 }; r.fig.setTeam(team);
         r.bar = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x57e389 }));    // 名札の下の HP の棒
         r.bar.position.y = 1.66; r.bar.renderOrder = 90;
         r.fig.g.add(r.tag, r.bar); r.fig.g.position.set(+q.s[0] || 0, +q.s[1] || 0, +q.s[2] || 0); remotes.set(id, r);
@@ -919,7 +924,7 @@ function start() {
   function leftRoom(message) {
     for (const id of [...remotes.keys()]) dropRemote(id);
     room = null; lastSent = ''; holding = heldBy = null; hp = 100; match = { on: false, n: 0 }; powerT = speedT = camoT = 0; syncItems(null); toHall();
-    $('roomHud').hidden = true; $('roomBtn').hidden = false; $('hp').hidden = true;
+    $('roomHud').hidden = true; $('roomBtn').hidden = false; $('hp').hidden = true; hero.setTeam(-1); ghost.setTeam(-1);
     if (message) { panel.hidden = false; roomMsg(message); }
   }
   async function enterRoom(create) {
@@ -929,7 +934,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      roomApi ||= await import('./museum-room.js?v=4.07');
+      roomApi ||= await import('./museum-room.js?v=4.08');
       await roomApi.enter({ create, code, name: roomApi.cleanName(name) || 'ななし', onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
       try { localStorage.setItem('museum:name', name); } catch (_) {}
       panel.hidden = true; roomMsg('');
