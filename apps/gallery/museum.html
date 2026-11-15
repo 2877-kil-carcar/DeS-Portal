@@ -87,7 +87,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.06">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.07">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
@@ -672,6 +672,8 @@ function start() {
     const head = part(g, new THREE.SphereGeometry(0.31, 32, 24), 1.2);                // 頭
     bone(head, new THREE.SphereGeometry(0.2, 16, 12), 0, 0, 0);                       // 頭蓋骨と目の穴
     for (const x of [-0.075, 0.075]) bone(head, new THREE.SphereGeometry(0.05, 8, 6), x, 0.03, 0.165, socketMat);
+    // 目：頭の前に黒い丸を 2 つ。やられた姿（骨の目の穴が出る）と、相手から見えない同化の間は隠す
+    const eyes = [-0.1, 0.1].map(x => { const o = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 8), socketMat); o.position.set(x, 0.05, 0.285); head.add(o); return o; });
     bone(b, new THREE.CylinderGeometry(0.035, 0.035, 0.44, 8), 0, 0.08, 0);           // 背骨とあばら
     for (const y of [0, 0.1, 0.2]) bone(b, new THREE.TorusGeometry(0.15, 0.022, 6, 16), 0, y, 0).rotation.x = Math.PI / 2;
     const limb = (len, rad) => {                                                      // 付け根から先へ伸びる手足。根元から先まで同じ太さで、先は丸い
@@ -691,7 +693,7 @@ function start() {
       if (fig.look === look) return;
       fig.look = look; fig.down = look === 'down';
       const material = look === 'down' ? ghostMat : look === 'camo' ? camoMat : look === 'camoSelf' ? camoSelfMat : white;
-      skin.forEach(o => { o.material = material; }); bones.forEach(o => { o.visible = fig.down; });
+      skin.forEach(o => { o.material = material; }); bones.forEach(o => { o.visible = fig.down; }); eyes.forEach(o => { o.visible = look === 'normal' || look === 'camoSelf'; });
     };
     return fig;
   }
@@ -927,7 +929,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      roomApi ||= await import('./museum-room.js?v=4.06');
+      roomApi ||= await import('./museum-room.js?v=4.07');
       await roomApi.enter({ create, code, name: roomApi.cleanName(name) || 'ななし', onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
       try { localStorage.setItem('museum:name', name); } catch (_) {}
       panel.hidden = true; roomMsg('');

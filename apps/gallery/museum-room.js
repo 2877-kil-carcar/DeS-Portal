@@ -4,7 +4,7 @@
    ・通信が切れた人は、サーバー側の onDisconnect で自動的に部屋から消える
    shortcut: コードの照合も当たり判定も各自の端末で行う（同盟内で遊ぶ前提）。不正対策が要るならサーバー側の検証へ移す */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, remove, onValue, onDisconnect, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, get, set, remove, onValue, onDisconnect, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = Object.freeze({
   apiKey: "AIzaSyBmPQX35nYTBzJhvU5Cu4lBifpmzQW2PLk",
@@ -79,13 +79,23 @@ export async function enter({ create, code, name, onRoom, onGone }) {
   myFxRef = ref(db, `${ROOM_PATH}/fx/${pid}`);
   await withTimeout(onDisconnect(myRef).remove());                     // 先に「切れたら消す」を予約してから入る
   onDisconnect(myFxRef).remove().catch(() => {});
-  let error = "";
-  const result = await withTimeout(runTransaction(roomRef, room => {
-    const d = decideEntry(room, { create, code, pid, name, now: serverNow() });
+  let error = "", ok = false;
+  if (create) {
+    const result = await withTimeout(runTransaction(roomRef, room => {
+      const d = decideEntry(room, { create, code, pid, name, now: serverNow() });
+      error = d.error || "";
+      return d.error ? undefined : d.room;
+    }));
+    ok = result.committed && !!result.snapshot.val()?.players?.[pid];
+  } else {
+    /* 入るときは、部屋を 1 回読んで判定し、自分の行だけを書く。部屋全体を「読んで書き直す」方式（上の create と同じ）だと、
+       中の人たちが位置を送るたびにやり直しになり、人数が増えるほど入れなくなる（4 人いると、入れたり入れなかったりした）。
+       shortcut: 同じ瞬間に 2 人が入ると、定員を 1 人超えることがある。困るなら人数だけを別の場所で数える */
+    const d = decideEntry((await withTimeout(get(roomRef))).val(), { create, code, pid, name, now: serverNow() });
     error = d.error || "";
-    return d.error ? undefined : d.room;
-  }));
-  if (!result.committed || !result.snapshot.val()?.players?.[pid]) {
+    if (d.room) { await withTimeout(set(myRef, d.room.players[pid])); ok = true; }
+  }
+  if (!ok) {
     onDisconnect(myRef).cancel().catch(() => {});
     throw fail(error || "その部屋は見つかりません。コードを確かめてください。");
   }
