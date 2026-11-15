@@ -73,7 +73,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.05">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.06">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <button class="ui pill small" id="stageInfo" aria-label="ステージを選ぶ"></button>
@@ -113,8 +113,8 @@
    キャラの体（ラグドール）は美術館 museum.html と同じ作り。
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
-import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.05';
-import { STAGES } from './adventure-stages.js?v=4.05';
+import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.06';
+import { STAGES } from './adventure-stages.js?v=4.06';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -761,7 +761,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.05'); roomApi.setup('adventure/room', 3); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.06'); roomApi.setup('adventure/room', 3); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });

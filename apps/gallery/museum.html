@@ -87,7 +87,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.05">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.06">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
@@ -836,9 +836,11 @@ function start() {
     banner(`試合開始！　${ARENAS[match.st]?.[1] || ARENAS[0][1]}`, 2500);
   }
   $('matchBtn').addEventListener('click', () => {
-    const teams = [0, 0]; teams[myTeam]++; for (const r of remotes.values()) teams[r.team]++;
-    if (!teams[0] || !teams[1]) { banner('相手チームがいません（2人以上で始められます）', 3000); return; }
-    roomApi.setMatch({ on: true, n: nonce(), st: Math.floor(Math.random() * ARENAS.length) });
+    const ids = [roomMe, ...remotes.keys()], tm = {};
+    if (ids.length < 2) { banner('相手がいません（2人以上で始められます）', 3000); return; }
+    for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }   // チームは試合のたびに、くじで分け直す（人数は半々）
+    ids.forEach((id, i) => { tm[id] = i % 2; });
+    roomApi.setMatch({ on: true, n: nonce(), st: Math.floor(Math.random() * ARENAS.length), tm });
   });
 
   // ── アイテム（対戦の第 4 段階）：部屋にいる間、15 秒ごとにどこかへ 1 つ出る（同時に 3 つまで）。触ると取れる ──
@@ -879,16 +881,18 @@ function start() {
     }
   }
 
+  // その人のチーム：試合中は、開始のときのくじ（match.tm）。試合の外と、途中から入った人は、入室のときのチーム
+  const teamOf = (id, q) => (match.on && match.tm?.[id] != null ? match.tm[id] : q.team) === 1 ? 1 : 0;
   let lastFx, roomMe = null;                                                          // 最後に反映した自分宛ての合図の番号／部屋での自分の id
   function onRoom(code, players, me, fx, m, itemData) {
     syncItems(itemData);
-    roomMe = me; myTeam = players[me].team === 1 ? 1 : 0;
+    roomMe = me; myTeam = teamOf(me, players[me]);
     const first = !room;
     if (first) lastFx = fx?.n;                                                        // 入室前から残っていた合図は無視する
     else if (fx && fx.n !== lastFx) { lastFx = fx.n; onFx(fx); }
     room ||= { code };
     if ((m?.n || 0) !== match.n) {                                                    // 試合が始まった／終わった
-      match = { on: !!m?.on, n: m?.n || 0, st: m?.st | 0 };
+      match = { on: !!m?.on, n: m?.n || 0, st: m?.st | 0, tm: m?.tm }; myTeam = teamOf(me, players[me]);
       if (match.on) beginMatch(); else toHall();
       if (!match.on) if (!first && m && m.winner != null) banner(m.winner === -1 ? '引き分け！' : `${TEAM_NAMES[m.winner]}チームの勝ち！`, 6000);
     }
@@ -897,7 +901,7 @@ function start() {
     for (const id of [...remotes.keys()]) if (!players[id]) dropRemote(id);
     for (const [id, q] of Object.entries(players)) {
       if (id === me || !Array.isArray(q.s)) continue;
-      const name = String(q.name || 'ななし').slice(0, 12), team = q.team === 1 ? 1 : 0;
+      const name = String(q.name || 'ななし').slice(0, 12), team = teamOf(id, q);
       let r = remotes.get(id);
       if (r && (r.name !== name || r.team !== team)) { dropRemote(id); r = null; }
       if (!r) {
@@ -923,7 +927,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      roomApi ||= await import('./museum-room.js?v=4.05');
+      roomApi ||= await import('./museum-room.js?v=4.06');
       await roomApi.enter({ create, code, name: roomApi.cleanName(name) || 'ななし', onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
       try { localStorage.setItem('museum:name', name); } catch (_) {}
       panel.hidden = true; roomMsg('');
