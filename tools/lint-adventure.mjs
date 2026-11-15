@@ -1,5 +1,5 @@
 // もふもふ冒険のステージの「作りまちがい」を、動かす前に点検する（自動操縦 tools/test-adventure.mjs より先に走らせる）。
-// 見るもの：当たりのある箱は 200 個まで／条件・ハンドル・レールの端が指す番号があるか／巻き上げる床の up・down は 0 より大きいか／てんびんは A と B の 2 枚で 1 組か／
+// 見るもの：当たりのある箱は 200 個まで／条件・ハンドル・レールの端が指す番号があるか／巻き上げる床の up・down は 0 より大きいか／てんびん・はねシーソーは A と B の 2 枚で 1 組か／
 //           カタパルトを動かすおもさ板は、台から 2m 以上離れているか／止まっている動く床から、歩いて出られるか（出られないなら kill より下に止めてあるか）／
 //           箱の置き場所に床があるか（レールの箱は、レールの中にあるか）／
 //           錠が見るソケットの数だけ、でんちがあるか／セーブ地点の真上（3m 四方・高さ 14m）を箱や動く床が通らないか、2.5m 以内をのこぎりが通らないか、
@@ -40,7 +40,7 @@ export function lint(stage) {
   movers.forEach((m, i) => {
     if (m.mode === 'crank') need(m.handles?.length, `動く床 ${i}（crank）に、ハンドルがない`);
     if (m.mode === 'crank') need((m.up ?? 4) > 0 && (m.down ?? 8) > 0, `動く床 ${i}（crank）の up と down は、0 より大きくする（0 だと、位置が数でなくなる）`);
-    if (m.mode === 'scale') need(['AB', 'BA'].includes(movers.filter(k => k.mode === 'scale' && k.pair === m.pair).map(k => k.side).join('')), `動く床 ${i}（scale）の組 ${m.pair} が、A と B の 2 枚で 1 組になっていない`);
+    if (m.mode === 'scale' || m.mode === 'seesaw') need(['AB', 'BA'].includes(movers.filter(k => k.mode === m.mode && k.pair === m.pair).map(k => k.side).join('')), `動く床 ${i}（${m.mode}）の組 ${m.pair} が、A と B の 2 枚で 1 組になっていない`);
     // 止まっている場所（かぎの橋を下に止めた所など）に落ちた箱や人が、歩いて出られるか。出られないなら、kill より下に止める（落ちたものが、元の場所へ戻る）
     if (m.to && !['always', 'crumble'].includes(m.mode)) need(m.b.y1 < stage.kill || boxes.some(b => walk({ at: [m.b] }, { at: [b], ...b })),
       `動く床 ${i} は、止まっている場所（上面 ${m.b.y1}）から歩いて出られる足場がなく、落とした箱や人が上に残る。上面を kill（${stage.kill}）より下にする`);

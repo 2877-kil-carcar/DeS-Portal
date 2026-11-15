@@ -1,5 +1,5 @@
 // もふもふ冒険の「しくみ」を 1 つずつ、小さな検査用ステージで確かめる（ステージの中身には依存しない）。
-// めり込みからの脱出・プレス機・セーブ地点・信号と条件・空中でつかむ・でんちとソケット・おもさ板・乗ると動く床・せんぷうき箱・あみ・てんびん・カタパルト・レールの箱・まきあげハンドル。
+// めり込みからの脱出・プレス機・セーブ地点・信号と条件・空中でつかむ・でんちとソケット・おもさ板・乗ると動く床・せんぷうき箱・あみ・てんびん・はねシーソー・カタパルト・レールの箱・まきあげハンドル。
 // そのあとに、見直しで見つかった不具合の検査：動く床と壁の間からの脱出・あみを遠めからつかむ・ハンドルから手が離れる距離・「放した」知らせの合わせ方（w.release）・
 // 重い箱をつかんだままのカタパルト・load: n の猶予・乗ると動く床とてんびんの「行ったり来たりしない」「あとから入った端末」・箱の上のせんぷうき箱・跳んでつかむ（hoist）。
 // 見直し（2 回め）の検査：仲間の頭の上のせんぷうき箱・動く床が人や箱を動かない箱の中へ運ばない・遠ざかった重い箱から手が離れる・同じハンドルを 2 人で回す・
@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { kit, makeWorld, REACH } from '../apps/gallery/adventure-world.js';
 import { makeBot } from './test-adventure.mjs';
 import { lint } from './lint-adventure.mjs';
-const { B, P, CP, wind, gust, saw, cannon, cell, socket, WP, fan, net, launcher, lever, cart, railEnd } = kit;
+const { B, P, CP, wind, gust, saw, cannon, cell, socket, WP, fan, net, launcher, lever, cart, railEnd, seesaw } = kit;
 const FPS = +process.env.FPS || 60;
 
 let seed = 7;
@@ -305,6 +305,46 @@ group('てんびん：A に荷があり、B がそれ以上に重いと A が上
   b.go([1, 1]); b.friend = null;                                                    // 上がった A の真下に立つ
   b.wait('下りてきた皿は体をすり抜け、体は上に乗る', () => A.f === 0, 8);
   assert.ok(b.falls === 0 && near(p.y, 0.05) && p.on === A.box, `下りてきた皿の上に乗れていない ${b.where()}`);
+});
+
+group('はねシーソー：B に荷があり A 以上に重いと、B が沈み A がはね上がる。上がっていく A の上の人と箱は飛ぶ。上がりきった A は、ただの床', () => {
+  const ground = B(0, 0, 0, 16, 8, 1), isle = B(0, 0, 14, 8, 8, 1), step = B(6.75, 1.1, 0, 2.5, 3, 1.1);   // 広場（z -4〜4）・北の島（z 10〜18）・B の横の段
+  const make = (boxes = [ground, isle, step]) => bot({ boxes, movers: seesaw(B(0, 0.05, 0, 3, 3, 0.4), B(4, 1.1, 0, 3, 3, 0.4), 1.05, [0, 13, 5], 's'),
+    crates: [{ x: -4, y: 0, z: -2, s: 0.8 }], cps: [CP(-3, 0, -2)] });
+  let b = make(), { w, p } = b, [A, Bp] = w.movers, c = w.crates[0];
+  const onB = wt => [4, Bp.box.y1, 0, wt];
+  b.go([0, 0]); run(b, 1); assert.ok(p.grounded && A.f === 0 && !A.box.fling, 'B が空なのに、A が動いた');
+  // 1 人で：箱を A に置き、段から B へ乗ると、箱が北の島へ飛ぶ
+  b.grab(0); b.put(0, 0); b.wait('箱が A にのる', () => c.on === A.box, 3); const x0 = c.x;
+  b.go([6.75, -2.3]); b.go([6.75, 0]); b.go([4, 0]);
+  b.wait('箱が北の島に着く', () => c.on === isle, 5);
+  assert.ok(A.f === 1 && Bp.f === 1 && c.moved && c.x === x0 && c.z > 10 && b.falls === 0, `箱の飛び方がちがう (${c.x}, ${c.y}, ${c.z})`);
+  b.go([4, -3]); b.wait('B が空になると、元へ戻る', () => A.f === 0, 3);
+  // 仲間と：A に立つ人は、B に仲間が乗ったとたんに飛ぶ（同じ重さでも）
+  b = make(); ({ w, p } = b); [A, Bp] = w.movers;
+  b.go([0, 0]); b.friend = onB(1); b.tick(); hold(b, 'A の人が飛ぶ', 0, 0, () => !p.grounded && p.vy > 10, 0.5);
+  assert.ok(p.flung, '飛んでいる間の舵が、大砲と同じにしぼられていない');
+  hold(b, 'v の向き（北）へ飛んでいく', 0, 0, () => p.z > 5 && p.y > 3, 2);
+  // 上がりきった A に乗っても、飛ばない。軽い箱を持った人（重さ 2）が A にいると、仲間 1 人では沈まない
+  b = make(); ({ w, p } = b); [A, Bp] = w.movers;
+  b.friend = onB(1); b.wait('A が上がる', () => A.f === 1, 2);
+  b.place(0, 1.1, 0); run(b, 1); assert.ok(p.grounded && near(p.y, 1.1) && A.f === 1, `上がりきった A の上で、飛んだか下がった ${b.where()}`);
+  b = make(); ({ w, p } = b); [A, Bp] = w.movers;
+  b.grab(0); b.go([0, 0]); b.friend = onB(1); run(b, 1.5); assert.ok(p.grounded && A.f === 0, '重さ 2 の A が、重さ 1 の B で上がった');
+  b.friend = onB(2); b.tick(); hold(b, '2 対 2 なら飛ぶ', 0, 0, () => !p.grounded && p.vy > 10, 0.5); assert.equal(p.carry, w.crates[0], '持っていた箱を落とした');
+  // 飛んだ箱が壁に当たると、そこから下へ落ちる（壁を通りぬけない）
+  b = make([floor, B(0, 12, 6, 8, 0.4, 12), step]); ({ w, p } = b); [A, Bp] = w.movers; c = w.crates[0];
+  move(c, 0, 0.05, 0); b.tick(); b.friend = onB(1);
+  b.wait('箱が壁の手前に落ちる', () => c.kv === null && c.on === floor && c.vy === 0, 5);
+  assert.ok(c.z < 5.8 - 0.4 + 1e-9 && c.z > 3, `箱が壁を通りぬけたか、手前すぎる (z=${c.z})`);
+  // 宙で手に取った箱は、横の勢いをなくす（置いたあとに、すべっていかない）
+  c.kv = [10, 0]; c.held = 'me'; b.tick(); assert.equal(c.kv, null, '手に取った箱に、横の勢いが残った'); c.held = null;
+  // あとから入った端末：上がった A の上の箱を、部屋の知らせで下の A に置く（ページの place と同じ）。B には仲間。皿は追いつくだけで、箱は飛ばない
+  b = make(); ({ w, p } = b); [A, Bp] = w.movers; c = w.crates[0];
+  move(c, 0, 0.05, 0); c.on = A.box; A.calm = Bp.calm = 0.5; b.friend = [4, 0.05, 0, 1];
+  for (let i = 0; i < 2 * FPS; i++) { b.tick(); assert.ok(!c.kv && c.vy <= 0, `追いついた A が、箱を飛ばした (${c.x}, ${c.y}, ${c.z})`); }
+  assert.ok(A.f === 1 && c.on === A.box && near(c.y, 1.1), `箱が上がった A にのっていない (${c.y})`);
+  b.friend = null; b.wait('B が空になると戻る', () => A.f === 0, 4); b.friend = onB(1); b.wait('もう一度踏むと、箱は飛ぶ', () => !!c.kv, 2);
 });
 
 group('カタパルト：条件が合う間だけ打ち出す。板の重さでねらいが変わる', () => {
@@ -762,6 +802,7 @@ group('ステージの点検（lint）：正しいステージは通し、わざ
     ['毎秒 1m', st => { st.movers[1].speed = 2; }],
     ['up と down', st => { st.movers[2].down = 0; }],
     ['2 枚で 1 組', st => st.movers.push({ b: B(0, 0.05, -6, 1.6, 3, 0.4, 3), to: [0, 2, 0], mode: 'scale', pair: 'z', side: 'A' })],   // 相手の皿がない
+    ['2 枚で 1 組', st => st.movers.push(seesaw(B(0, 0.05, -6, 3, 3, 0.4), B(4, 1.1, -6, 3, 3, 0.4), 1.05, [0, 9, 7], 'y')[0])],      // はねシーソーの片方だけ
     ['2m より近い', st => { st.plates.push(WP(9, 0, 6.2, 2)); st.boxes[4].launch.aims[0].on = [4]; }],   // 台（z 7.8〜）の 0.4m 手前に、それを動かすおもさ板
     ['kill（-12）より下', st => st.movers.push({ b: B(0, -6, 15, 3, 6, 1, 3), to: [0, 6, 0], mode: 'hold', on: [0] })],   // 6m 下に止めた、かぎの橋（落とした箱が、上に残る）
     ['帰る道がない', st => { st.boxes[2] = plainBox; }],                              // 島の大砲を、ただの箱にする

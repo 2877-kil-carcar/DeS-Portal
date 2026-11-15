@@ -73,7 +73,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.10">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.11">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <button class="ui pill small" id="stageInfo" aria-label="ステージを選ぶ"></button>
@@ -91,7 +91,7 @@
 <div class="ui" id="roomPanel" role="dialog" aria-label="みんなで冒険" hidden>
   <div class="box">
     <h2>👥 みんなで冒険</h2>
-    <p>同じ部屋に入った人どうしで、力を合わせてステージを進めます。部屋は同時に1つだけ、3人までです。1人でも最後まで遊べます。</p>
+    <p>同じ部屋に入った人どうしで、力を合わせてステージを進めます。部屋は同時に1つだけ、4人までです。1人でも最後まで遊べます。</p>
     <label>なまえ<input id="roomName" maxlength="12" autocomplete="off"></label>
     <button class="pill" id="roomCreate">部屋を作る</button>
     <label>部屋のコード（6文字）<input id="roomCode" maxlength="6" autocomplete="off" autocapitalize="characters"></label>
@@ -108,13 +108,13 @@
 
 <script src="../bridge.js"></script>
 <script type="module">
-/* もふもふ冒険：白くて丸いキャラで、空に浮かぶステージを進む協力アクション（3 人まで）。
+/* もふもふ冒険：白くて丸いキャラで、空に浮かぶステージを進む協力アクション（4 人まで）。
    足場・仕掛け・キャラの動きのルールは adventure-world.js。このファイルは、それを描く・操作する・部屋でそろえる係。
    キャラの体（ラグドール）は美術館 museum.html と同じ作り。
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
-import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.10';
-import { STAGES } from './adventure-stages.js?v=4.10';
+import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.11';
+import { STAGES } from './adventure-stages.js?v=4.11';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -290,7 +290,7 @@ function start() {
         }
         if (m.need > 1) { const p = pips(m.need, m.box); live.push(() => glow(p, m.wt, m.wt >= m.need ? padOnMat : goalMat)); }
       }
-      if (m.side === 'A' && m.twin) {                                                 // てんびん：まん中の柱の上で、はりが傾く。皿は、外がわのへりを、はりの先から吊る。皿ごとに、重さの目もり
+      if (m.mode === 'scale' && m.side === 'A' && m.twin) {                           // てんびん：まん中の柱の上で、はりが傾く。皿は、外がわのへりを、はりの先から吊る。皿ごとに、重さの目もり
         const n = m.twin, q = n.b, qx = (q.x0 + q.x1) / 2, qz = (q.z0 + q.z1) / 2, L = 3.2, len = Math.hypot(qx - cx, qz - cz) || 1, ux = (qx - cx) / len, uz = (qz - cz) / len;
         const ka = (Math.abs(ux) * w + Math.abs(uz) * d) / 2 - 0.15, kb = (Math.abs(ux) * (q.x1 - q.x0) + Math.abs(uz) * (q.z1 - q.z0)) / 2 - 0.15;
         const ax = cx - ux * ka, az = cz - uz * ka, bx = qx + ux * kb, bz = qz + uz * kb, top = (b.y1 + q.y1) / 2 + L, low = Math.min(b.y0, q.y0 + n.to[1]) - 0.5;
@@ -300,6 +300,19 @@ function start() {
         live.push(() => {
           const ya = m.box.y1 + L, yb = n.box.y1 + L;
           ca.position.y = ya - L / 2; cb.position.y = yb - L / 2; beam.scale.z = Math.hypot(len + ka + kb, yb - ya) + 0.3; beam.lookAt(bx, yb, bz);
+          glow(pa, m.wt, goalMat); glow(pb, n.wt, goalMat);
+        });
+      }
+      if (m.mode === 'seesaw' && m.side === 'A' && m.twin) {                          // はねシーソー：2 枚の皿の下を、まん中の柱の上で傾く板がつなぐ。A（すわる皿）には飛ぶ向きの矢印。皿ごとに、重さの目もり
+        const n = m.twin, q = n.b, qx = (q.x0 + q.x1) / 2, qz = (q.z0 + q.z1) / 2, px = (cx + qx) / 2, pz = (cz + qz) / 2, top = (b.y0 + b.y1 + q.y0 + q.y1) / 4;   // 支点：2 枚の皿のまん中（皿が動いても変わらない）
+        const low = Math.max(top - 6, world.floorY(px, pz, top));
+        part(unit, darkMat, group, px, (top + low) / 2, pz, 0.4, top - low, 0.4);
+        const beam = part(unit, darkMat, group, px, top, pz, 0.3, 0.16, 1), v = m.v || [0, 0, 1], k = Math.hypot(v[0], v[2]) || 1;
+        const arrow = part(arrowGeo, arrowMat, follow(new THREE.Group(), m.box, 0.03), -v[0] / k * 0.9, 0, -v[2] / k * 0.9, 1, 1, 1.8); arrow.rotation.y = Math.atan2(v[0], v[2]);
+        const pa = pips(3, m.box), pb = pips(3, n.box);
+        live.push(() => {
+          const ay = (m.box.y0 + m.box.y1) / 2, by = (n.box.y0 + n.box.y1) / 2;               // 板は、2 枚の皿の厚みのまん中を通る
+          beam.scale.z = Math.hypot(qx - cx, by - ay, qz - cz); beam.position.y = (ay + by) / 2; beam.lookAt(qx, by, qz);
           glow(pa, m.wt, goalMat); glow(pb, n.wt, goalMat);
         });
       }
@@ -679,9 +692,9 @@ function start() {
   $('actGrab').addEventListener('pointerdown', e => { e.preventDefault(); try { e.target.setPointerCapture(e.pointerId); } catch (_) {} grabStart(); });
   for (const type of ['pointerup', 'pointercancel']) $('actGrab').addEventListener(type, () => grabEnd());
 
-  // ── みんなで冒険：部屋は 1 つ・3 人まで。通信は美術館と同じ museum-room.js（部屋の場所と人数だけ変える）──
+  // ── みんなで冒険：部屋は 1 つ・4 人まで。通信は美術館と同じ museum-room.js（部屋の場所と人数だけ変える）──
   const PREVIEW = new URLSearchParams(location.search).get('preview') === '1';
-  const TAG_COLORS = ['#e2485a', '#3d8bff', '#3aa655'];
+  const TAG_COLORS = ['#e2485a', '#3d8bff', '#3aa655', '#b65cff'];                  // 名札の色（4 人まで、1 人ずつちがう色）
   const remotes = new Map();                                                          // 相手の id → { fig, tag, target, walkT, name }
   let room = null, roomApi = null, roomMe = null, created = false, sendT = 0, lastSent = '', lastFx;
   let grabbing = false, holding = null, holdT = 0, heldBy = null, struggle = 0, lastIx = 0;   // つかむを押している／持ち上げている仲間／自分を持っている仲間
@@ -699,7 +712,7 @@ function start() {
     return tag;
   }
   // 仲間の手を離れた軽い箱 c：放した人が知らせてきた置き場所があれば、そこに置く
-  const letGo = c => { c.held = null; if (c.pending) { [c.x, c.y, c.z] = spot(c.pending); c.pending = null; c.vy = 0; world.fit(c); } };
+  const letGo = c => { c.held = null; if (c.pending) { place(c, c.pending); c.pending = null; } };
   // shortcut: ハンドルを回したまま通信が切れた仲間は、「放した」知らせを書けない。床の戻りはじめが、端末ごとに少しずれる（戻りきるか、次にだれかが放せばそろう）。気になるなら、id が先の人に代わりに知らせを書かせる
   function dropRemote(id) {
     const r = remotes.get(id); scene.remove(r.fig.g); r.tag.material.map.dispose(); r.tag.material.dispose(); remotes.delete(id);
@@ -707,6 +720,13 @@ function start() {
   }
   // 箱の知らせ d の場所。動く床の上に置かれた箱（d.m がその床の番号）は、この端末でのその床のずれを足す
   const spot = d => { const o = world.movers[d.m]?.o; return d.p.map((v, i) => (+v || 0) + (o ? o[i] : 0)); };
+  // 軽い箱を、知らせの場所に置く。はねシーソーの皿の上なら、皿にのせ、皿を重さどおりの位置へすぐ移す（この端末の皿が遅れていても、追いつくだけで箱を飛ばさない）
+  const place = (c, d) => {
+    [c.x, c.y, c.z] = spot(d); c.vy = 0; c.kv = null;
+    const s = world.movers[d.m];
+    if (s?.mode === 'seesaw') { c.on = s.box; s.calm = s.twin.calm = 0.5; }
+    world.fit(c);
+  };
   /* 部屋の内容が変わるたびに呼ばれる。m = { stage, n } は「いまのステージと、何回目の出発か」、
      boxes は箱の置き場所（c 番号。置いた人・押した人が書く）と、巻き上げる床から手を放した知らせ（k 番号） */
   function onRoom(code, players, id, fx, m, boxes) {
@@ -721,9 +741,9 @@ function start() {
       c.seen = d.n;
       if (c.heavy) c.net = d;                                                         // 重い箱（レバー・台車も）は、知らされた場所へなめらかに寄せる（メインループ）
       else if (c.held && c.held !== 'me') c.pending = d;                               // まだ仲間の手元にある：放したと分かった時点で、この場所に置く
-      else if (me.carry !== c) { [c.x, c.y, c.z] = spot(d); c.vy = 0; world.fit(c); }  // 自分が持っている箱は、自分の手元を優先
+      else if (me.carry !== c) place(c, d);                                           // 自分が持っている箱は、自分の手元を優先
     }
-    $('roomInfo').textContent = `${code}・${Object.keys(players).length}/3`;
+    $('roomInfo').textContent = `${code}・${Object.keys(players).length}/4`;
     $('roomHud').hidden = false; $('roomBtn').hidden = true;
     for (const rid of [...remotes.keys()]) if (!players[rid]) dropRemote(rid);
     const order = Object.keys(players).sort();
@@ -732,7 +752,7 @@ function start() {
       const name = String(q.name || 'ななし').slice(0, 12);
       let r = remotes.get(rid);
       if (!r) {
-        r = { fig: makeFigure(), tag: nameTag(name, TAG_COLORS[order.indexOf(rid) % 3]), target: q.s, walkT: 0, name, mute: -1 };
+        r = { fig: makeFigure(), tag: nameTag(name, TAG_COLORS[order.indexOf(rid) % TAG_COLORS.length]), target: q.s, walkT: 0, name, mute: -1 };
         r.fig.g.add(r.tag); r.fig.g.position.set(+q.s[0] || 0, +q.s[1] || 0, +q.s[2] || 0); remotes.set(rid, r);
       }
       r.target = q.s.map(v => +v || 0);
@@ -761,7 +781,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.10'); roomApi.setup('adventure/room', 3); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.11'); roomApi.setup('adventure/room', 4); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });

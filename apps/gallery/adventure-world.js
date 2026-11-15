@@ -1,7 +1,7 @@
 /* もふもふ冒険の「世界」：足場・仕掛け・箱と、キャラの動き。
    描画も通信も含まない（adventure.html が描き、tools/test-adventure.mjs がこのまま動かして「1 人で解けるか」を検査する）。
    足場はすべて、軸にそろった箱。キャラは半径 R・高さ BODY の円柱として当たりを取る。
-   shortcut: 箱は回転しない・転がらない。シーソーや振り子のような仕掛けが要るなら、物理エンジンへ移す */
+   shortcut: 箱は回転しない・転がらない（はねシーソーは、水平のまま上下する 2 枚の皿で作る）。振り子のような仕掛けが要るなら、物理エンジンへ移す */
 // 動きは「ゆっくり・ねっとり」：歩きは遅く、滑り出しと止まり際が長く、ふわっと跳ぶ
 export const R = 0.3, BODY = 1.4, STEP = 0.35, REACH = 1.7, GRAV = 10, JUMP = 4.75, SPEED = 2.8, BOUNCE = 8.5;
 
@@ -31,6 +31,8 @@ const launcher = (x, top, z, aims) => Object.assign(B(x, top, z, 2.4, 2.4, 0.3, 
 const cart = (x, y, z, axis, min, max) => ({ x, y, z, s: 1.4, heavy: true, solo: true, rail: { axis, min, max } });   // 台車：押して踏み台にする
 const lever = (x, y, z, axis) => { const v = axis === 'x' ? x : z; return { x, y, z, s: 0.6, heavy: true, solo: true, rail: { axis, min: v, max: v + 1.6 } }; };   // レバーのつまみ：置いた場所が min の端。1.6m 先が max の端
 const railEnd = (crate, at) => ({ kind: 'rail', crate, at });               // レールの端の信号（plates に書く）：箱 crate が、その端（'min' か 'max'）にある間「押された」になる
+// はねシーソー（movers に ...seesaw(…) で書く）：すわる皿 a（はじめは下）と、ふむ皿 b（はじめは h 上）。b に重さがあり、a 以上に重いと、b が沈み、a がはね上がる
+const seesaw = (a, b, h, v, pair) => [{ b: a, to: [0, h, 0], mode: 'seesaw', pair, side: 'A', v }, { b, to: [0, -h, 0], mode: 'seesaw', pair, side: 'B' }];
 
 /* 動く床・門（movers）: b を to だけ動かす。
    mode 'always' 行ったり来たりし続ける／'loop' ふみ板（on）が押されている間だけ行き来し、離すと元へ戻る／'hold' 押されている間だけ動いた先にいる
@@ -70,6 +72,14 @@ const railEnd = (crate, at) => ({ kind: 'rail', crate, at });               // �
                   はじめは A が下、B が上。A に重さがあり、B が A 以上に重い間（同じ重さでもよい）、A が H 上がり、B が H 下がる（毎秒 0.8m）。そうでなくなると元へ戻る。
                   皿の重さ＝皿の上の人（乗るまでは縁から 0.15m 外まで。だれかが乗ったあとは 0.3m 外・上面の 1m 下まで。となりの足場に立っている人は数えない）＋皿にのっている箱。
                   軽くなっても 0.6 秒は前の重さのまま
+     ...seesaw(皿A, 皿B, h, [横 x, 上, 横 z], 組の名前)　はねシーソー（2 枚で 1 組。皿の重さの数え方は、てんびんと同じ）。はじめは A（すわる皿）が下、B（ふむ皿）が h 上。
+                  B に重さがあり、B が A 以上に重い間（同じ重さでもよい）、B が h 下がり、A が h 上がる（毎秒 6m。そうでなくなると戻る）。
+                  A が上がっていくコマの間だけ、A の上に立っている人と、のっている箱（レールの箱はのぞく）を、その速さで打ち出す（大砲台と同じ。上がりきった A の上は、ただの床）。
+                  1 人なら「A に箱を置いて B を踏む（箱が飛ぶ）」か「A に立って、ベルトで B に箱を届けさせる（自分が飛ぶ）」。仲間がいれば、B に跳び乗るだけで A の人が飛ぶ。
+                  飛んだ箱は横にも進み（空中では速さが落ちない）、壁に当たると、その場から下へ落ちる。着地すると、置いた箱と同じに記録を書く（c.moved）。宙で手に取ると、横の勢いはなくなる。
+                  m.calm（秒）が残っている間、その皿はすぐ行き先へ移り、打ち出さない（ページは、部屋の知らせで皿の上に箱を置いたとき、組の両方に入れる：あとから入った端末が、追いつくだけで箱を飛ばさないように）。
+                  B に箱を届けるベルトは、B の縁の上で終わる、B より高いうすい棚（厚さ 0.3）にする（B の横に厚い段があると、沈む B にのった箱が、段に引っかかる）。
+                  皿の重さ wt は、てんびんと同じに、通信では何も送らない。打ち出しは、どの端末でも自分の体だけを飛ばす（箱は、全員の端末で同じに飛び、同じ所に着く）
      ride と scale の床は、いまの重さを wt に持つ。どちらも、通信では何も送らない：行き先に着いた床の上にいるはずの仲間（行き先の床の縁から 0.15m より中にいるか、
                   縁のあたりで宙に浮いて見える＝足元 0.5m 以内に床がない）も、乗っている扱いにする。あとから入った端末や、しばらく止まっていた端末でも、床が仲間の足元へ行き、
                   全員が立ち止まれば、どの端末でも床は同じ場所になる。だから、行き先で床が着く場所のまん中に、別の足場があって人が立てるなら、そこに立つだけで床が来る
@@ -155,7 +165,7 @@ const railEnd = (crate, at) => ({ kind: 'rail', crate, at });               // �
          ほかの向きへ飛ばすには、横の速さ（x と z）を同じ大きさのまま回す。着地させる足場は、この着地点を中心に 6×6 以上。
          大砲台・カタパルトで飛んでいる間（着地するか、つかまるまで）は、スティックで動けるのは毎秒 0.8m まで：倒しつづけても、台と同じ高さへ下りてくるまでに、着地点は 2.1m までしかずれない */
 // ステージのファイル（adventure-stages/sN.js）へ渡す「作り方」一式
-export const kit = { B, ice, pad, belt, P, CP, crumble, wind, gust, saw, cannon, warp, cell, socket, WP, fan, net, launcher, lever, cart, railEnd };
+export const kit = { B, ice, pad, belt, P, CP, crumble, wind, gust, saw, cannon, warp, cell, socket, WP, fan, net, launcher, lever, cart, railEnd, seesaw };
 
 export function makeWorld(stage) {
   const w = { stage, list: [], extra: [] };                                          // extra：呼び出し側が毎コマ入れる箱（仲間の体。friend: true）
@@ -251,7 +261,7 @@ export function makeWorld(stage) {
        下りてくる床の下にいる人まで数えると、床が逃げては戻るのをくり返す。乗ったあとは、遅れて見える仲間も数えるよう、広く取る（縁から wide の外まで、上面の 1m 下まで）。
        行き先に着いた床の上にいるはずの体も、同じ決まりで数える（あとから入った端末や、しばらく止まっていた端末でも、床が仲間の足元へ行き、全員の端末で同じ位置になる） */
     const riders = (m, fresh, near, wide) => Math.max(aboard(m.box, fresh ? near : wide, fresh ? 0.25 : 1, undefined, !fresh), aboard(m.b, wide, 1, m.to, true));
-    for (const m of w.movers) if (m.mode === 'scale') {                               // てんびんの皿の重さ（体と、のっている箱）。軽くなっても 0.6 秒は前の重さのまま
+    for (const m of w.movers) if (m.mode === 'scale' || m.mode === 'seesaw') {        // てんびん・はねシーソーの皿の重さ（体と、のっている箱）。軽くなっても 0.6 秒は前の重さのまま
       const k = loose.reduce((n, c) => n + (c.on === m.box ? mass(c) : 0), 0), v = k + riders(m, m.wt <= k, 0.15, 0.3);
       m.low = v < m.wt ? m.low + dt : 0;
       if (v > m.wt || m.low >= 0.6) m.wt = v;
@@ -276,6 +286,7 @@ export function makeWorld(stage) {
           m.idle = m.wt >= (m.need || 1) ? 0 : m.idle + dt;
           target = m.idle > wait ? 0 : 1;
         } else if (m.mode === 'scale') { const a = m.side === 'A' ? m : m.twin; target = +(a.wt >= 1 && a.twin.wt >= a.wt); }   // てんびん：A に荷があり、B がそれ以上に重いと、A が上がる
+        else if (m.mode === 'seesaw') { const a = m.side === 'A' ? m : m.twin; target = +(a.twin.wt >= 1 && a.twin.wt >= a.wt); }   // はねシーソー：B に荷があり、A 以上に重いと、B が沈む
         else if (m.mode === 'crank') {                                                // ハンドルで巻き上げる床：だれかがつかんでいる間は進む。放すと hold 秒止まり、そのあと戻る
           if (m.handles.some(h => grips.includes(h))) { m.rel = null; m.f = Math.min(1, m.f + dt / (m.up ?? 4)); }
           else {                                                                      // 放したあとは、放したときの f と時刻（rel）だけから位置を決める（全員の端末で、同じ瞬間に戻りはじめる）
@@ -287,17 +298,19 @@ export function makeWorld(stage) {
           const wave = 1 - Math.abs((now / (m.period || 1) % 2) - 1), smooth = wave * wave * (3 - 2 * wave);   // 行き来（端でゆっくり）
           target = m.mode === 'hold' ? +on : m.mode === 'always' || on ? smooth : 0;
         }
-        const max = (m.speed || { ride: 2.5, scale: 0.8 }[m.mode] || 3.5) / Math.hypot(...m.to) * dt;   // 急には動かない（ふつうは毎秒 3.5m まで）
+        const max = m.calm > 0 ? 1 : (m.speed || { ride: 2.5, scale: 0.8, seesaw: 6 }[m.mode] || 3.5) / Math.hypot(...m.to) * dt;   // 急には動かない（ふつうは毎秒 3.5m まで）。calm の間は、すぐ行き先へ
         m.f += Math.max(-max, Math.min(max, target - m.f));
         o = m.to.map(v => v * m.f);
       }
       o.forEach((v, i) => { m.d[i] = v - m.o[i]; }); m.o = o;
       const b = m.box, s = m.b;
       b.x0 = s.x0 + o[0]; b.x1 = s.x1 + o[0]; b.y0 = s.y0 + o[1]; b.y1 = s.y1 + o[1]; b.z0 = s.z0 + o[2]; b.z1 = s.z1 + o[2];
+      if (m.mode === 'seesaw') b.fling = m.v && m.d[1] > 1e-4 && !(m.calm > 0) ? m.v : null;   // はね上がっていくコマの間だけ、大砲台になる
+      if (m.calm > 0) m.calm -= dt;                                                   // calm：部屋の知らせで皿の上に箱が置かれた直後。ほかの端末に追いつくだけなので、飛ばさない
     }
     w.handles.forEach((h, i) => { if (h.ride != null) { const s = stage.handles[i], o = w.movers[h.ride].o; h.x = s.x + o[0]; h.y = s.y + o[1]; h.z = s.z + o[2]; } });
     for (const c of w.crates) {
-      if (c.held) continue;
+      if (c.held) { c.kv = null; continue; }                                          // 飛んでいる途中で手に取った箱は、横の勢いをなくす（置いたあとに、すべっていかない）
       const h = c.s / 2;
       if (c.rail) { c.on = w.groundBox(c.x, c.z, c.y, c.box); continue; }             // レールの箱は落ちない・元の場所へ戻らない・動く床に運ばれない（置いた所にそのままいる）。足元の床だけ覚える
       if (c.on?.m) {                                                                  // 動く床に乗っていれば一緒に動く。動かない箱の中へは運ばれない（そこに残り、床だけが先へ行く）
@@ -305,10 +318,15 @@ export function makeWorld(stage) {
         if (!w.wall(c.x + dx, c.z + dz, c.y + dy, c.box, h, c.s)) { c.x += dx; c.y += dy; c.z += dz; }
       }
       if (c.on?.belt) { const nx = c.x + c.on.belt[0] * dt, nz = c.z + c.on.belt[1] * dt; if (!w.blocked(nx, nz, c.y, c.box, h, c.s)) { c.x = nx; c.z = nz; } }
+      if (c.on?.fling && c.on.m) { c.vy = c.on.fling[1]; c.kv = [c.on.fling[0], c.on.fling[2]]; c.moved = true; }   // はね上がるシーソーの皿にのっている箱は、飛ぶ
+      if (c.kv) {                                                                     // 飛んでいる箱は横にも進む。壁に当たったら、そこから下へ落ちる
+        const nx = c.x + c.kv[0] * dt, nz = c.z + c.kv[1] * dt;
+        if (w.blocked(nx, nz, c.y, c.box, h, c.s)) c.kv = null; else { c.x = nx; c.z = nz; }
+      }
       const g = w.footing(c.x, c.z, c.y, c.box, h, c.s), gy = g ? g.y1 : -99;
-      if (c.vy <= 0 && c.y - gy < 0.05) { c.y = gy; c.vy = 0; c.on = g; }
+      if (c.vy <= 0 && c.y - gy < 0.05) { c.y = gy; c.vy = 0; c.on = g; c.kv = null; }
       else { c.on = null; c.vy -= GRAV * dt; c.y += c.vy * dt; if (c.y <= gy) { c.y = gy; c.vy = 0; } }
-      if (c.y < stage.kill || c.on?.hurt) { Object.assign(c, c.home, { vy: 0, on: null }); c.moved = true; }   // 落とした箱と、のこぎりの上に乗った箱は、元の場所へ戻る（のこぎりには、もう運ばれない）
+      if (c.y < stage.kill || c.on?.hurt) { Object.assign(c, c.home, { vy: 0, on: null, kv: null }); c.moved = true; }   // 落とした箱と、のこぎりの上に乗った箱は、元の場所へ戻る（のこぎりには、もう運ばれない）
       const k = c.heavy && w.wall(c.x, c.z, c.y, c.box, h, c.s);                     // 重い箱が壁に重なったら（段の縁から押し落とすと、段の壁に重なって下りる）、近い面から外へすべり出る：重なったままでは、押しても引いても動かない
       if (k) {
         const out = [c.x - k.x0 + h, k.x1 + h - c.x, c.z - k.z0 + h, k.z1 + h - c.z], i = out.indexOf(Math.min(...out)), a = i < 2 ? 'x' : 'z';
@@ -373,7 +391,7 @@ export function makePlayer(w) {
     if (p.grounded) for (const c of w.crates) {                                     // 箱をつかむのは地面にいるときだけ（跳んでつかめば、箱の縁をよじ登れる）
       const dx = c.x - p.x, dz = c.z - p.z, d = Math.hypot(dx, dz);
       if (!c.held && d < c.s / 2 + 0.95 && (dx * fx + dz * fz) / d > 0.5 && Math.abs(c.y - p.y) < 1.2 && w.groundBox(p.x, p.z, p.y) !== c.box) {
-        p.carry = c; p.off = [p.x - c.x, p.z - c.z]; if (!c.heavy) c.held = 'me';
+        p.carry = c; p.off = [p.x - c.x, p.z - c.z]; c.kv = null; if (!c.heavy) c.held = 'me';
         return c;
       }
     }

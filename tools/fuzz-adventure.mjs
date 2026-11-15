@@ -44,14 +44,14 @@ for (const n of only.length ? only : all) {
     Math.random = realRandom;
   }
   // 上下に動く床のすぐ横（縁から 0.2m 外。体の半径ぶん、床に重なる）に立っていても、はさまって動けなくならない。
-  // 床を動かすふみ板と、乗ると動く床・てんびんの皿には「いることにした体」を 8 秒乗せ、床が行って帰る間、1 秒ごとに外へ歩けるかを確かめる
+  // 床を動かすふみ板と、乗ると動く床・てんびん・はねシーソーの皿には「いることにした体」を 8 秒乗せ、床が行って帰る間、1 秒ごとに外へ歩けるかを確かめる
   for (const [mi, m0] of st.movers.entries()) if (m0.to?.[1] && m0.mode !== 'crumble') for (const [sx, sz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
     const w = makeWorld(st), p = makePlayer(w), m = w.movers[mi], b = m0.b;
     const x = (b.x0 + b.x1) / 2 + sx * ((b.x1 - b.x0) / 2 + 0.2), z = (b.z0 + b.z1) / 2 + sz * ((b.z1 - b.z0) / 2 + 0.2), y = w.floorY(x, z, Math.max(b.y1, b.y1 + m0.to[1]));
     if (y < -90) continue;                                                // そこには足場がない
     const signals = (m.on || []).map(i => w.plates[i]), ends = signals.filter(k => k.kind === 'rail');
     const ghosts = () => signals.filter(k => !k.kind).map(k => [k.x, k.y, k.z, 2])
-      .concat(w.movers.filter(k => k.mode === 'ride' || k.mode === 'scale').map(k => [(k.box.x0 + k.box.x1) / 2, k.box.y1, (k.box.z0 + k.box.z1) / 2, 2]));
+      .concat(w.movers.filter(k => ['ride', 'scale', 'seesaw'].includes(k.mode)).map(k => [(k.box.x0 + k.box.x1) / 2, k.box.y1, (k.box.z0 + k.box.z1) / 2, 2]));
     // ハンドルで巻き上げる床は、その 8 秒の間ハンドルを回し、放してから戻りきるまで（hold ＋ down 秒）続ける。レバーで動く床は、つまみをその端へ寄せ、8 秒たったら反対の端へ寄せる
     for (let i = 0; i < 30 * (16 + (m.mode === 'crank' ? (m.hold ?? 12) + (m.down ?? 8) : 0)); i++) {
       const t = i % 30, walk = t >= 18, out = i < 30 * 8;                 // 毎秒：元の場所に置きなおして 0.6 秒じっとし、0.4 秒だけ外へ歩く
