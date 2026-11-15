@@ -73,7 +73,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.02">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.03">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <button class="ui pill small" id="stageInfo" aria-label="ステージを選ぶ"></button>
@@ -113,8 +113,8 @@
    キャラの体（ラグドール）は美術館 museum.html と同じ作り。
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
-import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.02';
-import { STAGES } from './adventure-stages.js?v=4.02';
+import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.03';
+import { STAGES } from './adventure-stages.js?v=4.03';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -384,7 +384,7 @@ function start() {
   }
 
   // ── 白くて丸いキャラ（ローカル +z が前）──
-  /* 体はラグドール：9 個の粒（左肩・右肩・左股・右股・頭・左手・右手・左足・右足）を、長さの変わらない棒でつないだもの（脚と、物をつかんでいる腕だけは縮められる）。
+  /* 体はラグドール：9 個の粒（左肩・右肩・左股・右股・頭・左手・右手・左足・右足）を、長さの変わらない棒でつないだもの（脚と、力の抜けた腕は縮められる）。
      粒には重力がかかり、足場に当たる。pose が決める「目標の姿勢」へは、ばねで引かれるだけ（力の入れ具合は部位と動作で変える）。
      当たり判定・操作・通信は 1 点で持つ。体はその上にかぶせた見た目で、どれだけ崩れても操作は遅れない。
      shortcut: 粒が当たるのは足場の上面だけ。壁や他の人にはめり込む */
@@ -392,11 +392,15 @@ function start() {
   // 体型：細くて長い腕、短い脚、細長い胴、小さめの頭（身長は約 1.42m）。美術館のキャラより、ひょろっとしている
   const ARM = 0.5, LEG = 0.16, ARM_R = 0.055, LEG_R = 0.085, TORSO_R = 0.19, HEAD_R = 0.235;
   const REST = [[-0.17, 0.9, 0], [0.17, 0.9, 0], [-0.095, 0.245, 0], [0.095, 0.245, 0], [0, 1.185, 0]].map(a => new THREE.Vector3(...a));
-  const RADIUS = [0.17, 0.17, 0.14, 0.14, HEAD_R, ARM_R, ARM_R, LEG_R, LEG_R];        // 股は胴の太さより小さく取る（着地で腰を沈められるように）
+  const RADIUS = [0.17, 0.17, 0.14, 0.14, HEAD_R, ARM_R, ARM_R, LEG_R, LEG_R, ARM_R, ARM_R, ARM_R, ARM_R];   // 股は胴の太さより小さく取る（着地で腰を沈められるように）
   // 棒：腕と脚の 4 本、胴の 4 粒どうしの 6 本、頭と両肩の 2 本。頭は股とはつながない（うなずいたり、遅れてついてきたりできる）。
   // ただし頭と股の間には「これより近づかない」長さだけを置く（首の止め）：はね上げられても、頭が胸の中へ折れこまない
   const LINKS = [[0, 5, ARM], [1, 6, ARM], [2, 7, LEG], [3, 8, LEG], [2, 4, 0.82], [3, 4, 0.82]];
   for (let i = 0; i < 5; i++) for (let j = 0; j < (i < 4 ? i : 2); j++) LINKS.push([j, i, REST[i].distanceTo(REST[j])]);
+  /* こんにゃくの腕：肩と手の間に、力の入らない粒を 2 個はさみ（粒 9〜12）、3 本の短い棒でつなぐ（LINKS の 14 本目から）。
+     肩と手を結ぶ初めの棒は「これより伸びない」長さだけにした：手が肩に近いときは、間の粒が重さでたるみ、振られれば遅れて波打つ。引っぱられれば、まっすぐに伸びる */
+  const SEG = ARM / 3, CHAIN = LINKS.length;
+  for (let i = 0; i < 2; i++) LINKS.push([i, 9 + 2 * i, SEG], [9 + 2 * i, 10 + 2 * i, SEG], [10 + 2 * i, 5 + i, SEG]);
   const GROUP = [0, 0, 1, 1, 2, 3, 3, 4, 4], TAU = Math.PI * 2, { clamp } = THREE.MathUtils;   // GROUP：粒 → 部位（肩・股・頭・手・足）
   /* 力の入れ具合：動作ごとに、肩・股・頭・手・足の [ばねの強さ, 収まりやすさ]。
      ふだんは 足＞股＞肩＞頭＞手 の順に固い：足は速く正確に動き、上へ行くほど遅れて揺れ、腕はただの重り。
@@ -411,17 +415,45 @@ function start() {
     [40, 3, 40, 3, 10, 2, 3, 1.5, 3, 1.5],                                            // 6 投げられた
     [3, 1.5, 3, 1.5, 3, 1.5, 3, 1.5, 3, 1.5]];                                        // 7 落ちてきて、べちゃっとつぶれた
   const DOWN = new THREE.Vector3(0, -1, 0), QB = new THREE.Quaternion(), VA = new THREE.Vector3(), VB = new THREE.Vector3(), VC = new THREE.Vector3();
+  /* 胴と腕は、骨で曲がる 1 本の管（形は 3 人で使い回す）：上の端が原点で、下へ len のびる。n 節に分け、輪切りごとに上下の節の骨へ重みをふる。
+     節ごとに別の形を並べるより、つなぎ目が出ず、描く回数も増えない */
+  const tube = (r, len, n, around) => {
+    const pts = [], arc = i => new THREE.Vector2(Math.sin(i * Math.PI / 12) * r, Math.cos(i * Math.PI / 12) * r);
+    for (let i = 0; i <= 6; i++) { const v = arc(i); v.y = -len - v.y; pts.push(v); }
+    for (let i = 1; i < n * 4; i++) pts.push(new THREE.Vector2(r, -len + len * i / (n * 4)));
+    for (let i = 6; i >= 0; i--) pts.push(arc(i));
+    const geo = new THREE.LatheGeometry(pts, around), y = geo.attributes.position, si = [], sw = [];
+    for (let i = 0; i < y.count; i++) { const t = clamp(-y.getY(i) / len, 0, 1) * n, a = Math.min(n - 1, Math.floor(t)), u = t - a, s = u * u * (3 - 2 * u); si.push(a, a + 1, 0, 0); sw.push(1 - s, s, 0, 0); }   // 重みは節の前後でなだらかに変える：まっすぐ変えると、節のところに折り目がつく
+    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+    geo.userData = { len: len / n, n }; return geo;
+  };
+  const SPINE = 0.195, HEAD_GEO = new THREE.SphereGeometry(HEAD_R, 32, 24), LEG_GEO = new THREE.CapsuleGeometry(LEG_R, LEG, 8, 16);
+  const TORSO_GEO = tube(TORSO_R, SPINE * 2, 2, 20), ARM_GEO = tube(ARM_R, ARM, 3, 10);   // 胴：胸 → おなか → 腰。腕：肩 → 2 つの粒 → 手
+  // 管の骨 bones を、粒の列 J に沿わせる。骨の向きは前後の粒を結ぶ向き。ねじれないよう、1 つ前の骨の向きから最短で回す
+  const bend = (bones, J) => {
+    for (let i = 0; i < J.length; i++) {
+      const o = bones[i]; o.position.copy(J[i]);
+      VA.subVectors(J[Math.min(i + 1, J.length - 1)], J[Math.max(i - 1, 0)]).normalize();
+      if (i) o.quaternion.setFromUnitVectors(VB, VA).multiply(bones[i - 1].quaternion); else o.quaternion.setFromUnitVectors(DOWN, VA);
+      VB.copy(VA);
+    }
+  };
   function makeFigure() {
-    const g = new THREE.Group(), b = new THREE.Group(); g.add(b);
-    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(TORSO_R, 0.39, 8, 20), white); b.add(torso);   // 両肩と両股の真ん中が中心
-    const head = new THREE.Mesh(new THREE.SphereGeometry(HEAD_R, 32, 24), white); g.add(head);
-    const limb = (len, rad) => {                                                      // 付け根の丸みを胴の中へ埋める：どう振っても胴とつながって見える
-      const pivot = new THREE.Group(), o = new THREE.Mesh(new THREE.CapsuleGeometry(rad, len, 8, 16), white);
-      o.position.y = -len / 2; pivot.add(o); g.add(pivot); return pivot;
+    const g = new THREE.Group();
+    const head = new THREE.Mesh(HEAD_GEO, white); g.add(head);
+    const soft = geo => {
+      const m = new THREE.SkinnedMesh(geo, white), bones = Array.from({ length: geo.userData.n + 1 }, (_, i) => { const b = new THREE.Bone(); b.position.y = -geo.userData.len * i; g.add(b); return b; });
+      m.frustumCulled = false; g.add(m); g.updateMatrixWorld(true); m.bind(new THREE.Skeleton(bones)); return bones;   // 骨で動く形は、元の位置では「画面の外」を決められない
+    };
+    const limb = () => {                                                              // 付け根の丸みを胴の中へ埋める：どう振っても胴とつながって見える
+      const pivot = new THREE.Group(), o = new THREE.Mesh(LEG_GEO, white);
+      o.position.y = -LEG / 2; pivot.add(o); g.add(pivot); return pivot;
     };
     scene.add(g);
+    // parts：胴の骨・頭・両腕の骨・脚 2 本。belly：おなかの粒（胴の真ん中に、ばねでついてくるだけ。遅れたぶん、胴が曲がってぷるぷるする）
     // ph：揺れのずれ（人ごとに違う。3 人がそろって揺れないように）。残りは pose が使う、その人の動きの覚え
-    return { g, parts: [b, head, limb(ARM, ARM_R), limb(ARM, ARM_R), limb(LEG, LEG_R), limb(LEG, LEG_R)], ph: Math.random() * TAU, k: Float32Array.from(FORCE[0]),
+    return { g, parts: [soft(TORSO_GEO), head, soft(ARM_GEO), soft(ARM_GEO), limb(), limb()], ph: Math.random() * TAU, k: Float32Array.from(FORCE[0]),
+      belly: { p: new THREE.Vector3(), v: new THREE.Vector3(), t: new THREE.Vector3() },
       x: 1e9, y: 0, z: 0, vel: new THREE.Vector3(), vx: 0, vy: 0, vz: 0, sx: 0, sz: 0, walkT: 0, airT: 0, dip: 0, splat: 0, fell: false, grip: 0, mode: 0, mix: 1 };
   }
   // 粒の下にある足場の高さ（y より上の足場は数えない）。仲間の体も数えない：数えると、自分の体の箱の上に、自分の頭や手が乗ってしまう
@@ -489,7 +521,7 @@ function start() {
     else if (mode === 6) { arm = -2.6; open = 1; lL = lR = -0.9; bx = -0.8; pivot = 0.55; }         // 投げられた：のけぞって万歳
 
     // 目標の姿勢での粒の位置（体の中の座標）。歩くときは腰を少し落とし、足が地面を踏むたびに沈む
-    const T = fig.targets ||= REST.concat(REST.slice(0, 4)).map(v => v.clone());
+    const T = fig.targets ||= REST.concat(REST.slice(0, 4), REST.slice(0, 4)).map(v => v.clone());
     const reach = 0.1 * gait, on = 2 * reach * STRIDE;                                // 1 歩で足を送る長さの半分と、足が地面についている位相の長さ
     const drop = fig.dip + gait * 0.025 * (1 + Math.cos(2 * fig.walkT - on)) - lift;
     QB.setFromEuler(E.set(bx, by, bz));                                               // 体の傾き（地面では足元が軸、空中では体の真ん中が軸）
@@ -522,6 +554,7 @@ function start() {
       if (mode === 2) VC.sub(T[i]).clampLength(0, ARM * 1.1).add(T[i]);              // 届かない物には、腕をのばすだけ
       T[5 + i].lerp(VC, aim * aim * (3 - 2 * aim));
     }
+    for (let i = 0; i < 4; i++) T[9 + i].lerpVectors(T[i >> 1], T[5 + (i >> 1)], (1 + (i & 1)) / 3);   // 腕の途中の粒に目標はない（瞬間移動と足場の判定に使う目安だけ）
     // 粒を動かす：ばねと重力 → 棒の長さを保つ → 足場に当てる
     const P = fig.pts ||= T.map(v => ({ p: v.clone(), o: v.clone(), v: new THREE.Vector3(), t: v.clone() }));   // t：1 コマ前の目標
     if (P.some((q, i) => q.p.distanceToSquared(T[i]) > 9)) P.forEach((q, i) => { q.p.copy(T[i]); q.t.copy(T[i]); q.v.set(0, 0, 0); });   // 瞬間移動したら体ごと移す
@@ -533,6 +566,9 @@ function start() {
       if (kick && VC.lengthSq() > 4) for (let i = 0; i < 5; i++) P[i].v.addScaledVector(VC, kick);
       const k = fig.k, F = FORCE[mode] || FORCE[0], near = 1 - Math.exp(-dt * 10);    // 知らない動作の番号が届いても止まらない
       for (let n = 0; n < 10; n++) k[n] += (F[n] - k[n]) * (n < 6 && F[n] > k[n] ? slow : near);   // 力の入れ具合も、少しずつ変える。胴と頭は、抜けるのは速く、入るのはゆっくり（つぶれたあと、のろのろ起き上がる）
+      for (let i = 9; i < 13; i++) {                                                  // 腕の途中の粒：ばねなし。重さで垂れ、棒に引かれるだけ
+        const q = P[i]; q.o.copy(q.p); q.v.y -= 12 * dt; q.p.addScaledVector(q.v.multiplyScalar(Math.exp(-4 * dt)), dt);   // 手より空気に流されやすい：歩けば腕が弓なりに後ろへしなう
+      }
       for (let i = 0; i < 9; i++) {
         const q = P[i], n = GROUP[i] * 2;
         /* ばねは目標との「ずれ」を、収まりやすさは目標との「速さの差」を消す：目標が一定の速さで動く間は遅れず、急に動いたときだけ体の重さで遅れる。
@@ -544,41 +580,60 @@ function start() {
         q.p.addScaledVector(q.v, dt);
         if (n === 8) { const s = 1 - Math.exp(-dt * k[8] / 6); q.p.x += (T[i].x - q.p.x) * s; q.p.z += (T[i].z - q.p.z) * s; }   // 力の入った足は、横へは流れない（踏んだ場所に止まる）
       }
-      for (let n = 0; n < 3; n++) for (let l = 0; l < LINKS.length; l++) {
-        const [a, b, len] = LINKS[l], dist = VA.subVectors(P[b].p, P[a].p).length() || 1e-6;
-        // 脚は縮める（ひざを曲げるかわり）：足を持ち上げ、着地で腰を沈められる。物をつかんでいる腕も縮める（ひじを曲げるかわり）：よじ登る体が、手に押し返されない。
-        // 首の止めは逆で、縮みすぎたときだけ押し戻す
-        if (l > 1 ? l < 6 && dist < len === l < 4 : held && dist < len) continue;
-        // 腕と脚・首の止め（初めの 6 本）は先の粒が軽い：振り回しても胴を引っぱらない。
-        // 物へのばした腕は、手が固まるまでは体を引きずらず（体は自分で上がってくる）、固まったら手は動かない（体のほうが引かれる）
-        const tip = l > 5 ? 0.5 : l > 1 || !held ? 0.8 : 1 - pin;
-        VA.multiplyScalar((dist - len) / dist);
-        P[a].p.addScaledVector(VA, 1 - tip); P[b].p.addScaledVector(VA, -tip);
-      }
-      for (let i = 0; i < 9; i++) {
-        // 乗るのは、動く前の高さより下（＋0.1m まで）にある足場だけ：速く落ちてきても突き抜けず、ぶら下がった体が縁の上へ吸い上げられもしない。
-        // 目標より 0.4m 以上高い足場にも乗らない：足場の横を落ちていくとき、体が縁に引っかかったまま伸びない
-        const q = P[i], top = floorAt(q.p.x, q.p.z, Math.min(Math.max(q.o.y, q.p.y) + 0.1, T[i].y + 0.4)) + RADIUS[i];
-        q.v.subVectors(q.p, q.o).divideScalar(dt);
-        // 足場に押し上げられたぶんは、速さに数えない（縁に乗った手が、はね上がって体を引っぱる）。
-        // 横から足場の角へ入ってきた粒は、ぱっと上へ飛ばさず、すばやく押し上げる（縁のそばで、頭が縁の上へ跳ねない）
-        if (q.p.y < top) { q.p.y = q.o.y < top - 0.02 ? Math.min(top, q.p.y + 3 * dt) : top; q.v.y = Math.max(q.v.y, 0); }
+      // 棒は 3 回、腕の節だけは 6 回そろえる（速く動く手に、途中の粒が遅れて伸びない）。足場に当てたあと、腕の節だけもう 2 回（押し上げられた粒で、腕が伸びたままにならない）
+      for (let n = 0; n < 8; n++) {
+        // 力の抜けた腕は、両肩を結ぶ線の上で、胴の太さより内側へ入れない（振られた腕が、胴や背中を突き抜けて横切らない）。腕の節をそろえる前にやる：あとだと、押し出したぶん腕が伸びる
+        if (n === 3 && !held && k[6] < 100) {
+          const half = VB.subVectors(P[1].p, P[0].p).length() / 2; VB.normalize();
+          for (let i = 5; i < 13; i++) {
+            const side = i === 6 || i > 10 ? 1 : -1, s = TORSO_R - (VA.subVectors(P[i].p, P[0].p).dot(VB) - half) * side;
+            if (s > 0) P[i].p.addScaledVector(VB, s * side);
+          }
+        }
+        if (n === 6) for (let i = 0; i < 13; i++) {
+          // 乗るのは、動く前の高さより下（＋0.1m まで）にある足場だけ：速く落ちてきても突き抜けず、ぶら下がった体が縁の上へ吸い上げられもしない。
+          // 目標より 0.4m 以上高い足場にも乗らない：足場の横を落ちていくとき、体が縁に引っかかったまま伸びない
+          // 物をつかんでいる腕の途中は、足場に当てない（縁のへりに押し上げられて、腕が伸びる）
+          const q = P[i], top = (held && i > 8 ? -99 : floorAt(q.p.x, q.p.z, Math.min(Math.max(q.o.y, q.p.y) + 0.1, T[i].y + 0.4))) + RADIUS[i];
+          q.v.subVectors(q.p, q.o).divideScalar(dt);
+          // 足場に押し上げられたぶんは、速さに数えない（縁に乗った手が、はね上がって体を引っぱる）。
+          // 横から足場の角へ入ってきた粒は、ぱっと上へ飛ばさず、すばやく押し上げる（縁のそばで、頭が縁の上へ跳ねない）
+          if (q.p.y < top) { q.p.y = q.o.y < top - 0.02 ? Math.min(top, q.p.y + 3 * dt) : top; q.v.y = Math.max(q.v.y, 0); }
+        }
+        for (let l = n < 3 ? 0 : CHAIN; l < LINKS.length; l++) {
+          const [a, b, len] = LINKS[l], dist = VA.subVectors(P[b].p, P[a].p).length() || 1e-6;
+          // 脚は縮める（ひざを曲げるかわり）：足を持ち上げ、着地で腰を沈められる。肩と手の間も、物をつかんでいる間と、手の力が抜けている間は縮める（腕がたるむ）：よじ登る体が、手に押し返されない。空中で縁へのばした腕は、のびたまま。
+          // 首の止めは逆で、縮みすぎたときだけ押し戻す
+          if (l > 1 ? l < 6 && dist < len === l < 4 : dist < len && (held || k[6] < 100)) continue;
+          // 腕と脚・首の止め（初めの 6 本）は先の粒が軽い：振り回しても胴を引っぱらない。
+          // 物へのばした腕は、手が固まるまでは体を引きずらず（体は自分で上がってくる）、固まったら手は動かない（体のほうが引かれる）。
+          // 腕の節は、肩を動かさず、固まった手と、足場に当てたあとの手も動かさない
+          const c = (l - CHAIN) % 3, tip = l >= CHAIN ? (c === 0 ? 1 : c === 1 ? 0.5 : n > 5 ? 0 : held ? 0.5 * (1 - pin) : 0.5) : l > 5 ? 0.5 : l > 1 || !held ? 0.8 : 1 - pin;
+          VA.multiplyScalar((dist - len) / dist);
+          P[a].p.addScaledVector(VA, 1 - tip); P[b].p.addScaledVector(VA, -tip);
+        }
       }
     }
-    // 粒の位置から見た目を組む：胴は両肩と両股から向きを決め、手足は付け根から先の粒へ向ける
-    const L = fig.local ||= P.map(() => new THREE.Vector3()), [b, head, ...limbs] = fig.parts;
+    // おなかの粒：胴の真ん中（両肩と両股の真ん中）へ、ばねで引かれる。歩き出し・止まる・着地・ぶつかるたびに遅れて、行きすぎて、ぷるぷる揺れる
+    const B = fig.belly, mid = VC.addVectors(P[0].p, P[1].p).add(P[2].p).add(P[3].p).multiplyScalar(0.25);
+    VA.subVectors(mid, B.t).multiplyScalar(inv); B.t.copy(mid);                       // 胴の速さ：一定の速さで歩く間は、おなかは遅れない
+    B.v.addScaledVector(VB.subVectors(mid, B.p), 130 * dt).sub(VA).multiplyScalar(Math.exp(-4 * dt)).add(VA); B.p.addScaledVector(B.v, dt);
+    if (VB.subVectors(B.p, mid).length() > 0.1) { B.p.copy(mid).add(VB.setLength(0.1)); B.v.copy(VA); }   // 胴からはみ出すほどは、ずれない
+    // 粒の位置から見た目を組む
+    const L = fig.local ||= [...P, 0, 0, 0].map(() => new THREE.Vector3()), parts = fig.parts;
+    const J = fig.joints ||= [[L[15], L[14], L[13]], [L[0], L[9], L[10], L[5]], [L[1], L[11], L[12], L[6]]];
     P.forEach((q, i) => g.worldToLocal(L[i].copy(q.p)));
-    const up = VA.addVectors(L[0], L[1]).sub(L[2]).sub(L[3]).normalize();
-    const right = VB.subVectors(L[1], L[0]); right.addScaledVector(up, -right.dot(up)).normalize();
-    b.quaternion.setFromRotationMatrix(M4.makeBasis(right, up, VC.crossVectors(right, up)));
-    b.position.addVectors(L[0], L[1]).add(L[2]).add(L[3]).multiplyScalar(0.25);
-    head.position.copy(L[4]);
-    limbs.forEach((pivot, i) => {
-      pivot.position.copy(L[i]);
-      const len = VA.subVectors(L[5 + i], L[i]).length();
-      pivot.scale.y = i > 1 ? (len + LEG_R) / (LEG + LEG_R) : (len + ARM_R) / (ARM + ARM_R);   // 縮んだ腕と脚は、短く描く
+    // 胴：胸 → おなか → 腰。おなかが横へずれれば曲がり、縦にずれれば、つぶれて太く・のびて細くなる
+    const up = VB.addVectors(L[0], L[1]).sub(L[2]).sub(L[3]).normalize(), belly = g.worldToLocal(L[14].copy(B.p));
+    L[13].addVectors(L[0], L[1]).add(L[2]).add(L[3]).multiplyScalar(0.25); L[15].copy(L[13]).addScaledVector(up, SPINE);
+    const w = 1 - VC.subVectors(belly, L[13]).dot(up); L[13].addScaledVector(up, -SPINE);
+    bend(parts[0], J[0]); parts[0][1].scale.set(w, 1, w); parts[1].position.copy(L[4]);
+    for (let i = 0; i < 2; i++) {
+      bend(parts[2 + i], J[1 + i]);
+      const pivot = parts[4 + i], len = VA.subVectors(L[7 + i], L[2 + i]).length();
+      pivot.position.copy(L[2 + i]); pivot.scale.y = (len + LEG_R) / (LEG + LEG_R);    // 縮んだ脚は、短く描く
       pivot.quaternion.setFromUnitVectors(DOWN, VA.normalize());
-    });
+    }
   }
   const hero = makeFigure();
   // 足元の影：空中でも真下の足場に落とす（跳ぶ先の見当をつけるため）
@@ -705,7 +760,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.02'); roomApi.setup('adventure/room', 3); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.03'); roomApi.setup('adventure/room', 3); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
@@ -778,12 +833,14 @@ function start() {
     if (busy() || heldBy || grabbing) return;
     if (me.carry && !me.carry.heavy) { me.grabEnd(); return; }
     grabbing = true;
-    const c = me.grabStart();                                                         // 箱が先。目の前に箱があるのに、横の仲間をつかんでしまわないように
+    const onGround = me.grounded;                                                     // つかむ前に覚えておく（仲間の体にぶら下がると、me.grounded が消えて、持ち上げるはずが登ってしまう）
+    const c = me.grabStart();                                                        // 箱が先。目の前に箱があるのに、横の仲間をつかんでしまわないように
     if (c) { if (c.heavy && dragMode() === 'stuck') banner('重い！　もう1人つかんで', 2000); return; }
     if (me.crank != null) return;                                                     // ハンドルをつかんだ：そばの仲間は持ち上げない
     // 地面にいるときに目の前の仲間をつかむと、持ち上げる。跳んでからつかむと、仲間の頭へよじ登る
-    const id = me.grounded && (!me.hang || me.hang.flat || me.hang.b.friend) ? friendInFront() : null;
+    const id = onGround && (!me.hang || me.hang.flat || me.hang.b.friend) ? friendInFront() : null;
     if (id) { me.grabEnd(); holding = id; holdT = 0; roomApi.fx(id, { k: 'grab', n: nonce(), by: roomMe }); }
+    else if (onGround && me.hang?.b.friend) { me.hang = null; me.grounded = true; }   // 持ち上げられない向き・高さの仲間にも、地面からはつかまらない
   }
   function grabEnd() { grabbing = false; if (holding) release('drop'); if (!me.carry || me.carry.heavy) me.grabEnd(); }
   // 自分宛ての合図を体に反映する

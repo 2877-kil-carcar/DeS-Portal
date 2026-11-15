@@ -1,6 +1,6 @@
 // ステージ 2「くるくる港」を 1 人で解く手順：荷物を LA の板へ → 時計島へ飛ぶ → 大砲で帰る → 東（ベルト・重さの橋）で でんち A → 西（メリーゴーラウンド・高い段）で でんち B → とうのカタパルトで塔の上へ
 // 手順のほかに、別の道（屋根の でんち C・北からの重さの橋・はしけ・くずれる床・荷物の踏み台・輪の両まわり）、仲間との答え、かぞえ錠の組み合わせ、
-// わざと悪い順番、できてはいけないこと（錠なしで橋のすき間を渡る・錠が閉じたまま塔へ）も、新しいボット fresh() で確かめる
+// わざと悪い順番、できてはいけないこと（錠なしで橋のすき間を渡る・錠が閉じたまま塔へ・LA を使わずに西の岸から屋根へ）も、新しいボット fresh() で確かめる
 const tools = (b, assert) => {
   const { w, p } = b, m = w.movers, k = w.plates, c = w.crates, S = w.stage.boxes;
   const T = {
@@ -103,7 +103,7 @@ function ringBothWays(b, assert) {
   T.toEast(); b.go([20, 26]); b.go([20, 46]); b.go([17.6, 46]); T.ferry(0, [5, 46]);
   b.grab(6); b.go([-6, 46]); b.go([-18.5, 46]);                                     // 荷物を持って、くずれる床を西へ
   assert.equal(T.at(), T.S[11], `くずれる床を、荷物を持って西へ渡れない ${b.where()}`);
-  b.go([-18.5, 26]); b.go([-18.5, 17]); T.westHome();
+  b.go([-19.5, 26]); b.go([-19.5, 17]); T.westHome();
   assert.ok(T.at() === T.quayS && b.falls === 0, `両まわりで落ちた（${b.falls} 回）${b.where()}`);
 }
 
@@ -126,7 +126,7 @@ function roofByLongShot(b, assert) {
 function ringOtherWay(b, assert) {
   const T = tools(b, assert), { p, m, k, c, fly } = T;
   T.toWest();
-  b.grab(8); b.go([-18.4, 23]); b.put(-19.6, 23);                                   // 荷物を高い段の東の面に寄せて置き、それに乗ってから段へ
+  b.grab(8); b.go([-19.6, 21.5]); b.put(-19.6, 23);                                 // 荷物を高い段の東の面に寄せて置き、それに乗ってから段へ
   T.mount(-19.6, 23);
   b.go([-21.5, 23]); assert.ok(Math.abs(p.y - 2.2) < 0.01, `荷物から高い段へ登れない ${b.where()}`);
   b.grab(1); b.go([-21.5, 25.5]); b.go([-18.5, 27]);                                // 段の北から、西の桟橋へ下りる
@@ -203,9 +203,9 @@ function lockSubsets(b, assert) {
   }
 }
 
-// できてはいけないこと：錠なしで橋のすき間を渡る・南の岸から時計島へ跳ぶ・錠が閉じたまま塔へ・荷物なしで屋根へ・板を走りぬけて LA で飛ぶ
+// できてはいけないこと：錠なしで橋のすき間を渡る・南の岸から時計島へ跳ぶ・錠が閉じたまま塔へ・荷物なしで屋根へ・板を走りぬけて LA で飛ぶ・西の岸から荷物を踏み台に屋根へ
 function impossible(b, assert) {
-  const T = tools(b, assert), { p, m, k } = T, cant = (what, to, s = 8) => assert.throws(() => b.go(to, null, s), undefined, what);
+  const T = tools(b, assert), { p, m, k, c } = T, cant = (what, to, s = 8) => assert.throws(() => b.go(to, null, s), undefined, what);
   b.go([-4.5, 3]); b.go([0, 4.5]); T.idle(0.5);                                     // 板を下りて 2m 先の LA へ：0.4 秒の猶予では間に合わない
   assert.ok(p.grounded && T.LA.aimV === null, '1 人で板を走りぬけて、LA で飛べた');
   b.go([0, 5.4]); cant('南の岸から時計島へ跳べた', [0, 15]); assert.ok(b.falls > 0, '南の岸から時計島へ向かって、落ちなかった');
@@ -219,4 +219,9 @@ function impossible(b, assert) {
   b.wait('やり直しで着地', () => p.grounded, 6); assert.equal(T.at(), T.isleM);
   T.fly(3, 16); T.toEast();
   const f1 = b.falls; cant('橋なしで、小島 EI へ渡れた', [38, 20]); assert.ok(b.falls > f1 && m[0].f === 0);
+  // 西の岸の荷物を、屋根 X に近い東の縁に置いて踏み台にしても、屋根へ（LA を使わずに時計島へ）は行けない
+  b.wait('やり直しで着地', () => p.grounded, 6); b.go([20, 16]); T.eastHome(); T.toWest();
+  const e = T.quayW.x1; b.grab(8); b.go([e - 1.3, 17]); b.put(e - 0.2, 17); T.mount(c[8].x, c[8].z);
+  assert.throws(() => b.hoist([c[8].x, c[8].z], [-11, 17]), undefined, '西の岸から荷物を踏み台に、屋根へ登れた');
+  b.wait('着地', () => p.grounded, 6); assert.ok(T.at() !== T.roof && T.at() !== T.isleM, `西の岸から屋根へ渡れた ${b.where()}`);
 }
