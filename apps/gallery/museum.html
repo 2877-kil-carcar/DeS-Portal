@@ -87,7 +87,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.08">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.09">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
@@ -212,8 +212,44 @@ const PLANS = [
     '#...#.......#...#',
     '#################',
   ],
+  // ここから上は、屋外の対戦ステージ（壁は岩、床は草や砂、天井はなく空が見える）
+  [ // 対戦ステージ「草原のとりで」
+    '#################',
+    '#...............#',
+    '#.##.........##.#',
+    '#.#...........#.#',
+    '#.....#####.....#',
+    '#...............#',
+    '#...#.......#...#',
+    '#...#...#...#...#',
+    '#...#.......#...#',
+    '#...............#',
+    '#.....#####.....#',
+    '#.#...........#.#',
+    '#.##.........##.#',
+    '#...............#',
+    '#################',
+  ],
+  [ // 対戦ステージ「砂漠の遺跡」
+    '#################',
+    '#...............#',
+    '#..#..#...#..#..#',
+    '#..#.........#..#',
+    '#.....##.##.....#',
+    '#.#...........#.#',
+    '#.#..#.....#..#.#',
+    '#.......#.......#',
+    '#.#..#.....#..#.#',
+    '#.#...........#.#',
+    '#.....##.##.....#',
+    '#..#.........#..#',
+    '#..#..#...#..#..#',
+    '#...............#',
+    '#################',
+  ],
 ];
-const COLS = 17, ROWS = 15, LEVELS = 5, FLOORS = 3;          // LEVELS：対戦ステージも含めた階の数／FLOORS：美術館の階の数
+const OUT = 5;                                          // 屋外ステージが始まる階
+const COLS = 17, ROWS = 15, LEVELS = 7, FLOORS = 3;          // LEVELS：対戦ステージも含めた階の数／FLOORS：美術館の階の数
 const C = 2.5, H = 4.4, R = 0.35;                       // マス幅・階高・キャラの半径（m）
 const cx = c => (c - 8) * C, cz = r => (r - 7) * C;     // マスの中心 → 座標
 const at = (f, c, r) => PLANS[f]?.[r]?.[c] ?? '#';
@@ -365,6 +401,7 @@ function start() {
   // 壁：通れるマスに接している壁マスだけ箱を置く。同じ壁を床の下にも逆さに置き、床への映り込みにする
   // （間取りが階ごとに違うので、下の階の壁は、その階より上にいる間は隠す）
   const wallGeo = new THREE.BoxGeometry(C, H, C), wallMat = std(0xe9e0d2);
+  const OUT_WALL = [std(0x8b8f96), std(0xc79a5b)], OUT_FLOOR = [std(0x7cc46a, 1), std(0xe6cf94, 1)], OUT_SKY = [0x9fd4ff, 0xffdfae];   // 屋外ステージの岩・地面・空の色：草原／砂漠
   for (let f = 0; f < LEVELS; f++) {
     const up = [], down = [];
     eachCell(f, (ch, c, r) => {
@@ -373,7 +410,8 @@ function start() {
         if (at(f, c + dc, r + dr) !== '#') { up.push({ x: cx(c), y: f * H + H / 2, z: cz(r) }); down.push({ x: cx(c), y: f * H - H / 2, z: cz(r) }); return; }
       }
     });
-    instanced(wallGeo, wallMat, up, wallsG[f]); instanced(wallGeo, wallMat, down, mirrors[f]);
+    const wm = OUT_WALL[f - OUT] || wallMat;
+    instanced(wallGeo, wm, up, wallsG[f]); instanced(wallGeo, wm, down, mirrors[f]);
   }
 
   // 床：磨いた石。少し透けさせて、下に置いた「逆さまの絵」を映り込みに見せる。階段の吹き抜けは開ける
@@ -437,16 +475,18 @@ function start() {
   const ceilMats = [ceilMat, coffer('#3a2a1e', ['#4a3626', '#5c4532'], '#c9a44a', false), coffer('#dfe6e8', ['#c3d0d6', '#d6e0e4'], '#ffffff', false)];   // 生成り／胡桃色の木／淡い青灰
   const hallCeilMat = coffer('#141c36', ['#1b2750', '#27376e'], '#e2c46a', true);
   for (let f = 0; f < LEVELS; f++) {
-    const fl = floorMats.map(() => []), ce = ceilMats.map(() => []), ceHall = [];
+    const fl = floorMats.map(() => []), ce = ceilMats.map(() => []), ceHall = [], ground = [];
     eachCell(f, (ch, c, r) => {
       if (ch === '#') return;
+      if (f >= OUT) { ground.push({ x: cx(c), y: f * H, z: cz(r) }); return; }          // 屋外：透けない地面だけ。天井はない
       const k = stairOf(ch), hall = isHall(ch), room = roomOf(f, c, r);
       if (k < 0 || f !== k + 1) fl[hall ? 0 : (room + f) % 4].push({ x: cx(c), y: f * H, z: cz(r) });
       if (k < 0 || f !== k) (hall ? ceHall : ce[(room + 2 * f) % 3]).push({ x: cx(c), y: (f + 1) * H - 0.02, z: cz(r) });
     });
     fl.forEach((list, i) => { if (list.length) instanced(floorGeo, floorMats[i], list).renderOrder = f * 10 + 5; });   // 下の階の床から順に描く
     ce.forEach((list, i) => { if (list.length) instanced(ceilGeo, ceilMats[i], list); });
-    instanced(ceilGeo, hallCeilMat, ceHall);
+    if (ceHall.length) instanced(ceilGeo, hallCeilMat, ceHall);
+    if (ground.length) instanced(floorGeo, OUT_FLOOR[f - OUT], ground);
   }
   const under = new THREE.Mesh(new THREE.PlaneGeometry(COLS * C, ROWS * C).rotateX(-Math.PI / 2), ceilMat);
   under.position.y = -H + 0.02; scene.add(under);                     // 1 階の床に映る「天井」
@@ -470,7 +510,7 @@ function start() {
     const benches = [], cushions = [], box = {};                       // box[部屋番号] = その部屋のマスの範囲
     eachCell(f, (ch, c, r) => {
       const k = stairOf(ch), room = roomOf(f, c, r);
-      if (ch === '.' || (k >= 0 && f !== k && f !== k + 1)) carpet.push({ x: cx(c), y: f * H + 0.012, z: cz(r) });
+      if (f < OUT && (ch === '.' || (k >= 0 && f !== k && f !== k + 1))) carpet.push({ x: cx(c), y: f * H + 0.012, z: cz(r) });
       if (ch === 'b') { benches.push({ x: cx(c), y: f * H + 0.2, z: cz(r) }); cushions.push({ x: cx(c), y: f * H + 0.44, z: cz(r) }); }
       if (room >= 0 && !isDoor(f, c, r)) {
         const b = box[room] ||= { c0: c, c1: c, r0: r, r1: r };
@@ -594,7 +634,7 @@ function start() {
     const L = levels[f], Mi = mirrors[f];
     const pan = panelMats.map(() => []), panM = panelMats.map(() => []), panHall = [];
     eachCell(f, (ch, c, r) => {
-      if (ch === '#') return;
+      if (ch === '#' || f >= OUT) return;                                              // 屋外ステージの岩には、化粧板を張らない
       const hall = isHall(ch), room = roomOf(f, c, r), art = (room * 3 + f) % 4;
       const color = hall ? HALL_COLOR : ROOM_COLORS[(room + f * 3) % ROOM_COLORS.length];
       for (const [dc, dr] of DIRS) {
@@ -834,7 +874,7 @@ function start() {
     $('roomInfo').style.color = TEAM_COLORS[myTeam];
     $('matchBtn').hidden = match.on; $('hp').hidden = !match.on;
   }
-  const ARENAS = [[0, '美術館'], [3, '柱の広間'], [4, '迷路']];                          // 対戦ステージ：[始まる階, 名前]。試合開始のたびに、くじで 1 つ選ぶ
+  const ARENAS = [[0, '美術館'], [3, '柱の広間'], [4, '迷路'], [5, '草原のとりで'], [6, '砂漠の遺跡']];                          // 対戦ステージ：[始まる階, 名前]。試合開始のたびに、くじで 1 つ選ぶ
   const toHall = () => { if (p.y > (FLOORS - 0.5) * H) { p.set(cx(8), 0, cz(7)); vy = 0; grounded = true; } };   // 対戦ステージから 1 階ホールへ戻す（階段がないので）
   function beginMatch() {                                                             // 全員が自分の端末で：HP を戻し、チームの陣地（1 階ホールの西／東）へ
     hp = 100; matchT = 0; powerT = speedT = camoT = 0; kvx = kvz = vy = 0; holding = heldBy = stuck = null; grounded = true;
@@ -934,7 +974,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      roomApi ||= await import('./museum-room.js?v=4.08');
+      roomApi ||= await import('./museum-room.js?v=4.09');
       await roomApi.enter({ create, code, name: roomApi.cleanName(name) || 'ななし', onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
       try { localStorage.setItem('museum:name', name); } catch (_) {}
       panel.hidden = true; roomMsg('');
@@ -1256,7 +1296,9 @@ function start() {
       L.visible = Math.abs(f - groundY / H) < 1;
       if (L.visible && L.userData.load) { L.userData.load.forEach(fn => fn()); L.userData.load = null; }
       mirrors[f].visible = onFloor && lvl === f;
-      wallsG[f].visible = f >= Math.floor(groundY / H + 1e-4);                           // 足元より下の階の壁は隠す（床に映す像と重なるため）
+      const cur = Math.floor(groundY / H + 1e-4);
+      wallsG[f].visible = cur >= FLOORS || f >= FLOORS ? f === cur : f >= cur;           // 対戦ステージは、いる階の壁だけ（上に重ねた別のステージが見えないように）。空の色も、いる階で変える
+      if (f === cur) scene.background.set(OUT_SKY[f - OUT] ?? 0x0e0806);                           // 足元より下の階の壁は隠す（床に映す像と重なるため）
     }
     ghost.g.visible = onFloor;
     ghost.g.position.set(p.x, 2 * lvl * H - p.y, p.z); ghost.g.rotation.y = hero.g.rotation.y;
