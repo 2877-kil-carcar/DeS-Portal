@@ -87,7 +87,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.04">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.05">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
@@ -177,8 +177,43 @@ const PLANS = [
     '#000#333#444#222#',
     '#################',
   ],
+  // ここから上は対戦用のステージ（美術館の上に重ねてある。階段はなく、試合が始まると運ばれる）
+  [ // 対戦ステージ「柱の広間」
+    '#################',
+    '#...............#',
+    '#...............#',
+    '#..#...#.#...#..#',
+    '#...............#',
+    '#...............#',
+    '#..#.........#..#',
+    '#......#.#......#',
+    '#..#.........#..#',
+    '#...............#',
+    '#...............#',
+    '#..#...#.#...#..#',
+    '#...............#',
+    '#...............#',
+    '#################',
+  ],
+  [ // 対戦ステージ「迷路」
+    '#################',
+    '#...#.......#...#',
+    '#.#.#.#####.#.#.#',
+    '#.#...#...#...#.#',
+    '#.###.#.#.#.###.#',
+    '#.....#.#.#.....#',
+    '###.###.#.###.###',
+    '#...............#',
+    '###.###.#.###.###',
+    '#.....#.#.#.....#',
+    '#.###.#.#.#.###.#',
+    '#.#...#...#...#.#',
+    '#.#.#.#####.#.#.#',
+    '#...#.......#...#',
+    '#################',
+  ],
 ];
-const COLS = 17, ROWS = 15, LEVELS = 3;
+const COLS = 17, ROWS = 15, LEVELS = 5, FLOORS = 3;          // LEVELS：対戦ステージも含めた階の数／FLOORS：美術館の階の数
 const C = 2.5, H = 4.4, R = 0.35;                       // マス幅・階高・キャラの半径（m）
 const cx = c => (c - 8) * C, cz = r => (r - 7) * C;     // マスの中心 → 座標
 const at = (f, c, r) => PLANS[f]?.[r]?.[c] ?? '#';
@@ -228,7 +263,7 @@ function canBeAt(nx, nz, y, ox, oz, carrying = false) {
     if (cellAt(f, nx + dx, nz + dz) === '#') return false;
     if (y < f * H + BENCH_TOP - 0.05 && onBench(f, nx + dx, nz + dz)) return false;  // ベンチは座面より高ければ上を通れる
   }
-  const from = rampAt(ox, oz), to = rampAt(nx, nz);
+  const from = f < FLOORS ? rampAt(ox, oz) : null, to = f < FLOORS ? rampAt(nx, nz) : null;   // 対戦ステージに階段はない
   if (!from && !to) return true;
   const under = r => y + BODY <= r.h - SLAB;                                          // 階段の裏（段の厚みの下）に、体が立てる高さがあるか
   if (from && to && from.k === to.k) return y >= to.h - STEP || under(to);            // 階段の上を進む／階段の下をくぐる
@@ -488,6 +523,7 @@ function start() {
   // 展示室の壁面を「絵を掛けられる場所」として階ごとに数え、壁面の数に比例して作品を振り分ける
   const slots = PLANS.map((_, f) => {
     const list = [];
+    if (f >= FLOORS) return list;                                     // 対戦ステージには飾らない
     eachCell(f, (ch, c, r) => {
       if (!isGallery(ch) || ch === 'b' || isDoor(f, c, r)) return;
       for (const [dc, dr] of DIRS) {
@@ -501,7 +537,7 @@ function start() {
   items = items.slice(0, capacity);
   const share = [];                                                   // 階ごとの作品（新しい順に下の階から）
   for (let f = 0, used = 0; f < LEVELS; f++) {
-    const n = f === LEVELS - 1 ? items.length - used : Math.min(items.length - used, Math.ceil(items.length * slots[f].length / capacity));
+    const n = f === FLOORS - 1 ? items.length - used : Math.min(items.length - used, Math.ceil(items.length * slots[f].length / capacity));
     share.push(items.slice(used, used + n)); used += n;
   }
   console.assert(share.every((s, f) => s.length <= slots[f].length), '壁面が足りない');
@@ -777,7 +813,7 @@ function start() {
   }
 
   // ── チーム戦（対戦の第 3 段階）：HP がなくなると半スケルトンになり、片方のチームが全滅したら相手の勝ち ──
-  const TEAM_NAMES = ['赤', '青'], PUNCH_DAMAGE = 15, THROW_DAMAGE = 25;
+  const TEAM_NAMES = ['赤', '青'], PUNCH_DAMAGE = 8, THROW_DAMAGE = 13;   // HP を約 2 倍にするかわりに、ダメージを半分にしてある（HP の棒と通信は 100 のまま）
   let hp = 100, myTeam = 0, matchT = 0;
   let match = { on: false, n: 0 };                                                    // 試合中か／試合の通し番号
   let bannerTimer;
@@ -791,26 +827,28 @@ function start() {
     $('roomInfo').style.color = TEAM_COLORS[myTeam];
     $('matchBtn').hidden = match.on; $('hp').hidden = !match.on;
   }
+  const ARENAS = [[0, '美術館'], [3, '柱の広間'], [4, '迷路']];                          // 対戦ステージ：[始まる階, 名前]。試合開始のたびに、くじで 1 つ選ぶ
+  const toHall = () => { if (p.y > (FLOORS - 0.5) * H) { p.set(cx(8), 0, cz(7)); vy = 0; grounded = true; } };   // 対戦ステージから 1 階ホールへ戻す（階段がないので）
   function beginMatch() {                                                             // 全員が自分の端末で：HP を戻し、チームの陣地（1 階ホールの西／東）へ
     hp = 100; matchT = 0; powerT = speedT = camoT = 0; kvx = kvz = vy = 0; holding = heldBy = stuck = null; grounded = true;
-    p.set(cx(myTeam ? 11 : 5), 0, cz(7) + (Math.random() * 2 - 1));
+    p.set(cx(myTeam ? 11 : 5), (ARENAS[match.st]?.[0] || 0) * H, cz(7) + (Math.random() * 2 - 1));
     yaw = myTeam ? Math.PI / 2 : -Math.PI / 2; hero.g.rotation.y = -yaw;             // ホールの中央を向く
-    banner('試合開始！', 2000);
+    banner(`試合開始！　${ARENAS[match.st]?.[1] || ARENAS[0][1]}`, 2500);
   }
   $('matchBtn').addEventListener('click', () => {
     const teams = [0, 0]; teams[myTeam]++; for (const r of remotes.values()) teams[r.team]++;
     if (!teams[0] || !teams[1]) { banner('相手チームがいません（2人以上で始められます）', 3000); return; }
-    roomApi.setMatch({ on: true, n: nonce() });
+    roomApi.setMatch({ on: true, n: nonce(), st: Math.floor(Math.random() * ARENAS.length) });
   });
 
   // ── アイテム（対戦の第 4 段階）：部屋にいる間、15 秒ごとにどこかへ 1 つ出る（同時に 3 つまで）。触ると取れる ──
   const ITEMS = [                                                                     // 種類の番号 = この並び順
-    { icon: '❤️', color: '#57e389', text: '回復！' },                                 // HP を 40 回復
+    { icon: '❤️', color: '#57e389', text: '回復！' },                                 // HP を 20 回復（最大の 5 分の 1）
     { icon: '💪', color: '#e2485a', text: 'パワーアップ！' },                          // 15 秒間、与えるダメージと押す力が 2 倍
     { icon: '⚡', color: '#3d8bff', text: 'スピードアップ！' },                        // 15 秒間、歩く速さが 1.7 倍
     { icon: '👻', color: '#b9b9c9', text: '背景と同化！' },                            // 15 秒間、相手からほとんど見えなくなる
   ];
-  const BUFF_SECONDS = 15, HEAL = 40, MAX_ITEMS = 3, SPAWN_EVERY = 15;
+  const BUFF_SECONDS = 15, HEAL = 20, MAX_ITEMS = 3, SPAWN_EVERY = 15;
   const itemMats = ITEMS.map(it => new THREE.SpriteMaterial({ transparent: true, map: paint(128, 128, g => {
     g.fillStyle = it.color; g.beginPath(); g.arc(64, 64, 58, 0, 7); g.fill();
     g.strokeStyle = '#fff'; g.lineWidth = 6; g.stroke();
@@ -834,7 +872,7 @@ function start() {
   // 出す場所：ホールか展示室の床（ベンチ・階段・出入口は除く）。6 割は出す係のいる階、残りはどこかの階
   function spawnItem() {
     for (let tries = 0; tries < 60; tries++) {
-      const f = Math.random() < 0.6 ? lvl : Math.floor(Math.random() * LEVELS), c = Math.floor(Math.random() * COLS), r = Math.floor(Math.random() * ROWS), ch = at(f, c, r);
+      const f = lvl >= FLOORS || Math.random() < 0.6 ? lvl : Math.floor(Math.random() * FLOORS), c = Math.floor(Math.random() * COLS), r = Math.floor(Math.random() * ROWS), ch = at(f, c, r);
       if ((ch !== '.' && !(isGallery(ch) && ch !== 'b')) || isDoor(f, c, r)) continue;
       roomApi.putItem('i' + Date.now().toString(36), { t: Math.floor(Math.random() * ITEMS.length), x: cx(c), z: cz(r), l: f });
       return;
@@ -850,9 +888,9 @@ function start() {
     else if (fx && fx.n !== lastFx) { lastFx = fx.n; onFx(fx); }
     room ||= { code };
     if ((m?.n || 0) !== match.n) {                                                    // 試合が始まった／終わった
-      match = { on: !!m?.on, n: m?.n || 0 };
-      if (match.on) beginMatch();
-      else if (!first && m && m.winner != null) banner(m.winner === -1 ? '引き分け！' : `${TEAM_NAMES[m.winner]}チームの勝ち！`, 6000);
+      match = { on: !!m?.on, n: m?.n || 0, st: m?.st | 0 };
+      if (match.on) beginMatch(); else toHall();
+      if (!match.on) if (!first && m && m.winner != null) banner(m.winner === -1 ? '引き分け！' : `${TEAM_NAMES[m.winner]}チームの勝ち！`, 6000);
     }
     refreshHud(Object.keys(players).length);
     $('roomHud').hidden = false; $('roomBtn').hidden = true;
@@ -874,7 +912,7 @@ function start() {
   }
   function leftRoom(message) {
     for (const id of [...remotes.keys()]) dropRemote(id);
-    room = null; lastSent = ''; holding = heldBy = null; hp = 100; match = { on: false, n: 0 }; powerT = speedT = camoT = 0; syncItems(null);
+    room = null; lastSent = ''; holding = heldBy = null; hp = 100; match = { on: false, n: 0 }; powerT = speedT = camoT = 0; syncItems(null); toHall();
     $('roomHud').hidden = true; $('roomBtn').hidden = false; $('hp').hidden = true;
     if (message) { panel.hidden = false; roomMsg(message); }
   }
@@ -885,7 +923,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      roomApi ||= await import('./museum-room.js?v=4.04');
+      roomApi ||= await import('./museum-room.js?v=4.05');
       await roomApi.enter({ create, code, name: roomApi.cleanName(name) || 'ななし', onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
       try { localStorage.setItem('museum:name', name); } catch (_) {}
       panel.hidden = true; roomMsg('');
