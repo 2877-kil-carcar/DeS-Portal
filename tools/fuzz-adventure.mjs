@@ -56,7 +56,12 @@ for (const n of only.length ? only : all) {
     for (let i = 0; i < 30 * (16 + (m.mode === 'crank' ? (m.hold ?? 12) + (m.down ?? 8) : 0)); i++) {
       const t = i % 30, walk = t >= 18, out = i < 30 * 8;                 // 毎秒：元の場所に置きなおして 0.6 秒じっとし、0.4 秒だけ外へ歩く
       if (!t) Object.assign(p, { x, y, z, vy: 0, hvx: 0, hvz: 0, grounded: true, hang: null });
-      for (const k of ends) { const c = w.crates[k.crate], r = c.rail; c[r.axis] = out === (k.at === 'max') ? r.max : r.min; w.fit(c); }
+      for (const k of ends) {
+        const c = w.crates[k.crate], r = c.main || c.rail;
+        if (k.at === 'fork') { c[r.axis] = c.fork.at; c[c.side.axis] = out ? c.side.at : c.side.line; }   // ポイントつき台車：支線の行き止まりへ／分かれ目へ
+        else c[r.axis] = out === (k.at === 'max') ? r.max : r.min;
+        w.fit(c);
+      }
       w.step(DT, (i + 1) * 1000 * DT, [[p.x, p.y, p.z], ...(out ? ghosts() : [])], out ? m.handles || [] : []); p.step(DT, walk ? sx : 0, walk ? sz : 0);
       p.events.length = 0; total++;
       if (t === 29) assert.ok(Math.hypot(p.x - x, p.z - z) > 0.3 || w.blocked(p.x, p.z, p.y)?.m !== m,

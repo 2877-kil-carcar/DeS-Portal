@@ -73,7 +73,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.11">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.12">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <button class="ui pill small" id="stageInfo" aria-label="ステージを選ぶ"></button>
@@ -113,8 +113,8 @@
    キャラの体（ラグドール）は美術館 museum.html と同じ作り。
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
-import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.11';
-import { STAGES } from './adventure-stages.js?v=4.11';
+import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.12';
+import { STAGES } from './adventure-stages.js?v=4.12';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -149,6 +149,10 @@ function start() {
   MATS[8].emissive.set(0x7a0010); MATS[8].metalness = 0.6; MATS[8].roughness = 0.3;
   const warpMat = new THREE.MeshBasicMaterial({ color: 0xa35cff }), warpGlow = new THREE.MeshBasicMaterial({ color: 0xd9b8ff, transparent: true, opacity: 0.35, depthWrite: false });
   MATS[5].roughness = 0.12;
+  MATS[12] = new THREE.MeshStandardMaterial({ roughness: 0.85, map: paint(64, 64, g => {   // 板張り：横に打ちつけた板と、斜めの筋かい
+    g.fillStyle = '#a8763e'; g.fillRect(0, 0, 64, 64); g.fillStyle = 'rgba(50,28,10,0.8)'; for (const y of [0, 16, 32, 48]) g.fillRect(0, y, 64, 3);
+    g.fillStyle = '#7a5228'; g.translate(32, 32); g.rotate(-0.8); g.fillRect(-46, -5, 92, 10);
+  }) });
   const windMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.16, depthWrite: false });
   const beltTex = paint(64, 64, g => {                                                // ベルトの矢印（流れる向きへ動かす）
     g.fillStyle = '#4a4f57'; g.fillRect(0, 0, 64, 64); g.strokeStyle = '#f2c94c'; g.lineWidth = 7;
@@ -235,7 +239,8 @@ function start() {
     scene.fog = new THREE.Fog(st.sky[1], 60, 260);
     const deco = st.deco || [];                                                       // 見た目だけの形（当たりはない）：箱は足場と同じに描く
     for (const b of st.boxes.concat(deco.filter(d => !d.beacon))) {
-      boxMesh(b, MATS[b.c], group);
+      const mesh = boxMesh(b, MATS[b.c], group);
+      if (b.planks) { const k = st.boxes.indexOf(b); live.push(() => { mesh.visible = !world.broken.has(k); }); }   // 板張り：割れたら消す
       if (b.c === 0) boxMesh({ x0: b.x0 - 0.06, x1: b.x1 + 0.06, y0: b.y1 - 0.25, y1: b.y1 + 0.01, z0: b.z0 - 0.06, z1: b.z1 + 0.06 }, grassMat, group);
     }
     for (const d of deco) if (d.beacon) {                                             // 目じるしの柱：6m の細い柱の先に、光る玉（遠くても、かすまない）
@@ -344,6 +349,15 @@ function start() {
           for (const v of [min - c.s / 2 - 0.15, max + c.s / 2 + 0.15]) at(v, 0.25, 0.3, 0.5, 1.2, MATS[4]);
           part(unit, crateMats[1], g, 0, -(c.s - 0.25) / 2, 0, c.s, c.s - 0.25, c.s);
           for (const s of [-0.4, 0.4]) part(cyl, darkMat, g, x ? s : 0, 0.22 - c.s, x ? 0 : s, 0.44, c.s + 0.16, 0.44).rotation[x ? 'x' : 'z'] = Math.PI / 2;
+          if (c.fork) {                                                               // ポイント：分かれ目から直角に、支線の 2 本のレールと行き止まりの車止め。分かれ目のそばに信号の柱（支線がわなら、レバーの東の印と同じ色）。動かす信号から柱へ細い線
+            const s = c.side, sx = s.axis === 'x', fx = c.fork.at, k = Math.sign(s.at - s.line) || 1, far = s.at + k * c.s / 2, smid = (s.line + far) / 2, slen = Math.abs(far - s.line);
+            for (const e of [-0.45, 0.45]) part(unit, darkMat, group, sx ? smid : fx + e, c.y + 0.03, sx ? fx + e : smid, sx ? slen : 0.1, 0.06, sx ? 0.1 : slen);
+            part(unit, MATS[4], group, sx ? far + k * 0.15 : fx, c.y + 0.25, sx ? fx : far + k * 0.15, sx ? 0.3 : 1.2, 0.5, sx ? 1.2 : 0.3);
+            const px = sx ? s.line - k * 1.3 : fx - 1.3, pz = sx ? fx - 1.3 : s.line - k * 1.3, lamp = part(ball, offMat, group, px, c.y + 2.1, pz, 0.4);
+            part(cyl, poleMat, group, px, c.y + 1, pz, 0.08, 2, 0.08);
+            const wires = (c.fork.on || []).map(i => { const p = world.plates[i], h = p.kind === 'rail' ? world.crates[p.crate].home : p; return rod(offMat, [h.x, h.y + 0.04, h.z], [px, c.y + 2.1, pz], 0.05); });
+            live.push(() => { lamp.material = world.test(c.fork) ? markB : markA; for (const r of wires) r.material = lamp.material; });
+          }
         }
       } else {
         moving.push(boxMesh(c.box, c.fan ? fanMat : crateMats[+!!c.heavy], group));
@@ -394,6 +408,18 @@ function start() {
     $('stageInfo').textContent = `🗺 ${i + 1}/${STAGES.length}　${st.name}`;
     banner(`ステージ ${i + 1}　${st.name}`, 2500); hint(st.cps[0].hint);
     hero.pts = null;                                                                  // 体も新しい場所から作り直す
+  }
+  // 板張り i が割れた：木っ端を飛ばす（2 秒で消える）
+  function chips(i) {
+    const b = world.stage.boxes[i], bits = [];
+    for (let k = 0; k < 14; k++) bits.push([part(unit, MATS[12], group, b.x0 + Math.random() * (b.x1 - b.x0), b.y0 + Math.random() * (b.y1 - b.y0), b.z0 + Math.random() * (b.z1 - b.z0), 0.5, 0.08, 0.15),
+      (Math.random() - 0.5) * 5, 2 + Math.random() * 3, (Math.random() - 0.5) * 5]);
+    let t = 0;
+    live.push((time, dt) => {
+      if (t > 2) return;
+      if ((t += dt) > 2) { for (const [m] of bits) group.remove(m); return; }
+      for (const q of bits) { const m = q[0]; q[2] -= 10 * dt; m.position.x += q[1] * dt; m.position.y += q[2] * dt; m.position.z += q[3] * dt; m.rotation.x += dt * 6; }
+    });
   }
 
   // ── 白くて丸いキャラ（ローカル +z が前）──
@@ -728,13 +754,16 @@ function start() {
     world.fit(c);
   };
   /* 部屋の内容が変わるたびに呼ばれる。m = { stage, n } は「いまのステージと、何回目の出発か」、
-     boxes は箱の置き場所（c 番号。置いた人・押した人が書く）と、巻き上げる床から手を放した知らせ（k 番号） */
+     boxes は箱の置き場所（c 番号。置いた人・押した人が書く）と、巻き上げる床から手を放した知らせ（k 番号）と、割れた板張り（b 番号） */
   function onRoom(code, players, id, fx, m, boxes) {
     const first = !room; roomMe = id; room ||= { code };
     if (first) lastFx = fx?.n;                                                        // 入室前から残っていた合図は無視する
     else if (fx && fx.n !== lastFx) { lastFx = fx.n; onFx(fx); }
     if (m?.n && m.n !== run) loadStage(Math.min(STAGES.length - 1, Math.max(0, m.stage | 0)), m.n);   // だれかがゴールした／途中から入った
-    else if (first && created && !m) { run = nonce(); roomApi.setMatch({ stage: stageIndex, n: run }); }   // 部屋を作った人のステージに、あとから来る人が合わせる
+    else if (first && created && !m) {                                                // 部屋を作った人のステージに、あとから来る人が合わせる
+      run = nonce(); roomApi.setMatch({ stage: stageIndex, n: run });
+      for (const i of world.broken) roomApi.putItem('b' + i, { g: run, n: nonce(), t: 0 });   // 1 人で割っておいた板張りも知らせる（t: 0 なので、木っ端は飛ばない）
+    }
     for (const [key, d] of Object.entries(boxes || {})) {
       const c = key[0] === 'c' && world.crates[+key.slice(1)];
       if (!c || d.g !== run || d.n === c.seen || !Array.isArray(d.p)) continue;
@@ -742,6 +771,11 @@ function start() {
       if (c.heavy) c.net = d;                                                         // 重い箱（レバー・台車も）は、知らされた場所へなめらかに寄せる（メインループ）
       else if (c.held && c.held !== 'me') c.pending = d;                               // まだ仲間の手元にある：放したと分かった時点で、この場所に置く
       else if (me.carry !== c) place(c, d);                                           // 自分が持っている箱は、自分の手元を優先
+    }
+    for (const [key, d] of Object.entries(boxes || {})) {                             // 割れた板張り（あとから入ったときに残っていた知らせも同じ）。新しい知らせのときだけ、木っ端も飛ばす
+      const i = +key.slice(1);
+      if (key[0] !== 'b' || d.g !== run || !world.stage.boxes[i]?.planks || world.broken.has(i)) continue;
+      world.smash(i); if (roomApi.serverNow() - d.t < 2000) chips(i);
     }
     $('roomInfo').textContent = `${code}・${Object.keys(players).length}/4`;
     $('roomHud').hidden = false; $('roomBtn').hidden = true;
@@ -781,7 +815,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.11'); roomApi.setup('adventure/room', 4); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.12'); roomApi.setup('adventure/room', 4); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
@@ -927,13 +961,15 @@ function start() {
     }
     const now = room ? roomApi.serverNow() : Date.now();                             // 部屋ではサーバーの時計を使う（端末の時計がずれていても、動く床が全員で同じ位置になる）
     world.step(dt, now, bodies, grips); gripped = grips;
+    for (const i of world.smashed) { chips(i); if (room) roomApi.putItem('b' + i, { g: run, n: nonce(), t: now }); }   // この端末で割れた板張り：木っ端を飛ばし、部屋へ知らせる
+    world.smashed.length = 0;
 
     // 持ち上げている側：仲間がいなくなる・抜けたら放す／持ち上げられている側：相手の手元へ運ばれ、スティックを振ると抜ける
     if (holding) { holdT += dt; const r = remotes.get(holding); if (!r || (holdT > 0.8 && r.target[5] !== ACT.HELD)) release('drop'); }
     if (heldBy) {
       const r = remotes.get(heldBy);
       if (!r || (struggle += Math.abs(ix - lastIx)) > 6) { heldBy = null; me.frozen = false; me.vy = 3; me.grounded = false; }
-      else { const g = r.fig.g; me.x = g.position.x + Math.sin(g.rotation.y) * 0.75; me.z = g.position.z + Math.cos(g.rotation.y) * 0.75; me.y = g.position.y + 0.9; me.ry = g.rotation.y + ix * 0.7; me.air = 0.9; }
+      else { const g = r.fig.g; [me.x, me.y, me.z] = world.heldSpot(g.position.x, g.position.z, g.position.y, g.rotation.y); me.ry = g.rotation.y + ix * 0.7; me.air = 0.9; }
     }
     lastIx = ix;
     // カメラの向きを基準に前後左右へ動く
@@ -1019,7 +1055,8 @@ function start() {
         const s = [me.x, me.y, me.z, me.ry].map(v => Math.round(v * 100) / 100).concat(me.walk ? 1 : 0, act, me.carry ? me.carry.id + 1 : 0, me.crank == null ? 0 : me.crank + 1, run);
         if (s.join() !== lastSent) { lastSent = s.join(); roomApi.send(s); }
         // 箱の場所は、置いて止まってから知らせる（落ちている途中の場所は書かない）。動く床の上なら、その床の番号と、床から見た場所を書く
-        for (const c of world.crates) if (c.moved && !c.held && (c.on || c.rail)) {
+        // 知らされた場所へ寄せている途中の重い箱（c.net）は書かない：あとから入った端末で、中二階の下を通って寄る途中に壁からすべり出た場所を、仲間へ広めない
+        for (const c of world.crates) if (c.moved && !c.held && !c.net && (c.on || c.rail)) {
           const k = world.movers.indexOf(c.on?.m), o = c.on?.m?.o, d = { p: [c.x, c.y, c.z].map((v, i) => Math.round((v - (o ? o[i] : 0)) * 100) / 100), n: c.seen = nonce(), g: run };
           if (o) d.m = k;
           c.moved = false; roomApi.putItem('c' + c.id, d);

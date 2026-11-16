@@ -5,6 +5,7 @@
 // 見直し（2 回め）の検査：仲間の頭の上のせんぷうき箱・動く床が人や箱を動かない箱の中へ運ばない・遠ざかった重い箱から手が離れる・同じハンドルを 2 人で回す・
 // となり合うソケット・あみの真下からつかまない・うすい壁ごしに箱を置かない・となりの岸に立つ人は乗っていない扱い・遅れて見える仲間とリフト・レールの箱の c.on・いることにした仲間。
 // 公開後の見直しの検査：となり合う 2 つの箱の境目からの脱出・段から押し落とした重い箱・のこぎりの上の箱・壁に張りついたまま跳ぶ・飛んでいる間の舵。
+// 板張り（重い箱で割れる戸口・床のふた。部屋の知らせで割る w.smash）。
 // 最後に、ステージの点検（tools/lint-adventure.mjs）が、わざと入れたまちがいを見つけることも確かめる。
 // 使い方：node tools/test-adventure-mechanics.mjs          … 毎秒 60 コマで
 //         FPS=20 node tools/test-adventure-mechanics.mjs   … 遅い端末のコマ数で
@@ -12,7 +13,7 @@ import assert from 'node:assert/strict';
 import { kit, makeWorld, REACH } from '../apps/gallery/adventure-world.js';
 import { makeBot } from './test-adventure.mjs';
 import { lint } from './lint-adventure.mjs';
-const { B, P, CP, wind, gust, saw, cannon, cell, socket, WP, fan, net, launcher, lever, cart, railEnd, seesaw } = kit;
+const { B, P, CP, wind, gust, saw, cannon, cell, socket, WP, fan, net, launcher, lever, cart, railEnd, seesaw, planks } = kit;
 const FPS = +process.env.FPS || 60;
 
 let seed = 7;
@@ -768,6 +769,39 @@ group('大砲台・カタパルト：飛んでいる間は、舵が少ししか�
   const z0 = p.z; run(b, 2, 0, 1); assert.ok(p.z > z0 + 4, `着地したあとも、歩くのが遅い (${p.z - z0})`);
 });
 
+group('板張り：重い箱を押しつける・上に落とす・台車でぶつけると割れる。人・軽い箱・レバーでは割れない。知らせで割った板は w.smashed に入らない', () => {
+  // 広場（x -6.5〜6.5）の北に戸口の板張り（z 5.7〜6.3。その先 z 10 に止めの壁）。西と東の床には、穴をふさぐ床のふた（上面 0）
+  const door = planks(B(0, 3, 6, 6, 0.6, 3)), lid = planks(B(-8, 0, -6, 3, 3, 0.3)), lid2 = planks(B(8, 0, 6, 3, 3, 0.3));
+  const ground = [B(0, 0, 0, 13, 24, 1), B(-10.75, 0, 0, 2.5, 24, 1), B(-8, 0, -9.75, 3, 4.5, 1), B(-8, 0, 3.75, 3, 16.5, 1),
+    B(10.75, 0, 0, 2.5, 24, 1), B(8, 0, -3.75, 3, 16.5, 1), B(8, 0, 9.75, 3, 4.5, 1), B(-4.75, 3, 6, 3.5, 0.6, 3), B(0, 3, 10, 6, 0.6, 3)];
+  const make = () => bot({ boxes: [...ground, door, lid, lid2], crates: [{ x: 0, y: 0, z: 2, s: 1.4, heavy: true, solo: true }, { x: 3, y: 0, z: -3, s: 0.8 },
+    lever(-2.8, 0, 4, 'z'), cart(8, 0, 2, 'z', 2, 4), { x: -3, y: 0, z: -9, s: 1.4, heavy: true, solo: true }] });
+  const D = 9, L = 10, L2 = 11;                                                    // 板張りの番号（boxes の中の位置）
+  let b = make(), { p, w } = b;
+  run(b, 0.5); assert.equal(w.broken.size, 0, 'さわってもいないのに割れた');
+  // 人が押しても、通れない。軽い箱を押しつけても、ふたの上に落としても割れない。レバーのつまみを押しつけても割れない
+  b.place(1, 0, 4.5); run(b, 1.5, 0, 1); assert.ok(p.z < 5.4 && !w.broken.has(D), `人が板張りを通りぬけた／割った (z=${p.z})`);
+  move(w.crates[1], 1, 0, 5.25); w.fit(w.crates[1]); run(b, 0.5); move(w.crates[1], -8, 3, -6); w.fit(w.crates[1]); run(b, 1);
+  assert.ok(w.broken.size === 0 && near(w.crates[1].y, 0), `軽い箱で割れた／ふたの上にのっていない (y=${w.crates[1].y})`);
+  b.place(-2.8, 0, 2); b.push(2, [-2.8, 3.15], 0, 1); assert.ok(w.crates[2].z > 5.3 && !w.broken.has(D), `レバーのつまみで割れた／板まで届いていない (z=${w.crates[2].z})`);
+  // 重い箱を北へ押しつけると割れ、そのまま戸口を通れる。w.smashed に 1 回だけ入る
+  b.place(2, 0, 0); b.push(0, [0, 0.8], 0, 1); assert.ok(w.broken.has(D) && w.smashed.join() === String(D), `重い箱を押しつけても割れない (z=${w.crates[0].z}) ${w.smashed}`);
+  assert.ok(!w.list.includes(door), '割れた板張りに、まだ当たりがある');
+  b.go([1.5, 5]); b.go([1.5, 8]); assert.ok(p.z > 7.5, `割れた戸口を通れない ${b.where()}`);
+  // 台車をレールの端までころがすと、ふたが割れる。ふたに立っていた仲間の体は落ちる（もう、そこに足場はない）
+  b.place(8, 0, -0.5); b.push(3, [8, 0.8], 0, 1); assert.ok(w.broken.has(L2), `台車をぶつけても、ふたが割れない (z=${w.crates[3].z})`);
+  assert.ok(w.floorY(8, 6, 0) < -90, '割れたふたの上に、まだ足場がある');
+  // 重い箱を上から落とすと、ふたが割れて、箱は穴の下へ落ち、元の場所へ戻る
+  move(w.crates[1], 3, 0, -3); w.fit(w.crates[1]); move(w.crates[4], -8, 4, -6); w.fit(w.crates[4]);   // ふたの上の軽い箱はどけておく（重い箱が、その上にのってしまう）
+  b.wait('落とした重い箱で、ふたが割れる', () => w.broken.has(L), 2);
+  b.wait('箱が穴から落ちて、元の場所へ戻る', () => near(w.crates[4].x, -3) && near(w.crates[4].y, 0), 6);
+  assert.deepEqual(w.smashed, [D, L2, L]);
+  // 部屋の知らせで割る：w.smash は w.smashed に入れない。新しい世界（やり直し）では、割れていない
+  b = make(); b.w.smash(D); b.tick();
+  assert.ok(b.w.broken.has(D) && !b.w.smashed.length && !b.w.list.includes(door), '知らせで割った板張りが、割れていない／w.smashed に入った');
+  assert.equal(make().w.broken.size, 0, '前の世界で割った板が、新しい世界でも割れている');
+});
+
 group('ステージの点検（lint）：正しいステージは通し、わざと入れたまちがいは 1 つずつ見つける', () => {
   const plainBox = B(26, 0.1, 2, 2, 2, 0.3), spare = Array.from({ length: 200 }, (_, i) => B(100 + 3 * i, 0, 100, 2, 2, 1));
   const check = edit => {
@@ -807,9 +841,52 @@ group('ステージの点検（lint）：正しいステージは通し、わざ
     ['kill（-12）より下', st => st.movers.push({ b: B(0, -6, 15, 3, 6, 1, 3), to: [0, 6, 0], mode: 'hold', on: [0] })],   // 6m 下に止めた、かぎの橋（落とした箱が、上に残る）
     ['帰る道がない', st => { st.boxes[2] = plainBox; }],                              // 島の大砲を、ただの箱にする
     ['帰る道がない', st => { st.boxes[3] = B(-9, 5, 9, 6, 6, 6); }],                 // あみを、ただの壁にする
+    ['割れる重い箱', st => st.boxes.push(planks(B(-4, 3, -6, 2, 0.6, 3)))],          // 板張りだけあって、重い箱がない（レバーのつまみでは割れない）
+    ['はじめから重い箱にふれている', st => { st.boxes.push(planks(B(-4, 3, -6, 2, 0.6, 3))); st.crates.push({ x: -4, y: 0, z: -7, s: 1.4, heavy: true }); }],
   ]) { const found = check(edit); assert.ok(found.length === 1 && found[0].includes(word), `「${word}」だけを見つけるはずが：${JSON.stringify(found)}`); }
   assert.deepEqual(check(st => st.movers.push({ b: B(0, -13, 15, 3, 6, 1, 3), to: [0, 13, 0], mode: 'hold', on: [0] })), [], 'kill より下に止めた橋が、まちがいと言われた');
   // 大砲がなくても帰り道になるもの：島を出発点にする 2 台めのトロッコ／行き来する床
   for (const back of [{ b: B(19.5, 0, 4, 3, 3, 0.5, 3), to: [-6, 0, 0], mode: 'ride' }, { b: B(13.5, 0, -4, 3, 3, 0.5, 3), to: [6, 0, 0], mode: 'always', period: 4000 }])
     assert.deepEqual(check(st => { st.boxes[2] = plainBox; st.movers.push(back); }), [], '帰り道があるのに、ないと言われた');
+});
+
+group('ポイントつき台車：分かれ目で、レバーどおりに本線を通りすぎるか支線へ入る。支線の端・本線の端の信号は、そのレールにいる間だけ。どのレールかは場所とレバーだけで決まる', () => {
+  // 広場の南にレバー（x -6〜-4.4）。台車の本線は z 0 の x -9〜9、分かれ目は x 0、支線は z 0〜8
+  const make = () => bot({ crates: [lever(-6, 0, -8, 'x'), cart(-8, 0, 0, 'x', -9, 9, { at: 0, to: 8, on: [0] })], plates: [railEnd(0, 'max'), railEnd(1, 'fork'), railEnd(1, 'max')] });
+  let b = make(), { w } = b, c = w.crates[1];
+  const knob = (q, at) => { const k = q.w.crates[0]; move(k, at, 0, -8); q.w.fit(k); q.tick(); };
+  const sig = () => w.plates.map(p => +p.down).join('');
+  // ポイントが本線なら、東へ押すと分かれ目を通りすぎて本線の端へ。本線の端の信号だけが押される
+  b.place(-9.5, 0, -1.5); b.push(1, [-9.2, 0], 1, 0);
+  assert.ok(c.x > 8.9 && c.rail === c.main && sig() === '001', `本線を通りすぎない／信号がちがう (x=${c.x.toFixed(2)}, ${sig()})`);
+  // レバーを押しきると、西へ戻した台車は分かれ目でぴたりと止まり、支線に乗りかわる。北へ押すと支線の端の信号
+  knob(b, -4.4); b.push(1, [10.2, 0], -1, 0);
+  assert.ok(c.x === 0 && c.z === 0 && c.rail === c.side && sig() === '100', `分かれ目で止まらない (${c.x.toFixed(3)}, ${c.z.toFixed(3)}, ${sig()})`);
+  b.go([0, -1.5]); b.push(1, [0, -1.2], 0, 1);
+  assert.ok(c.z > 7.9 && c.x === 0 && sig() === '110', `支線の端まで行かない／信号がちがう (z=${c.z.toFixed(2)}, ${sig()})`);
+  // レバーを戻しても、支線の台車は支線のまま。分かれ目まで押し戻すと（端の手前で止まっても）本線にもどり、東西へ押せる
+  knob(b, -6); assert.ok(c.rail === c.side, 'レバーを戻したら、支線の台車が支線から外れた');
+  b.push(1, [0, 9.2], 0, -1);
+  assert.ok(c.z === 0 && c.rail === c.main && sig() === '000', `分かれ目で本線にもどらない (z=${c.z.toFixed(3)}, ${sig()})`);
+  b.go([1.5, 1.5]); b.go([1.5, 0.3]); b.push(1, [1.2, 0], -1, 0); assert.ok(c.x < -8.9, `本線にもどった台車を、西へ押せない (x=${c.x.toFixed(2)})`);
+  // ポイントが本線のままなら、分かれ目で北へは押せない
+  move(c, 0, 0, 0); w.fit(c); b.place(0, 0, -1.5); b.grab(1, [0, -1.2]); for (let i = 0; i < FPS; i++) b.tick(0, 1); b.p.grabEnd();
+  assert.ok(c.z === 0 && c.rail === c.main, `ポイントが本線なのに、北へ押せた (z=${c.z.toFixed(3)})`);
+  // 遅い端末（1 コマに 0.06m 進む）でも、分かれ目を飛びこさない（どこから来ても、0.05m 以内に入るコマがある）
+  for (let k = 0; k < 6; k++) for (const dir of [1, -1]) {
+    const q = make(), d = q.w.crates[1]; knob(q, -4.4); move(d, -dir * (0.5 + k * 0.01), 0, 0); q.w.fit(d);
+    for (let n = 0; n < 30 && d.rail === d.main; n++) { d.x += dir * 0.06; q.w.fit(d); q.w.step(0.05, 1000, []); }
+    assert.ok(d.rail === d.side && d.x === 0, `遅い端末で、分かれ目を飛びこした (始め ${(-dir * (0.5 + k * 0.01)).toFixed(2)}, x=${d.x.toFixed(3)})`);
+  }
+  // あとから入った端末：部屋の知らせで台車が支線の途中に置かれれば、レバーがどちらでも支線。本線の上なら本線。分かれ目なら、レバーどおり
+  for (const [at, x, z, want] of [[-6, 0, 5, 'side'], [-4.4, 0, 5, 'side'], [-4.4, 5, 0, 'main'], [-4.4, 0, 0, 'side'], [-6, 0, 0, 'main']]) {
+    const q = make(), d = q.w.crates[1]; move(d, x, 0, z); q.w.fit(d); knob(q, at);
+    assert.ok(d.rail === d[want] && d.x === x && d.z === z, `知らせの場所 (${x}, ${z})・レバー ${at} で、${want} にならない／場所が変わった`);
+  }
+  // 点検：'fork' の端は、ポイントつき台車にだけ書ける。分かれ目が本線の外なら見つける
+  const st = { name: '点検の検査', kill: -12, goal: { x: 0, y: 0, z: -9 }, cps: [CP(0, 0, -5, 'a')], boxes: [floor], plates: [railEnd(0, 'max'), railEnd(1, 'fork')], movers: [],
+    crates: [lever(-6, 0, -8, 'x'), cart(-8, 0, 0, 'x', -9, 9, { at: 0, to: 8, on: [0] })] };
+  assert.deepEqual(lint(st), [], '正しいポイントつき台車で、まちがいが見つかった');
+  assert.ok(lint({ ...st, crates: [st.crates[0], cart(-8, 0, 0, 'x', -9, 9)] }).some(t => t.includes("'fork'")), 'ポイントのない台車の fork の端を、見のがした');
+  assert.ok(lint({ ...st, crates: [st.crates[0], cart(-8, 0, 0, 'x', -9, 9, { at: 10, to: 8, on: [0] })] }).some(t => t.includes('分かれ目')), '本線の外の分かれ目を、見のがした');
 });

@@ -28,9 +28,10 @@ const fan = (x, y, z) => ({ x, y, z, s: 0.8, fan: true });                  // �
 const net = (b, climbFaces) => Object.assign(b, { climb: true, climbFaces });   // あみ：つかむと登れる壁。climbFaces（'s' 'n' 'e' 'w' をならべた文字）で、登れる面をしぼれる
 const launcher = (x, top, z, aims) => Object.assign(B(x, top, z, 2.4, 2.4, 0.3, 11), { launch: { aims } });   // ふみ板カタパルト：条件が合っている間だけ打ち出す（色 11）
 // レールの箱：重い箱と同じに押し引きするが、レール（axis 'x' か 'z' の向きに min〜max）の上だけを動く。1 人で動かせ、落ちず、ふみ板も押さない
-const cart = (x, y, z, axis, min, max) => ({ x, y, z, s: 1.4, heavy: true, solo: true, rail: { axis, min, max } });   // 台車：押して踏み台にする
+const cart = (x, y, z, axis, min, max, fork) => ({ x, y, z, s: 1.4, heavy: true, solo: true, rail: { axis, min, max }, ...fork && { fork } });   // 台車：押して踏み台にする。fork があれば、ポイント（分かれ道）つき
 const lever = (x, y, z, axis) => { const v = axis === 'x' ? x : z; return { x, y, z, s: 0.6, heavy: true, solo: true, rail: { axis, min: v, max: v + 1.6 } }; };   // レバーのつまみ：置いた場所が min の端。1.6m 先が max の端
 const railEnd = (crate, at) => ({ kind: 'rail', crate, at });               // レールの端の信号（plates に書く）：箱 crate が、その端（'min' か 'max'）にある間「押された」になる
+const planks = b => Object.assign(b, { planks: true, c: 12 });             // 板張り（boxes に書く）：重い箱（1m 以上）がふれると割れて、なくなる（色 12）
 // はねシーソー（movers に ...seesaw(…) で書く）：すわる皿 a（はじめは下）と、ふむ皿 b（はじめは h 上）。b に重さがあり、a 以上に重いと、b が沈み、a がはね上がる
 const seesaw = (a, b, h, v, pair) => [{ b: a, to: [0, h, 0], mode: 'seesaw', pair, side: 'A', v }, { b, to: [0, -h, 0], mode: 'seesaw', pair, side: 'B' }];
 
@@ -52,7 +53,7 @@ const seesaw = (a, b, h, v, pair) => [{ b: a, to: [0, h, 0], mode: 'seesaw', pai
                          でんち 1 個は、ソケット 1 つぶん。ソケットどうしは、まん中を 2m 以上離す（近いと、境目に置いたでんちが、先に書いたソケットへ寄る）
      WP(x, y, z, need)   おもさ板（2.4m 四方）。のっている重さの合計が need 以上で押される：人 1、軽い箱を持った人 2、軽い箱 1、重い箱 2。
                          足りなくなっても 0.4 秒は押されたまま（load は、そのコマの重さのまま。条件の load: n が見る重さ held は、軽くなってから 0.4 秒は前のまま）
-     railEnd(箱の番号, 'min' か 'max')　レールの端。その番号のレールの箱（下の lever・cart）が、その端から 0.25m 以内にある間、押されている。
+     railEnd(箱の番号, 'min' か 'max' か 'fork')　レールの端。その番号のレールの箱（下の lever・cart）が、その端から 0.25m 以内にある間、押されている（'fork' は、ポイントつき台車の支線の行き止まり）。
                          場所（x・y・z）は持たない。レバーなら、min と max の 2 つを書く（つまみがまん中にある間は、どちらも押されていない）
    条件（movers・winds・カタパルトのねらいに書く）：on: [信号…] が全部押されている間。any: true で「どれか 1 つ」、need: k で「k 個以上」。
      load: n を足すと、「押されている」のかわりに「重さが n 以上」で数える（どの信号でも、軽くなってから 0.4 秒は前の重さで数える）。not: true で逆になる。on がなければ「いつも」。
@@ -104,6 +105,12 @@ const seesaw = (a, b, h, v, pair) => [{ b: a, to: [0, h, 0], mode: 'seesaw', pai
        レールの箱＝ { heavy: true, solo: true, rail: { axis, min, max } }。重い箱と同じに押し引きするが、レールの向き（axis）にだけ、箱のまん中が min〜max の間だけ動く
        （押しつづけると、端の手前で止まる。残るすき間は、1 コマに進む長さより短い＝毎秒 20 コマで 0.06m まで）。落ちない。元の場所へ戻らない。置いた所にそのままいる。ふみ板・おもさ板・ソケット・てんびん・くずれる床には、重さ 0（のっていない扱い）。
        y は、下の床の上面に合わせて書く（自分では下りない）。動く床には運ばれないので、動く床の上には置かない。上に置いた軽い箱や、乗った人は、押しても一緒には動かない
+     cart(x, y, z, axis, min, max, { at, to, on })　ポイントつき台車。本線（axis の min〜max）の at に分かれ目があり、そこから直角に、支線が to までのびる
+       （支線は、本線のもう一方の座標＝置いた場所の z か x から、to まで）。台車が分かれ目を通るとき、on の条件が合っていれば（ふつうは railEnd(レバー, 'max')）、
+       分かれ目でぴたりと止まり、支線のレールに乗りかわる（そこからは支線の向きにだけ動く）。合っていなければ、本線をそのまま通りすぎる。
+       支線にいる間は、条件が変わっても支線のまま。分かれ目まで戻れば、そのときの条件で本線か支線かが決まる。いまのレールは c.rail（本線 c.main・支線 c.side）。
+       どのレールにいるかは、台車の場所と条件だけから決まる（通信では何も送らない。台車の場所がそろえば、全員の端末で同じになる）。
+       支線の行き止まりの信号は railEnd(箱の番号, 'fork')。本線の 'min'・'max' は、本線にいる間だけ押される
      solo: true     重い箱を、部屋に何人いても 1 人で動かせる（ふつうの重い箱は、2 人以上いると 2 人でつかまないと動かない）
    boxes に足せるもの
      net(B(…), 面)  あみ。手ぶらでつかむと登れる壁（上下は毎秒 1.2m、左右は 1m。てっぺんの 1.7m 下からは、ふつうのよじ登り）。横や下へ外れると落ちる。
@@ -114,6 +121,9 @@ const seesaw = (a, b, h, v, pair) => [{ b: a, to: [0, h, 0], mode: 'seesaw', pai
      launcher(x, top, z, [{ v: [横 x, 上, 横 z], on, need, load, not }, …])　ふみ板カタパルト（2.4m 四方）。条件が合うねらいのうち、最後に書いたものの速さで、
                     乗った人を打ち出す（持っている軽い箱ごと。置いてある箱は飛ばない。重い箱をつかんでいたら、手が離れて人だけが飛ぶ）。どれも合わない間は、ただの床。いまのねらいは、箱の aimV（なければ null）
                     おもさ板や load: n で動かすなら、板の縁と台の縁を 2m 以上離す（板を下りても 0.4 秒は押されたままなので、1.55m までは、1 人で板を走りぬけて飛べてしまう）
+     planks(B(…))  板張り。ふさいだ戸口や床のふた。重い箱（1m 以上の箱。台車も。レバーのつまみと軽い箱、人はのぞく）が、押しこまれたり、上に落ちてきたりして
+                    0.1m 以内にふれると割れ、当たりがなくなる（上にのっていた人や箱は落ちる）。割れた板は、そのステージをやり直すまで戻らない。
+                    はじめから重い箱にふれる所には置かない。動く床や戸（門）は、戸口の敷居（0.5m の段）で重い箱を止める：閉まる戸に重なった重い箱は、もう動かせない
    CP(x, y, z, hint, r)　最後にふれたセーブ地点が、やり直しの場所になる（前の地点へ戻れば、そこになる）。r は、ふれたことになる半径（省くと 2.2）
 
    ── adventure.html へ：ハンドルと、巻き上げる床の合わせ方 ──
@@ -131,6 +141,10 @@ const seesaw = (a, b, h, v, pair) => [{ b: a, to: [0, h, 0], mode: 'seesaw', pai
    shortcut: 放してから、仲間の端末で s[7] が消える前に同じハンドルをつかみなおすと、その仲間の端末では、次に放すまで床が進まない（放した知らせで、同じ位置にそろう）
 
    ── adventure.html へ：そのほかに読むもの・渡すもの ──
+   w.broken     割れた板張り（stage.boxes の番号の Set）。w.smashed は、この端末の w.step で割れた番号の列（ページが読んで、木っ端を飛ばし、
+                items の "b<番号>" に { g: run, n, t } を書いてから空にする）。知らせを受けたら（あとから入ったときに items から読んだ知らせも）w.smash(番号) を呼ぶ：
+                w.smashed には入らない（知らせが古ければ、木っ端も飛ばさない）。箱の知らせだけでは足りない（重い箱があとで動けば、あとから入った端末では、板にふれていない）
+   w.heldSpot(x, z, y, ry)  持ち上げられている人の位置 [x, y, z]（持つ人の足の位置と向きから）。前が壁・戸なら、持つ人の真上（壁の向こうへ運ばない）
    w.extra      毎コマ、仲間の体の箱（friend: true）を入れる。箱が上に乗ることも、せんぷうき箱の風を止めることもある
    w.winds      風の一覧。ステージに書いた風のあとに、せんぷうき箱 1 個につき 1 つ（.fan がその箱）。吹いている間は .active が true。風の柱は x0・x1・z0・z1・y0・y1（せんぷうき箱の風は、毎コマ箱に合わせて変わる）
    p.near       いま中にいるセーブ地点の番号（どこにもいなければ -1）。p.seen は、これまでにふれた地点の番号の Set。p.cp が、やり直しの場所
@@ -143,6 +157,7 @@ const seesaw = (a, b, h, v, pair) => [{ b: a, to: [0, h, 0], mode: 'seesaw', pai
    すき間（同じ高さ）　ふつうは 1.5 まで。助走して跳ぶと 2.95〜3.1（早めに踏み切ると 2.6）、軽い箱を持って 2.45〜2.6（早めで 2.1）。
          「つかむ」を押したまま跳ぶと、向こう岸の縁をつかんで 3.9〜4.15 まで渡れる（向こう岸が 1m 低いと 4.5、2m 低いと 4.8。縁に置いた重い箱の上からは 4.55、軽い箱を 2 段に積んだ上からは 4.65）。
          投げられた仲間は 8.0 まで渡れる（縁をつかめば 8.95、投げる人が箱の上なら 9.3）。
+         4 人で、1.4 の箱の上に仲間 2 人を積み、そのてっぺんから投げると 11 まで渡れる（14 なら届かない）。投げる人の足が 7.8 なら、12 の壁の上をつかめる（14 なら届かない）
    渡らせないすき間（ステージを作るときは、この 3 つの値を使う）
          荷物を持った人を渡らせない　　3.6 以上
          手ぶらの人も渡らせない　　　　5.4 以上
@@ -165,7 +180,7 @@ const seesaw = (a, b, h, v, pair) => [{ b: a, to: [0, h, 0], mode: 'seesaw', pai
          ほかの向きへ飛ばすには、横の速さ（x と z）を同じ大きさのまま回す。着地させる足場は、この着地点を中心に 6×6 以上。
          大砲台・カタパルトで飛んでいる間（着地するか、つかまるまで）は、スティックで動けるのは毎秒 0.8m まで：倒しつづけても、台と同じ高さへ下りてくるまでに、着地点は 2.1m までしかずれない */
 // ステージのファイル（adventure-stages/sN.js）へ渡す「作り方」一式
-export const kit = { B, ice, pad, belt, P, CP, crumble, wind, gust, saw, cannon, warp, cell, socket, WP, fan, net, launcher, lever, cart, railEnd, seesaw };
+export const kit = { B, ice, pad, belt, P, CP, crumble, wind, gust, saw, cannon, warp, cell, socket, WP, fan, net, launcher, lever, cart, railEnd, seesaw, planks };
 
 export function makeWorld(stage) {
   const w = { stage, list: [], extra: [] };                                          // extra：呼び出し側が毎コマ入れる箱（仲間の体。friend: true）
@@ -175,11 +190,18 @@ export function makeWorld(stage) {
   w.warps = stage.warps || [];
   w.handles = (stage.handles || []).map(h => ({ ...h }));                            // ハンドルの、いまの場所（ride の床に付いたものは、床と一緒に動く）
   w.crates = stage.crates.map((c, id) => ({ ...c, id, home: { ...c }, vy: 0, held: null, on: null, box: { c: 2 } }));
+  for (const c of w.crates) if (c.fork) {                                            // ポイントつき台車：本線 main と、分かれ目から直角にのびる支線 side（line は分かれ目での支線の座標、at は行き止まり）
+    const a = c.rail.axis === 'x' ? 'z' : 'x', line = c[a], to = c.fork.to;
+    c.main = c.rail; c.side = { axis: a, min: Math.min(line, to), max: Math.max(line, to), line, at: to };
+  }
   w.winds = (stage.winds || []).map(z => ({ ...z, active: false })).concat(w.crates.filter(c => c.fan).map(c => ({ fan: c, up: 5, active: false })));
   const pads = stage.boxes.filter(b => b.launch);
   const fit = c => { const h = c.s / 2, b = c.box; b.x0 = c.x - h; b.x1 = c.x + h; b.z0 = c.z - h; b.z1 = c.z + h; b.y0 = c.y; b.y1 = c.y + c.s; b.crate = c; };
   w.fit = fit;
-  const relist = () => { w.list = [...stage.boxes, ...w.movers.map(m => m.box), ...w.crates.filter(c => !c.held).map(c => c.box), ...w.extra]; };
+  w.smash = i => { w.broken.add(i); relist(); };                                    // 板張り i を割る（部屋の知らせを受けたとき）
+  w.broken = new Set(); w.smashed = [];                                              // 割れた板張り／この端末のこのコマで割れた板張り（ページが読んで空にする）
+  const boards = stage.boxes.flatMap((b, i) => b.planks ? [i] : []);
+  const relist = () => { w.list = [...stage.boxes.filter((b, i) => !w.broken.has(i)), ...w.movers.map(m => m.box), ...w.crates.filter(c => !c.held).map(c => c.box), ...w.extra]; };
 
   // (x, z) の真下で、足の高さ y から歩いて上がれる範囲にある、いちばん高い箱（なければ null ＝ 下は空）
   w.groundBox = (x, z, y, skip) => {
@@ -204,6 +226,12 @@ export function makeWorld(stage) {
   };
   // 動かない箱（壁・床）だけを見る blocked：動く床・箱・仲間の体は数えない（w.list は動かない箱が先なので、動かない箱に当たっていれば、それが返る）
   w.wall = (x, z, y, skip, r, h) => { const k = w.blocked(x, z, y, skip, r, h); return k && !k.m && !k.crate && !k.friend ? k : null; };
+  // 持ち上げられた仲間の位置：足の高さ y・向き ry で持つ人の 0.75m 前、0.9m 上。そこか途中が壁・戸にかかるなら、持つ人の真上（うすい壁の向こうへ運ばない）
+  w.heldSpot = (x, z, y, ry) => {
+    const sx = Math.sin(ry) * 0.75, sz = Math.cos(ry) * 0.75;
+    const hit = t => { const k = w.blocked(x + sx * t, z + sz * t, y + 0.9); return k && !k.crate && !k.friend; };
+    return hit(1) || hit(0.5) ? [x, y + 0.9, z] : [x + sx, y + 0.9, z + sz];
+  };
   // 足元の箱。ただし、上がってくる動く床に乗ると動かない箱（天井・ひさし）にめり込むなら、その床は足元に数えず、その下を返す（床は、体や箱をすり抜けて上がる）
   w.footing = (x, z, y, skip, r, h) => {
     const g = w.groundBox(x, z, y, skip);
@@ -231,7 +259,10 @@ export function makeWorld(stage) {
     const over = (q, p) => Math.abs(q[0] - p.x) < p.w / 2 + 0.15 && Math.abs(q[2] - p.z) < p.d / 2 + 0.15 && q[1] > p.y - 0.1 && q[1] < p.y + 0.3;
     const used = new Set();                                                           // もうソケットに入っている箱（1 個の箱は、ソケット 1 つぶんにしか数えない）
     for (const p of w.plates) {
-      if (p.kind === 'rail') { const c = w.crates[p.crate]; p.load = +(Math.abs(c[c.rail.axis] - c.rail[p.at]) < 0.25); }   // レールの端：箱が、その端から 0.25m 以内にある間
+      if (p.kind === 'rail') {                                                        // レールの端：箱が、その端から 0.25m 以内にある間（ポイントつき台車は、そのレールにいる間だけ）
+        const c = w.crates[p.crate], r = p.at === 'fork' ? c.side : c.main || c.rail;
+        p.load = +(c.rail === r && Math.abs(c[r.axis] - r[p.at === 'fork' ? 'at' : p.at]) < 0.25);
+      }
       else if (p.needs) {                                                             // ソケット：合う箱だけが入る。入った箱は、まん中へ寄せる（ほかの箱に重なるなら寄せない）
         const c = loose.find(c => c.tag === p.needs && !used.has(c) && over([c.x, c.y, c.z], p));
         p.load = c ? 1 : 0; used.add(c);
@@ -312,6 +343,14 @@ export function makeWorld(stage) {
     for (const c of w.crates) {
       if (c.held) { c.kv = null; continue; }                                          // 飛んでいる途中で手に取った箱は、横の勢いをなくす（置いたあとに、すべっていかない）
       const h = c.s / 2;
+      if (c.fork) {
+        /* ポイント：どのレールにいるかは、場所と条件だけで決まる。支線へ 0.07m より出ていれば支線。本線の分かれ目から 0.05m 以内（1 コマに進むのは 0.06m まで）では、
+           条件が合えば支線（本線の座標を分かれ目にそろえる＝ぴたりと止まる）、合わなければ本線（支線の座標を本線にそろえる。支線を押し戻して、端で止まった所もここ） */
+        const m = c.main, s = c.side, ds = Math.abs(c[s.axis] - s.line), dm = Math.abs(c[m.axis] - c.fork.at);
+        c.rail = ds > 0.07 || (dm < 0.05 && w.test(c.fork)) ? s : m;
+        if (c.rail === s) c[m.axis] = c.fork.at; else if (dm < 0.05) c[s.axis] = s.line;
+        fit(c);
+      }
       if (c.rail) { c.on = w.groundBox(c.x, c.z, c.y, c.box); continue; }             // レールの箱は落ちない・元の場所へ戻らない・動く床に運ばれない（置いた所にそのままいる）。足元の床だけ覚える
       if (c.on?.m) {                                                                  // 動く床に乗っていれば一緒に動く。動かない箱の中へは運ばれない（そこに残り、床だけが先へ行く）
         const [dx, dy, dz] = c.on.m.d;
@@ -333,6 +372,10 @@ export function makeWorld(stage) {
         c[a] = out[i] > 4 * dt ? c[a] + (i % 2 ? 4 : -4) * dt : [k.x0 - h, k.x1 + h, k.z0 - h, k.z1 + h][i]; c.moved = true;
       }
       fit(c);
+    }
+    for (const i of boards) {                                                        // 板張り：重い箱（1m 以上）が 0.1m 以内にふれたら割れる（押しつけた箱は、すき間 0.06m まで寄って止まる）
+      const b = stage.boxes[i];
+      if (!w.broken.has(i) && w.crates.some(c => c.heavy && c.s >= 1 && ['x', 'y', 'z'].every(a => c.box[a + '0'] < b[a + '1'] + 0.1 && c.box[a + '1'] > b[a + '0'] - 0.1))) { w.broken.add(i); w.smashed.push(i); }
     }
     relist();
   };

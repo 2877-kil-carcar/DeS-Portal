@@ -1,8 +1,8 @@
 // もふもふ冒険のステージの「作りまちがい」を、動かす前に点検する（自動操縦 tools/test-adventure.mjs より先に走らせる）。
 // 見るもの：当たりのある箱は 200 個まで／条件・ハンドル・レールの端が指す番号があるか／巻き上げる床の up・down は 0 より大きいか／てんびん・はねシーソーは A と B の 2 枚で 1 組か／
 //           カタパルトを動かすおもさ板は、台から 2m 以上離れているか／止まっている動く床から、歩いて出られるか（出られないなら kill より下に止めてあるか）／
-//           箱の置き場所に床があるか（レールの箱は、レールの中にあるか）／
-//           錠が見るソケットの数だけ、でんちがあるか／セーブ地点の真上（3m 四方・高さ 14m）を箱や動く床が通らないか、2.5m 以内をのこぎりが通らないか、
+//           箱の置き場所に床があるか（レールの箱は、レールの中にあるか。ポイントの分かれ目は本線の中にあるか）／
+//           錠が見るソケットの数だけ、でんちがあるか／板張りを割れる重い箱があり、はじめからふれていないか／セーブ地点の真上（3m 四方・高さ 14m）を箱や動く床が通らないか、2.5m 以内をのこぎりが通らないか、
 //           ほかのセーブ地点と 6m 以上離れているか／乗ると動く床・てんびんの上下の速さは毎秒 1m までか／乗ると動く床の行き先から、その床なしで帰れるか
 // 使い方：node tools/lint-adventure.mjs          … 全ステージ
 //         node tools/lint-adventure.mjs 3 5      … ステージ 3 と 5 だけ
@@ -31,7 +31,8 @@ export function lint(stage) {
 
   // 番号：条件（動く床・風・カタパルトのねらい・objective）、ハンドル、レールの端
   const conds = [...movers.map((m, i) => [`動く床 ${i}`, m]), ...(stage.winds || []).map((k, i) => [`風 ${i}`, k]),
-    ...boxes.flatMap((b, i) => (b.launch?.aims || []).map((a, j) => [`箱 ${i}（カタパルト）のねらい ${j}`, a])), ...(stage.objective ? [['objective', stage.objective]] : [])];
+    ...boxes.flatMap((b, i) => (b.launch?.aims || []).map((a, j) => [`箱 ${i}（カタパルト）のねらい ${j}`, a])), ...(stage.objective ? [['objective', stage.objective]] : []),
+    ...crates.flatMap((c, i) => c.fork ? [[`箱 ${i}（ポイント）`, c.fork]] : [])];
   for (const [name, c] of conds) {
     const sockets = {};                                                              // この錠が見ているソケットの数（入れる箱の種類ごと）
     for (const i of c.on || []) { need(plates[i], `${name} の条件が、ない信号 ${i} を指している`); const tag = plates[i]?.needs; if (tag) sockets[tag] = (sockets[tag] || 0) + 1; }
@@ -51,7 +52,17 @@ export function lint(stage) {
   handles.forEach((h, i) => need(h.ride == null || movers[h.ride], `ハンドル ${i} が、ない動く床 ${h.ride} に付いている`));
   // おもさ板（と load: n の条件）は、下りてから 0.4 秒は押されたまま。台に近いと、1 人で板を走りぬけて飛べてしまう
   boxes.forEach((b, i) => (b.launch?.aims || []).forEach(a => (a.on || []).forEach(k => { const p = plates[k]; if (p?.w && (p.need || a.load)) need(gap(b, { x0: p.x - p.w / 2, x1: p.x + p.w / 2, z0: p.z - p.d / 2, z1: p.z + p.d / 2 }) >= 2, `箱 ${i}（カタパルト）と、それを動かす信号 ${k} が、2m より近い`); })));
-  plates.forEach((p, i) => { if (p.kind === 'rail') need(crates[p.crate]?.rail && ['min', 'max'].includes(p.at), `信号 ${i}（レールの端）が、レールの箱でない箱 ${p.crate} か、'min'・'max' でない端を指している`); });
+  plates.forEach((p, i) => { if (p.kind === 'rail') need(crates[p.crate]?.rail && ['min', 'max', ...(crates[p.crate].fork ? ['fork'] : [])].includes(p.at), `信号 ${i}（レールの端）が、レールの箱でない箱 ${p.crate} か、'min'・'max'（ポイントつき台車は 'fork' も）でない端を指している`); });
+  // ポイントつき台車：分かれ目が本線の中にあるか（外にあると、支線へ入れない）
+  crates.forEach((c, i) => { if (c.fork) need(c.fork.at >= c.rail.min && c.fork.at <= c.rail.max, `箱 ${i} のポイントの分かれ目 ${c.fork.at} が、本線（${c.rail.min}〜${c.rail.max}）の外にある`); });
+
+  // 板張り：割れる重い箱（1m 以上）があるか。はじめから重い箱にふれていないか（ステージを始めたとたんに割れる）
+  const heavy = w.crates.filter(c => c.heavy && c.s >= 1);
+  boxes.forEach((b, i) => {
+    if (!b.planks) return;
+    need(heavy.length, `箱 ${i}（板張り）を割れる重い箱（1m 以上）が、ステージにない`);
+    need(!heavy.some(c => ['x', 'y', 'z'].every(a => c.box[a + '0'] < b[a + '1'] + 0.1 && c.box[a + '1'] > b[a + '0'] - 0.1)), `箱 ${i}（板張り）が、はじめから重い箱にふれている`);
+  });
 
   // 箱：置き場所の真下に床があるか（なければ、落ちては戻るのをくり返す）。レールの箱は、レールの中にあるか（外にあると、二度と動かせない）
   w.crates.forEach((c, i) => {
