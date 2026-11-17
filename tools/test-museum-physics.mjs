@@ -3,8 +3,8 @@
 import fs from 'node:fs'; import assert from 'node:assert/strict';
 const html = fs.readFileSync(new URL('../apps/gallery/museum.html', import.meta.url), 'utf8');
 const src = html.slice(html.indexOf('const PLANS = ['), html.indexOf('console.assert(PLANS.length'));
-const m = await import('data:text/javascript;base64,' + Buffer.from(src + '\nexport { C, H, STAIRS, RAIL, BENCH_TOP, cx, cz, supportAt, canBeAt, rampAt };').toString('base64'));
-const { C, H, STAIRS, RAIL, BENCH_TOP, cx, cz, supportAt, canBeAt, rampAt } = m;
+const m = await import('data:text/javascript;base64,' + Buffer.from(src + '\nexport { C, H, STAIRS, RAIL, BENCH_TOP, cx, cz, supportAt, canBeAt, rampAt, PLANS, FLOORS, UNIT };').toString('base64'));
+const { C, H, STAIRS, RAIL, BENCH_TOP, cx, cz, supportAt, canBeAt, rampAt, PLANS, FLOORS, UNIT } = m;
 
 // ページと同じ動かし方：横へ動いて、足元の面に沿う／落ちる／跳ぶ
 function walker(x, y, z) {
@@ -75,3 +75,33 @@ assert.ok(w.grounded && near(w.y, BENCH_TOP) && Math.abs(w.z - bz) < 0.36, `ベ�
 w.walk(0, -4, 0.6); w.walk(0, 0, 1);
 assert.ok(w.grounded && near(w.y, 0) && w.z < bz - 0.3, `ベンチから下りられない (y=${w.y})`);
 console.log('PASS bench: blocked on foot, standable after a jump');
+
+// 8. 対戦ステージの台：ピラミッド（4 階ぶん＝PLANS[3]）の東西の階段は歩いて頂上（5 段＝1.5m）まで上れる
+const F = FLOORS * H;
+w = walker(cx(2), F, cz(7)).walk(4, 0, 3.8);
+assert.ok(near(w.y, F + 5 * UNIT) && near(w.x, cx(8), 1.3), `ピラミッドの階段を上れない (x=${w.x}, y=${w.y - F})`);
+// 9. 2 段の差（0.6m）は歩いては上れず、跳べば上れる
+w = walker(cx(8), F, cz(2)).walk(0, 4, 2);
+assert.ok(near(w.y, F) && w.z < cz(4) - C / 2, `2 段の差を歩いて上れてしまう (z=${w.z}, y=${w.y - F})`);
+w.jump(); w.walk(0, 4, 0.5); w.walk(0, 0, 1);
+assert.ok(w.grounded && near(w.y, F + 2 * UNIT), `2 段の差を跳んで上れない (y=${w.y - F})`);
+// 10. 台から歩いて出ると、下の床へ落ちる
+w.walk(0, -4, 1); w.walk(0, 0, 1);
+assert.ok(w.grounded && near(w.y, F), `台から下りられない (y=${w.y - F})`);
+console.log('PASS arena blocks: stairs walkable, ledges need a jump, walking off falls');
+// 11. どの対戦ステージも、出発点から全マスへ行けて、全マスから出発点へ戻れる（上りは跳んで 4 段まで、下りは何段でも）
+for (let f = FLOORS; f < PLANS.length; f++) {
+  const h = (c, r) => { const ch = PLANS[f][r]?.[c] ?? '#'; return ch === '#' ? null : ch === '.' ? 0 : +ch; };
+  const flood = ok => {
+    const seen = new Set(['2,7']), todo = [[2, 7]];
+    while (todo.length) { const [c, r] = todo.pop(); for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const k = `${c + dc},${r + dr}`, to = h(c + dc, r + dr);
+      if (to !== null && !seen.has(k) && ok(h(c, r), to)) { seen.add(k); todo.push([c + dc, r + dr]); }
+    } }
+    return seen.size;
+  };
+  const open = PLANS[f].join('').replace(/#/g, '').length;
+  assert.equal(flood((a, b) => b - a <= 4), open, `対戦ステージ ${f} に、行けないマスがある`);
+  assert.equal(flood((a, b) => a - b <= 4), open, `対戦ステージ ${f} に、出られないマスがある`);
+}
+console.log('PASS arena layouts: every cell reachable and escapable');

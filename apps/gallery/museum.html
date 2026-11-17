@@ -87,7 +87,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.15">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.16">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで入る</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="matchBtn">試合開始</button><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <div class="ui" id="hp" hidden aria-label="自分のHP"><div id="hpFill"></div></div>
@@ -177,74 +177,75 @@ const PLANS = [
     '#000#333#444#222#',
     '#################',
   ],
-  // ここから上は対戦用のステージ（美術館の上に重ねてある。階段はなく、試合が始まると運ばれる）
-  [ // 対戦ステージ「柱の広間」
+  /* ここから上は対戦用のステージ（美術館の上に重ねてある。階段はなく、試合が始まると運ばれる）。
+     対戦ステージでは 1〜7 は「その高さの台」（1 につき 0.3m）。隣との差が 1 なら歩いて上れ、4 までなら跳んで上れる。'#' で外形も自由に切る */
+  [ // 対戦ステージ「ピラミッドの間」：八角形の広間の中央に段々のピラミッド。東西は階段、南北は跳んで上る段
     '#################',
-    '#...............#',
-    '#...............#',
-    '#..#...#.#...#..#',
-    '#...............#',
-    '#...............#',
-    '#..#.........#..#',
-    '#......#.#......#',
-    '#..#.........#..#',
-    '#...............#',
-    '#...............#',
-    '#..#...#.#...#..#',
-    '#...............#',
-    '#...............#',
+    '#####.......#####',
+    '###...........###',
+    '##.............##',
+    '#....2222222....#',
+    '#....2444442....#',
+    '#....2455542....#',
+    '#...123454321...#',
+    '#....2455542....#',
+    '#....2444442....#',
+    '#....2222222....#',
+    '##.............##',
+    '###...........###',
+    '#####.......#####',
     '#################',
   ],
-  [ // 対戦ステージ「迷路」
+  [ // 対戦ステージ「空中回廊」：十字形の広間。高さ 1.8m の回廊が中庭を囲む（上るのは南北の階段から。東西に門）
     '#################',
-    '#...#.......#...#',
-    '#.#.#.#####.#.#.#',
-    '#.#...#...#...#.#',
-    '#.###.#.#.#.###.#',
-    '#.....#.#.#.....#',
-    '###.###.#.###.###',
-    '#...............#',
-    '###.###.#.###.###',
-    '#.....#.#.#.....#',
-    '#.###.#.#.#.###.#',
-    '#.#...#...#...#.#',
-    '#.#.#.#####.#.#.#',
-    '#...#.......#...#',
+    '####..12321..####',
+    '####....4....####',
+    '####....5....####',
+    '#....6666666....#',
+    '#....6.....6....#',
+    '#....6.333.6....#',
+    '#......343......#',
+    '#....6.333.6....#',
+    '#....6.....6....#',
+    '#....6666666....#',
+    '####....5....####',
+    '####....4....####',
+    '####..12321..####',
     '#################',
   ],
   // ここから上は、屋外の対戦ステージ（壁は岩、床は草や砂、天井はなく空が見える）
-  [ // 対戦ステージ「草原のとりで」
+  [ // 対戦ステージ「草原の丘」：でこぼこの外形に丘が 4 つ、中央に高さ 2.1m の岩山
     '#################',
-    '#...............#',
-    '#.##.........##.#',
-    '#.#...........#.#',
-    '#.....#####.....#',
-    '#...............#',
-    '#...#.......#...#',
-    '#...#...#...#...#',
-    '#...#.......#...#',
-    '#...............#',
-    '#.....#####.....#',
-    '#.#...........#.#',
-    '#.##.........##.#',
-    '#...............#',
+    '###....###....###',
+    '##..11..#..11..##',
+    '#..1221...1221..#',
+    '#..1231...1321..#',
+    '#...11..2..11...#',
+    '#......464......#',
+    '#......676......#',
+    '#......464......#',
+    '#...11..2..11...#',
+    '#..1231...1321..#',
+    '#..1221...1221..#',
+    '##..11..#..11..##',
+    '###....###....###',
     '#################',
   ],
-  [ // 対戦ステージ「砂漠の遺跡」
+  [ // 対戦ステージ「砂漠の神殿」：南北に高さ 1.5m の神殿の台（かぎ形の階段で上る）、中央に低い祭壇
     '#################',
+    '######55555######',
+    '####.5555555.####',
+    '###.345555543.###',
+    '##..2.......2..##',
+    '#...1...#...1...#',
     '#...............#',
-    '#..#..#...#..#..#',
-    '#..#.........#..#',
-    '#.....##.##.....#',
-    '#.#...........#.#',
-    '#.#..#.....#..#.#',
-    '#.......#.......#',
-    '#.#..#.....#..#.#',
-    '#.#...........#.#',
-    '#.....##.##.....#',
-    '#..#.........#..#',
-    '#..#..#...#..#..#',
+    '#......232......#',
     '#...............#',
+    '#...1...#...1...#',
+    '##..2.......2..##',
+    '###.345555543.###',
+    '####.5555555.####',
+    '######55555######',
     '#################',
   ],
 ];
@@ -270,6 +271,10 @@ const RAIL = 0.8;                                       // 柵を越えるのに
 const BODY = 1.4;                                       // 体の高さ（柵の下をくぐれないようにする）
 const SLAB = 0.7;                                       // 階段の段の厚み（この下は空いていて、高さが足りればくぐれる）
 const BENCH_TOP = 0.48;                                // ベンチの座面の高さ
+const UNIT = 0.3;                                       // 対戦ステージの台の高さの単位（数字 1 つぶん）
+const topOf = (f, ch) => f >= FLOORS && ch >= '1' && ch <= '9' ? ch * UNIT : 0;      // その階の床から、そのマスの上面までの高さ
+// 足の高さ y の体にとって、そこが壁か（壁マス、または歩いて上れない高さの台）
+const blocked = (f, x, z, y) => { const ch = cellAt(f, x, z); return ch === '#' || f * H + topOf(f, ch) > y + STEP; };
 const levelOf = y => Math.min(LEVELS - 1, Math.max(0, Math.floor((y + 0.3) / H)));   // その高さの体がいる階
 // (x, z) が階段の上なら { k: 階段番号, h: その場所の階段の面の高さ }
 function rampAt(x, z) {
@@ -287,7 +292,7 @@ function supportAt(x, z, y) {
   for (let f = 0; f < LEVELS; f++) {
     const ch = cellAt(f, x, z), k = stairOf(ch);
     if (ch === '#' || (k >= 0 && f === k + 1)) continue;                             // 壁の中と、階段の吹き抜け（上の階側）に床はない
-    take(f * H); if (onBench(f, x, z)) take(f * H + BENCH_TOP);
+    take(f * H + topOf(f, ch)); if (onBench(f, x, z)) take(f * H + BENCH_TOP);
   }
   const r = rampAt(x, z); if (r) take(r.h);
   return best;
@@ -296,7 +301,7 @@ function supportAt(x, z, y) {
 function canBeAt(nx, nz, y, ox, oz, carrying = false) {
   const f = levelOf(y);
   for (const dx of [-R, R]) for (const dz of [-R, R]) {
-    if (cellAt(f, nx + dx, nz + dz) === '#') return false;
+    if (blocked(f, nx + dx, nz + dz, y)) return false;
     if (y < f * H + BENCH_TOP - 0.05 && onBench(f, nx + dx, nz + dz)) return false;  // ベンチは座面より高ければ上を通れる
   }
   const from = f < FLOORS ? rampAt(ox, oz) : null, to = f < FLOORS ? rampAt(nx, nz) : null;   // 対戦ステージに階段はない
@@ -314,6 +319,8 @@ function canBeAt(nx, nz, y, ox, oz, carrying = false) {
 }
 console.assert(PLANS.length === LEVELS && PLANS.every(p => p.length === ROWS && p.every(r => r.length === COLS)), '間取りの大きさが不正');
 // 階段は上下の階で同じ位置に無いと上り下りできない。両端のマスも歩ける床であること
+// 対戦ステージ：台は 7（2.1m）まで（階の半分を超えると、いる階の判定がずれる）。両チームの出発点は平らな床
+console.assert(PLANS.slice(FLOORS).every(p => !/[89ABb]/.test(p.join('')) && p[7][2] === '.' && p[7][14] === '.'), '対戦ステージの間取りが不正');
 console.assert([0, 1].every(f => PLANS[f][6].slice(5, 12) === '.AAAAA.') && [1, 2].every(f => PLANS[f][8].slice(5, 12) === '.BBBBB.'), '階段の位置が階によってずれている');
 
 // 展示データはギャラリーページ（index.html の loadGallery）が localStorage に保存したものを使う
@@ -401,6 +408,7 @@ function start() {
   // 壁：通れるマスに接している壁マスだけ箱を置く。同じ壁を床の下にも逆さに置き、床への映り込みにする
   // （間取りが階ごとに違うので、下の階の壁は、その階より上にいる間は隠す）
   const wallGeo = new THREE.BoxGeometry(C, H, C), wallMat = std(0xe9e0d2);
+  const BLOCK_COLORS = [['#b9a88a', '#f4ead6'], ['#5d4d72', '#d2c2ea'], ['#4f8f42', '#d3e29a'], ['#b98f52', '#f6e6b8']].map(c => c.map(h => new THREE.Color(h)));   // 台の色（低い→高い）：対戦ステージごと
   const OUT_WALL = [std(0x8b8f96), std(0xc79a5b)], OUT_FLOOR = [std(0x7cc46a, 1), std(0xe6cf94, 1)], OUT_SKY = [0x9fd4ff, 0xffdfae];   // 屋外ステージの岩・地面・空の色：草原／砂漠
   for (let f = 0; f < LEVELS; f++) {
     const up = [], down = [];
@@ -475,11 +483,13 @@ function start() {
   const ceilMats = [ceilMat, coffer('#3a2a1e', ['#4a3626', '#5c4532'], '#c9a44a', false), coffer('#dfe6e8', ['#c3d0d6', '#d6e0e4'], '#ffffff', false)];   // 生成り／胡桃色の木／淡い青灰
   const hallCeilMat = coffer('#141c36', ['#1b2750', '#27376e'], '#e2c46a', true);
   for (let f = 0; f < LEVELS; f++) {
-    const fl = floorMats.map(() => []), ce = ceilMats.map(() => []), ceHall = [], ground = [];
+    const fl = floorMats.map(() => []), ce = ceilMats.map(() => []), ceHall = [], ground = [], blocks = [];
     eachCell(f, (ch, c, r) => {
       if (ch === '#') return;
+      const top = topOf(f, ch);                                                         // 対戦ステージの台：高さぶんの箱を置く（高いほど明るい色）
+      if (top) blocks.push({ x: cx(c), y: f * H + top / 2, z: cz(r), sy: top, color: BLOCK_COLORS[f - FLOORS][0].clone().lerp(BLOCK_COLORS[f - FLOORS][1], ch / 7) });
       if (f >= OUT) { ground.push({ x: cx(c), y: f * H, z: cz(r) }); return; }          // 屋外：透けない地面だけ。天井はない
-      const k = stairOf(ch), hall = isHall(ch), room = roomOf(f, c, r);
+      const k = stairOf(ch), hall = isHall(ch) || f >= FLOORS, room = roomOf(f, c, r);
       if (k < 0 || f !== k + 1) fl[hall ? 0 : (room + f) % 4].push({ x: cx(c), y: f * H, z: cz(r) });
       if (k < 0 || f !== k) (hall ? ceHall : ce[(room + 2 * f) % 3]).push({ x: cx(c), y: (f + 1) * H - 0.02, z: cz(r) });
     });
@@ -487,6 +497,7 @@ function start() {
     ce.forEach((list, i) => { if (list.length) instanced(ceilGeo, ceilMats[i], list); });
     if (ceHall.length) instanced(ceilGeo, hallCeilMat, ceHall);
     if (ground.length) instanced(floorGeo, OUT_FLOOR[f - OUT], ground);
+    if (blocks.length) instanced(new THREE.BoxGeometry(C, 1, C), std(0xffffff), blocks, wallsG[f]);
   }
   const under = new THREE.Mesh(new THREE.PlaneGeometry(COLS * C, ROWS * C).rotateX(-Math.PI / 2), ceilMat);
   under.position.y = -H + 0.02; scene.add(under);                     // 1 階の床に映る「天井」
@@ -512,7 +523,7 @@ function start() {
       const k = stairOf(ch), room = roomOf(f, c, r);
       if (f < OUT && (ch === '.' || (k >= 0 && f !== k && f !== k + 1))) carpet.push({ x: cx(c), y: f * H + 0.012, z: cz(r) });
       if (ch === 'b') { benches.push({ x: cx(c), y: f * H + 0.2, z: cz(r) }); cushions.push({ x: cx(c), y: f * H + 0.44, z: cz(r) }); }
-      if (room >= 0 && !isDoor(f, c, r)) {
+      if (room >= 0 && f < FLOORS && !isDoor(f, c, r)) {
         const b = box[room] ||= { c0: c, c1: c, r0: r, r1: r };
         b.c0 = Math.min(b.c0, c); b.c1 = Math.max(b.c1, c); b.r0 = Math.min(b.r0, r); b.r1 = Math.max(b.r1, r);
       }
@@ -635,7 +646,7 @@ function start() {
     const pan = panelMats.map(() => []), panM = panelMats.map(() => []), panHall = [];
     eachCell(f, (ch, c, r) => {
       if (ch === '#' || f >= OUT) return;                                              // 屋外ステージの岩には、化粧板を張らない
-      const hall = isHall(ch), room = roomOf(f, c, r), art = (room * 3 + f) % 4;
+      const hall = isHall(ch) || f >= FLOORS, room = roomOf(f, c, r), art = (room * 3 + f) % 4;
       const color = hall ? HALL_COLOR : ROOM_COLORS[(room + f * 3) % ROOM_COLORS.length];
       for (const [dc, dr] of DIRS) {
         if (at(f, c + dc, r + dr) !== '#') continue;
@@ -728,7 +739,7 @@ function start() {
     // グローブ：手先にチームの色の丸。部屋に入っている間だけ出す。相手から見えない同化の間は隠す（色で居場所がばれるので）
     const gloves = arms.map(a => { const o = new THREE.Mesh(new THREE.SphereGeometry(0.105, 16, 12), GLOVE_MATS[0]); o.position.y = -ARM; o.visible = false; a.add(o); return o; });
     scene.add(g);
-    const fig = { g, parts: [b, head, ...arms, ...legs], down: false };
+    const fig = { g, parts: [b, head, ...arms, ...legs], gloves, down: false };
     // 見た目の切り替え：'normal' ふつう／'down' やられた半スケルトン／'camo' 背景と同化／'camoSelf' 同化（自分と味方には少し濃く見せる）
     fig.look = 'normal'; fig.team = -1;                                                // team：0 赤／1 青／-1 部屋の外（グローブなし）
     const showGloves = () => gloves.forEach(o => { if (fig.team >= 0) o.material = GLOVE_MATS[fig.team]; o.visible = fig.team >= 0 && fig.look !== 'camo'; });
@@ -814,7 +825,7 @@ function start() {
     mc.clearRect(0, 0, 340, 300);
     eachCell(level, (ch, c, r) => {
       const k = stairOf(ch), isStair = k >= 0 && (level === k || level === k + 1);
-      mc.fillStyle = ch === '#' ? '#2a1418' : isStair ? '#c41e3a' : ch === '.' || k >= 0 ? '#b9a57c' : '#e9dcc0';
+      mc.fillStyle = ch === '#' ? '#2a1418' : isStair ? '#c41e3a' : topOf(level, ch) ? `hsl(38 35% ${70 - ch * 6}%)` : ch === '.' || k >= 0 ? '#b9a57c' : '#e9dcc0';   // 台は高いほど濃い
       mc.fillRect(c * U, r * U, U, U);
       if (ch === 'b') { mc.fillStyle = '#6b4a36'; mc.fillRect(c * U + 2, r * U + 7, U - 4, 6); }   // ベンチ
     });
@@ -859,7 +870,7 @@ function start() {
   }
 
   // ── チーム戦（対戦の第 3 段階）：HP がなくなると半スケルトンになり、片方のチームが全滅したら相手の勝ち ──
-  const TEAM_NAMES = ['赤', '青'], PUNCH_DAMAGE = 8, THROW_DAMAGE = 13;   // HP を約 2 倍にするかわりに、ダメージを半分にしてある（HP の棒と通信は 100 のまま）
+  const TEAM_NAMES = ['赤', '青'], PUNCH_DAMAGE = 3, THROW_DAMAGE = 5;   // HP を増やすかわりに、ダメージを小さくしてある（HP の棒と通信は 100 のまま）。前の 8／13 から、HP 2 倍・ダメージ 2 割減ぶん
   let hp = 100, myTeam = 0, matchT = 0;
   let match = { on: false, n: 0 };                                                    // 試合中か／試合の通し番号
   let bannerTimer;
@@ -874,11 +885,12 @@ function start() {
     $('roomInfo').style.color = TEAM_COLORS[myTeam];
     $('matchBtn').hidden = match.on; $('hp').hidden = !match.on;
   }
-  const ARENAS = [[0, '美術館'], [3, '柱の広間'], [4, '迷路'], [5, '草原のとりで'], [6, '砂漠の遺跡']];                          // 対戦ステージ：[始まる階, 名前]。試合開始のたびに、くじで 1 つ選ぶ
+  const ARENAS = [[0, '美術館'], [3, 'ピラミッドの間'], [4, '空中回廊'], [5, '草原の丘'], [6, '砂漠の神殿']];                          // 対戦ステージ：[始まる階, 名前]。試合開始のたびに、くじで 1 つ選ぶ
   const toHall = () => { if (p.y > (FLOORS - 0.5) * H) { p.set(cx(8), 0, cz(7)); vy = 0; grounded = true; } };   // 対戦ステージから 1 階ホールへ戻す（階段がないので）
   function beginMatch() {                                                             // 全員が自分の端末で：HP を戻し、チームの陣地（1 階ホールの西／東）へ
-    hp = 100; matchT = 0; powerT = speedT = camoT = 0; kvx = kvz = vy = 0; holding = heldBy = stuck = null; grounded = true;
-    p.set(cx(myTeam ? 11 : 5), (ARENAS[match.st]?.[0] || 0) * H, cz(7) + (Math.random() * 2 - 1));
+    hp = 100; matchT = 0; powerT = speedT = camoT = rubberT = 0; kvx = kvz = vy = 0; holding = heldBy = stuck = null; grounded = true;
+    const far = ARENAS[match.st]?.[0] ? 3 : 0;                                         // 対戦ステージは西端／東端から（美術館はホールの中）
+    p.set(cx(myTeam ? 11 + far : 5 - far), (ARENAS[match.st]?.[0] || 0) * H, cz(7) + (Math.random() * 2 - 1));
     yaw = myTeam ? Math.PI / 2 : -Math.PI / 2; hero.g.rotation.y = -yaw;             // ホールの中央を向く
     banner(`試合開始！　${ARENAS[match.st]?.[1] || ARENAS[0][1]}`, 2500);
   }
@@ -896,9 +908,10 @@ function start() {
     { icon: '💪', color: '#e2485a', text: 'パワーアップ！' },                          // 15 秒間、与えるダメージと押す力が 2 倍
     { icon: '⚡', color: '#3d8bff', text: 'スピードアップ！' },                        // 15 秒間、歩く速さが 1.7 倍
     { icon: '👻', color: '#b9b9c9', text: '背景と同化！' },
+    { icon: '🧤', color: '#f5a623', text: 'のびーるパンチ！' },                         // 15 秒間、腕がゴムのように伸びて、パンチが 6m 先まで届く
     { icon: '💖', color: '#ff8fc7', text: '味方を復活！' },                            // やられた味方が全員、HP 半分で復活する（試合中だけ出て、やられた味方がいる間だけ取れる）                            // 15 秒間、相手からほとんど見えなくなる
   ];
-  const REVIVE = 4;                                                                   // 蘇生アイテムの種類の番号
+  const REVIVE = 5, RUBBER_REACH = 6;                                                                   // 蘇生アイテムの種類の番号
   const downMate = () => match.on && [...remotes.values()].some(r => r.team === myTeam && r.hp <= 0);
   const BUFF_SECONDS = 15, HEAL = 20, MAX_ITEMS = 3, SPAWN_EVERY = 15;
   const itemMats = ITEMS.map(it => new THREE.SpriteMaterial({ transparent: true, map: paint(128, 128, g => {
@@ -907,18 +920,19 @@ function start() {
     g.font = '64px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(it.icon, 64, 70);
   }) }));
   const drops = new Map();                                                            // id → { t, x, z, l, sprite, taking }
-  let powerT = 0, speedT = 0, camoT = 0, spawnT = SPAWN_EVERY - 5;                     // 効果の残り秒数／次に出すまでの経過（入室 5 秒後に最初の 1 つ）
-  const buffBits = () => (powerT > 0 ? 1 : 0) | (speedT > 0 ? 2 : 0) | (camoT > 0 ? 4 : 0);
+  let powerT = 0, speedT = 0, camoT = 0, rubberT = 0, spawnT = SPAWN_EVERY - 5;                     // 効果の残り秒数／次に出すまでの経過（入室 5 秒後に最初の 1 つ）
+  const buffBits = () => (powerT > 0 ? 1 : 0) | (speedT > 0 ? 2 : 0) | (camoT > 0 ? 4 : 0) | (rubberT > 0 ? 8 : 0);
   function syncItems(data) {
     for (const [id, it] of drops) if (!data?.[id]) { scene.remove(it.sprite); drops.delete(id); }
     for (const [id, d] of Object.entries(data || {})) {
       if (drops.has(id) || !ITEMS[d.t]) continue;
       const sprite = new THREE.Sprite(itemMats[d.t]); sprite.scale.set(0.7, 0.7, 1); scene.add(sprite);
       drops.set(id, { t: d.t, x: +d.x || 0, z: +d.z || 0, l: Math.min(LEVELS - 1, Math.max(0, d.l | 0)), sprite, taking: false });
+      const it = drops.get(id); it.y = it.l * H + topOf(it.l, cellAt(it.l, it.x, it.z));   // 台の上に出たアイテムは、台の上面に浮かべる
     }
   }
   function gotItem(t) {
-    if (t === 0) hp = Math.min(100, hp + HEAL); else if (t === 1) powerT = BUFF_SECONDS; else if (t === 2) speedT = BUFF_SECONDS; else if (t === 3) camoT = BUFF_SECONDS;
+    if (t === 0) hp = Math.min(100, hp + HEAL); else if (t === 1) powerT = BUFF_SECONDS; else if (t === 2) speedT = BUFF_SECONDS; else if (t === 3) camoT = BUFF_SECONDS; else if (t === 4) rubberT = BUFF_SECONDS;
     else for (const [id, r] of remotes) if (r.team === myTeam && r.hp <= 0) roomApi.fx(id, { k: 'revive', n: nonce() });
     banner(`${ITEMS[t].icon} ${ITEMS[t].text}`, 1500);
   }
@@ -967,7 +981,7 @@ function start() {
   }
   function leftRoom(message) {
     for (const id of [...remotes.keys()]) dropRemote(id);
-    room = null; lastSent = ''; holding = heldBy = null; hp = 100; match = { on: false, n: 0 }; powerT = speedT = camoT = 0; syncItems(null); toHall();
+    room = null; lastSent = ''; holding = heldBy = null; hp = 100; match = { on: false, n: 0 }; powerT = speedT = camoT = rubberT = 0; syncItems(null); toHall();
     $('roomHud').hidden = true; $('roomBtn').hidden = false; $('hp').hidden = true; hero.setTeam(-1); ghost.setTeam(-1);
     if (message) { panel.hidden = false; roomMsg(message); }
   }
@@ -978,7 +992,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      roomApi ||= await import('./museum-room.js?v=4.15');
+      roomApi ||= await import('./museum-room.js?v=4.16');
       await roomApi.enter({ create, code, name: roomApi.cleanName(name) || 'ななし', onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
       try { localStorage.setItem('museum:name', name); } catch (_) {}
       panel.hidden = true; roomMsg('');
@@ -1008,13 +1022,15 @@ function start() {
   const facing = () => [Math.sin(hero.g.rotation.y), Math.cos(hero.g.rotation.y)];
   // 目の前（1.2m 以内・正面から左右 45 度・高さの差 0.8m 未満）にいる相手のうち、いちばん近い人の id。
   // 跳んでいる相手には届かない。持ち上げられている相手は高い所にいるので、高さの差を 1.4m まで許す
-  function targetInFront() {
-    const [fx, fz] = facing(); let best = null, bestD = 1.2;
+  // reach を伸ばしたとき（ゴムの腕）は、途中に壁や高い台があると届かない
+  function targetInFront(reach = 1.2) {
+    const [fx, fz] = facing(); let best = null, bestD = reach;
+    const clear = (q, d) => { for (let t = 1; t < d; t += 0.5) if (blocked(levelOf(p.y), p.x + (q.x - p.x) * t / d, p.z + (q.z - p.z) * t / d, p.y + 0.8)) return false; return true; };
     for (const [id, r] of remotes) {
       const q = r.fig.g.position, dx = q.x - p.x, dz = q.z - p.z, d = Math.hypot(dx, dz);
       if (match.on && (r.team === myTeam || r.hp <= 0)) continue;                     // 試合中は味方と、やられた人には当たらない
       const reachY = r.target[5] === ACT.HELD ? 1.4 : 0.8;
-      if (d < bestD && Math.abs(q.y - p.y) < reachY && (d < 0.3 || (dx * fx + dz * fz) / d > 0.7)) { best = id; bestD = d; }
+      if (d < bestD && Math.abs(q.y - p.y) < reachY && (d < 0.3 || (dx * fx + dz * fz) / d > 0.7) && (d < 1.2 || clear(q, d))) { best = id; bestD = d; }
     }
     return best;
   }
@@ -1028,7 +1044,7 @@ function start() {
   }
   function landPunch() {                                                              // 腕が伸び切った瞬間に、その時点で目の前にいる相手へ当てる
     punchHit = false;
-    const id = targetInFront(), [fx, fz] = facing();
+    const id = targetInFront(rubberT > 0 ? RUBBER_REACH : 1.2), [fx, fz] = facing();
     if (id) roomApi.fx(id, { k: 'hit', n: nonce(), dx: fx, dz: fz, p: powerT > 0 ? 2 : 1 });
   }
   function release(kind) {                                                            // 持ち上げている相手を放す（kind: 'drop' か 'throw'）
@@ -1045,7 +1061,7 @@ function start() {
     grabbing = true;
     const id = targetInFront(), [fx, fz] = facing(), ty = id ? remotes.get(id).target[1] / H : 0;
     // 階段の途中にいる自分・相手は持ち上げられない／すでに誰かに持たれている相手も持ち上げられない
-    if (id && ramp === null && remotes.get(id).target[5] !== ACT.HELD && Math.abs(ty - Math.round(ty)) <= 0.05) {
+    if (id && ramp === null && remotes.get(id).target[5] !== ACT.HELD && (ty > FLOORS - 0.1 || Math.abs(ty - Math.round(ty)) <= 0.05)) {
       holding = id; holdT = 0; roomApi.fx(id, { k: 'grab', n: nonce(), by: roomMe });
     } else if (!canBeAt(p.x + fx * 0.6, p.z + fz * 0.6, p.y, p.x, p.z, false)) { stuck = 'wall'; vy = 0; }
     else if (grounded) stuck = 'floor';
@@ -1056,7 +1072,7 @@ function start() {
     const hurt = damage => {                                                          // 試合中だけ HP が減る。0 になったら持っている相手を放す
       if (!match.on) return;
       hp = Math.max(0, hp - damage);
-      if (hp <= 0) { powerT = speedT = camoT = 0; if (holding) release('drop'); banner('やられた…　歩くことはできます', 3000); }
+      if (hp <= 0) { powerT = speedT = camoT = rubberT = 0; if (holding) release('drop'); banner('やられた…　歩くことはできます', 3000); }
     };
     if (f.k === 'drop') heldBy = null;
     else if (f.k === 'revive') { if (match.on && hp <= 0) { hp = 50; banner('💖 味方が復活させてくれた！', 2500); } }
@@ -1103,6 +1119,9 @@ function start() {
     } else if (air > 0.15) {                                                          // 跳んでいる・落ちている：万歳して脚をばたつかせる
       aL = -2.6 + w * 0.4; aR = -2.6 - w * 0.4; oL = oR = 0.7; lL = 0.7 * w; lR = -0.7 * w; bx = -0.15;
     }
+    // ゴムの腕：パンチする側の腕が、まっすぐ前へ伸びる（伸びている間は、腕の長さを保つ棒を外す）
+    const ext = fig.rubber ? (RUBBER_REACH - 0.6) * a : 0, armLen = [ARM + (act === ACT.JAB ? ext : 0), ARM + (act === ACT.STRAIGHT || act === ACT.HOOK ? ext : 0)];
+    if (ext && act === ACT.JAB) aL = -1.6 * Math.min(1, a * 3); else if (ext && act === ACT.STRAIGHT) aR = -1.6 * Math.min(1, a * 3);
     // 力の入れ具合 [ばねの強さ, 収まりやすさ]：胴／頭／左手／右手／足。腕はふだん力を抜いてあり、ほぼ重力でぶらぶらする
     let kT = [400, 14], kH = [250, 8], kL = [40, 3], kR = kL, kF = [300, 14];
     const limp = [3, 1.5], firm = [600, 25], hit = [900, 20];
@@ -1120,7 +1139,7 @@ function start() {
     QB.setFromEuler(E.set(bx, by, bz));                                               // 体の傾き（足元が軸）
     for (let i = 0; i < 4; i++) T[i].copy(REST[i]).applyQuaternion(QB);
     T[4].set(hx, 1.2 + (moving ? Math.abs(Math.cos(t)) * 0.04 : breathe * 0.01), hz).applyQuaternion(QB);
-    [[aL, -oL, ARM], [aR, oR, ARM], [lL, 0, LEG], [lR, 0, LEG]].forEach(([rx, rz, len], i) =>
+    [[aL, -oL, armLen[0]], [aR, oR, armLen[1]], [lL, 0, LEG], [lR, 0, LEG]].forEach(([rx, rz, len], i) =>
       T[5 + i].set(0, -len, 0).applyQuaternion(Q.setFromEuler(E.set(rx, 0, rz))).applyQuaternion(QB).add(T[i]));
     g.updateMatrixWorld();
     for (const v of T) { v.y += bob; g.localToWorld(v); }
@@ -1136,7 +1155,8 @@ function start() {
         q.v.y -= 12 * dt;
         q.p.addScaledVector(q.v, dt);
       });
-      for (let n = 0; n < 3; n++) for (const [a, b, len] of LINKS) {
+      for (let n = 0; n < 3; n++) for (const [i, [a, b, len]] of LINKS.entries()) {
+        if (i < 2 && armLen[i] > ARM) continue;
         const dist = VA.subVectors(P[b].p, P[a].p).length() || 1e-6;
         VA.multiplyScalar((dist - len * size) / dist / 2);
         P[a].p.add(VA); P[b].p.sub(VA);
@@ -1155,10 +1175,15 @@ function start() {
     b.quaternion.setFromRotationMatrix(M4.makeBasis(right, up, VC.crossVectors(right, up)));
     b.position.addVectors(L[0], L[1]).add(L[2]).add(L[3]).multiplyScalar(0.25);
     head.position.copy(L[4]); head.quaternion.copy(b.quaternion);
-    limbs.forEach((pivot, i) => { pivot.position.copy(L[i]); pivot.quaternion.setFromUnitVectors(DOWN, VA.subVectors(L[5 + i], L[i]).normalize()); });
+    limbs.forEach((pivot, i) => {
+      const d = VA.subVectors(L[5 + i], L[i]).length();
+      pivot.position.copy(L[i]); pivot.quaternion.setFromUnitVectors(DOWN, VA.normalize());
+      pivot.scale.y = i < 2 && fig.rubber ? Math.max(1, d / ARM) : 1;                 // ゴムの腕は、手先まで引き伸ばして描く（グローブは丸いまま）
+      if (i < 2) fig.gloves[i].scale.y = 1 / pivot.scale.y;
+    });
   }
   // 床の映り込み用の体は計算せず、本体の姿勢をそのまま写す
-  const copyPose = (to, from) => to.parts.forEach((o, i) => { o.position.copy(from.parts[i].position); o.quaternion.copy(from.parts[i].quaternion); });
+  const copyPose = (to, from) => { to.parts.forEach((o, i) => { o.position.copy(from.parts[i].position); o.quaternion.copy(from.parts[i].quaternion); o.scale.copy(from.parts[i].scale); }); to.gloves.forEach((o, i) => { o.scale.y = from.gloves[i].scale.y; }); };
 
   // ── メインループ ──
   const clock = new THREE.Clock(), clamp = THREE.MathUtils.clamp;
@@ -1211,7 +1236,7 @@ function start() {
       if (!r || heldT > HOLD_MAX + 0.5) heldBy = null;
       else {
         const g = r.fig.g, hx = g.position.x + Math.sin(g.rotation.y) * 0.75, hz = g.position.z + Math.cos(g.rotation.y) * 0.75;
-        const open = (x, z) => cellAt(levelOf(g.position.y), x, z) !== '#';
+        const open = (x, z) => !blocked(levelOf(g.position.y), x, z, g.position.y + 0.9);
         if (open(hx, hz)) { p.x = hx; p.z = hz; } else if (open(g.position.x, g.position.z)) { p.x = g.position.x; p.z = g.position.z; }
         hero.g.rotation.y = g.rotation.y + ix * 0.7; p.y = g.position.y + 0.9;      // 振った向きへ体をよじる（全員に見える） vy = 0; grounded = false;
       }
@@ -1232,6 +1257,7 @@ function start() {
     const breathe = Math.sin(clock.elapsedTime * 2.2);                              // 立っている間もゆっくり呼吸する
     const act = heldBy ? ACT.HELD : Math.hypot(kvx, kvz) > 1.5 ? ACT.OUCH : punchT > 0 ? punchKind : stuck === 'floor' ? ACT.FLOOR : holding || grabbing ? ACT.REACH : ACT.NONE;
     const reach = Math.sin((1 - punchT / PUNCH_TIME) * Math.PI);                     // パンチは突き出して戻す
+    hero.rubber = rubberT > 0;
     pose(hero, dt, moving, walkT, breathe, act, clock.elapsedTime, reach, air); copyPose(ghost, hero);
     hero.setLook(hp <= 0 ? 'down' : camoT > 0 ? 'camoSelf' : 'normal'); ghost.setLook(hp <= 0 ? 'down' : camoT > 0 ? 'camo' : 'normal');
     const big = powerT > 0 ? 1.2 : 1; hero.g.scale.setScalar(big); ghost.g.scale.set(big, -big, big);   // パワーアップ中は体が大きい
@@ -1246,13 +1272,13 @@ function start() {
     }
 
     // アイテム：効果の残り時間を減らす／触れたら取る／出す係（id が先頭の人）なら時々 1 つ出す
-    powerT = Math.max(0, powerT - dt); speedT = Math.max(0, speedT - dt); camoT = Math.max(0, camoT - dt);
-    const buffText = [[powerT, '💪'], [speedT, '⚡'], [camoT, '👻']].filter(b => b[0] > 0).map(b => `${b[1]}${Math.ceil(b[0])}`).join('　');
+    powerT = Math.max(0, powerT - dt); speedT = Math.max(0, speedT - dt); camoT = Math.max(0, camoT - dt); rubberT = Math.max(0, rubberT - dt);
+    const buffText = [[powerT, '💪'], [speedT, '⚡'], [camoT, '👻'], [rubberT, '🧤']].filter(b => b[0] > 0).map(b => `${b[1]}${Math.ceil(b[0])}`).join('　');
     if ($('buffs').textContent !== buffText) $('buffs').textContent = buffText;
     for (const [id, it] of drops) {
-      it.sprite.position.set(it.x, it.l * H + 0.85 + Math.sin(clock.elapsedTime * 2.5 + it.x) * 0.12, it.z);
+      it.sprite.position.set(it.x, it.y + 0.85 + Math.sin(clock.elapsedTime * 2.5 + it.x) * 0.12, it.z);
       it.sprite.visible = Math.abs(it.l * H - groundY) < H * 0.9;
-      if (!it.taking && hp > 0 && (it.t !== REVIVE || downMate()) && ramp === null && it.l === lvl && air < 1.2 && Math.hypot(it.x - p.x, it.z - p.z) < 0.9) {
+      if (!it.taking && hp > 0 && (it.t !== REVIVE || downMate()) && ramp === null && it.l === lvl && Math.abs(p.y - it.y) < 1.2 && Math.hypot(it.x - p.x, it.z - p.z) < 0.9) {
         it.taking = true;
         roomApi.takeItem(id).then(ok => { if (ok) gotItem(it.t); else it.taking = false; });
       }
@@ -1285,6 +1311,7 @@ function start() {
       if (mv) r.walkT += dt * 11;
       if (ract !== r.lastAct) { r.lastAct = ract; r.actT = 0; }                      // 動作が変わった瞬間からパンチの伸びを数える
       r.actT = (r.actT || 0) + dt;
+      r.fig.rubber = !!(r.buffs & 8) && r.hp > 0;
       pose(r.fig, dt, !!mv, r.walkT, breathe, id === holding ? ACT.HELD : ract, clock.elapsedTime, isPunch(ract) ? Math.sin(Math.min(1, r.actT / PUNCH_TIME) * Math.PI) : 1,
         g.position.y - supportAt(g.position.x, g.position.z, g.position.y + 0.01));
       const hidden = (r.buffs & 4) && r.team !== myTeam && r.hp > 0;                  // 同化中の相手チームは名札も HP も出さない
@@ -1313,7 +1340,7 @@ function start() {
     const sx = Math.sin(yaw), sz = Math.cos(yaw);
     let dist = 0;
     const camLevel = Math.round(groundY / H);
-    while (dist < 4.6 && cellAt(camLevel, p.x + sx * (dist + 0.5), p.z + sz * (dist + 0.5)) !== '#') dist += 0.2;
+    while (dist < 4.6 && !blocked(camLevel, p.x + sx * (dist + 0.5), p.z + sz * (dist + 0.5), camY + 1.5)) dist += 0.2;
     camY += (p.y - air * 0.5 - camY) * (1 - Math.exp(-dt * 10));                     // 落ちたときに視点が一気に飛ばないよう、高さはなめらかに追う
     camera.position.set(p.x + sx * dist, camY + 1.9, p.z + sz * dist);
     camera.lookAt(p.x, camY + 1.2, p.z);
@@ -1334,7 +1361,7 @@ function start() {
   };
   renderer.setAnimationLoop(frame);
 
-  window.__museum = { get lvl() { return lvl; }, set lvl(v) { p.y = v * H; vy = 0; grounded = true; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, grabbing, stuck, holding, heldBy, kv: [kvx, kvz], hp, team: myTeam, match: match.on, down: hero.down, look: hero.look, buffs: buffBits(), items: [...drops.values()].map(i => [i.t, i.x, i.z, i.l]) }; }, gotItem, p, canBeAt, supportAt, jump, punch, grabStart, grabEnd, get punchKind() { return punchKind; }, knock(x, z) { kvx = x; kvz = z; }, get body() { return hero.pts.map(q => q.p.toArray().map(v => Math.round(v * 100) / 100)); }, tick: frame };   // 動作確認用
+  window.__museum = { get lvl() { return lvl; }, set lvl(v) { p.y = v * H; vy = 0; grounded = true; }, get ramp() { return ramp; }, set yaw(v) { yaw = v; }, get air() { return air; }, get act() { return { punchT, grabbing, stuck, holding, heldBy, kv: [kvx, kvz], hp, team: myTeam, match: match.on, down: hero.down, look: hero.look, buffs: buffBits(), items: [...drops.values()].map(i => [i.t, i.x, i.z, i.l]) }; }, gotItem, p, canBeAt, supportAt, jump, punch, grabStart, grabEnd, get punchKind() { return punchKind; }, knock(x, z) { kvx = x; kvz = z; }, set rubber(v) { rubberT = v; }, get body() { return hero.pts.map(q => q.p.toArray().map(v => Math.round(v * 100) / 100)); }, tick: frame };   // 動作確認用
 }
 </script>
 </body>
