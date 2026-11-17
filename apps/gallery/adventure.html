@@ -32,10 +32,6 @@
     top: 26%; left: 50%; transform: translateX(-50%); z-index: 4; pointer-events: none; white-space: nowrap;
     font-size: 26px; font-weight: 800; color: #FFE566; text-shadow: 0 2px 8px #000; background: rgba(13,4,6,0.72); padding: 10px 24px; border-radius: 16px;
   }
-  #hint {
-    left: 50%; bottom: 20px; transform: translateX(-50%); max-width: min(52%, 460px); pointer-events: none; text-align: center;
-    font-size: 13px; line-height: 1.5; color: #fff; background: rgba(13,4,6,0.6); padding: 8px 14px; border-radius: 12px;
-  }
   #stageList { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }              /* 2 列にならべる：スマホの横向きでも、下の「もどる」「とじる」まで見える */
   #stageList .pill { font-size: 13px; padding: 10px 6px; }
   #stagePanel .row { display: flex; gap: 8px; align-items: center; }
@@ -73,7 +69,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.14">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.15">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <button class="ui pill small" id="stageInfo" aria-label="ステージを選ぶ"></button>
@@ -87,7 +83,6 @@
   </div>
 </div>
 <div class="ui" id="banner" role="status" hidden></div>
-<div class="ui" id="hint" role="status" hidden></div>
 <div class="ui" id="roomPanel" role="dialog" aria-label="みんなで冒険" hidden>
   <div class="box">
     <h2>👥 みんなで冒険</h2>
@@ -113,8 +108,8 @@
    キャラの体（ラグドール）は美術館 museum.html と同じ作り。
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
-import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.14';
-import { STAGES } from './adventure-stages.js?v=4.14';
+import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.15';
+import { STAGES } from './adventure-stages.js?v=4.15';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -223,9 +218,8 @@ function start() {
 
   let world, me, group, stageIndex = -1, run = 0, startHalf = 0, moving = [], pads = [], flags = [], belts = [], gusts = [];
   let live = [], gripped = [];                                                        // live：毎コマ動かす見た目（ステージを作るときに入れる）／gripped：いま、だれかが回しているハンドル
-  let bannerTimer, hintTimer, chipN = -1, lastCrank = null;                           // chipN：目標の表示に出している文字／lastCrank：1 コマ前に回していたハンドル
+  let bannerTimer, chipN = -1, lastCrank = null;                           // chipN：目標の表示に出している文字／lastCrank：1 コマ前に回していたハンドル
   function banner(text, ms) { $('banner').textContent = text; $('banner').hidden = false; clearTimeout(bannerTimer); bannerTimer = setTimeout(() => { $('banner').hidden = true; }, ms); }
-  function hint(text) { $('hint').textContent = text; $('hint').hidden = false; clearTimeout(hintTimer); hintTimer = setTimeout(() => { $('hint').hidden = true; }, 9000); }
 
   // ステージ i を最初から始める（n は「何回目の出発か」の通し番号。部屋では全員同じ値になる）。half が 1 なら、つないだステージの後半のはじめのセーブ地点から
   function loadStage(i, n, half = 0, st = STAGES[i]) {
@@ -330,11 +324,9 @@ function start() {
         const lamps = m.on.map((s, i) => {
           const o = mid + (i - (n - 1) / 2) * 0.6, p = world.plates[s], lamp = part(ball, offMat, group, cx + (wide ? o : 0), y - 0.3, cz + (wide ? 0 : o), 0.4);
           if (i < need && need < n) part(hoop, flagOnMat, group, lamp.position.x, y - 0.3, lamp.position.z, 0.62).rotation.y = wide ? 0 : Math.PI / 2;
-          const from = p.kind === 'rail' ? world.crates[p.crate].home : p;             // 信号（レバーなら、つまみの置き場所）から、ランプへ細い線。ランプと一緒に光る
-          lamp.userData.wire = rod(offMat, [from.x, from.y + 0.04, from.z], [lamp.position.x, y - 0.3, lamp.position.z], 0.05);
           lamp.userData.p = p; lamp.userData.on = p.kind === 'rail' ? (p.at === 'min' ? markA : markB) : goalMat; return lamp;   // レバーの信号は、レバーの端の印と同じ色で光る
         });
-        live.push(() => { for (const l of lamps) { const p = l.userData.p; l.material = l.userData.wire.material = (m.load ? p.held >= m.load : p.down) ? l.userData.on : offMat; } });
+        live.push(() => { for (const l of lamps) { const p = l.userData.p; l.material =(m.load ? p.held >= m.load : p.down) ? l.userData.on : offMat; } });
       }
     }
     for (const c of world.crates) {
@@ -351,14 +343,13 @@ function start() {
           for (const v of [min - c.s / 2 - 0.15, max + c.s / 2 + 0.15]) at(v, 0.25, 0.3, 0.5, 1.2, MATS[4]);
           part(unit, crateMats[1], g, 0, -(c.s - 0.25) / 2, 0, c.s, c.s - 0.25, c.s);
           for (const s of [-0.4, 0.4]) part(cyl, darkMat, g, x ? s : 0, 0.22 - c.s, x ? 0 : s, 0.44, c.s + 0.16, 0.44).rotation[x ? 'x' : 'z'] = Math.PI / 2;
-          if (c.fork) {                                                               // ポイント：分かれ目から直角に、支線の 2 本のレールと行き止まりの車止め。分かれ目のそばに信号の柱（支線がわなら、レバーの東の印と同じ色）。動かす信号から柱へ細い線
+          if (c.fork) {                                                               // ポイント：分かれ目から直角に、支線の 2 本のレールと行き止まりの車止め。分かれ目のそばに信号の柱（支線がわなら、レバーの東の印と同じ色）
             const s = c.side, sx = s.axis === 'x', fx = c.fork.at, k = Math.sign(s.at - s.line) || 1, far = s.at + k * c.s / 2, smid = (s.line + far) / 2, slen = Math.abs(far - s.line);
             for (const e of [-0.45, 0.45]) part(unit, darkMat, group, sx ? smid : fx + e, c.y + 0.03, sx ? fx + e : smid, sx ? slen : 0.1, 0.06, sx ? 0.1 : slen);
             part(unit, MATS[4], group, sx ? far + k * 0.15 : fx, c.y + 0.25, sx ? fx : far + k * 0.15, sx ? 0.3 : 1.2, 0.5, sx ? 1.2 : 0.3);
             const px = sx ? s.line - k * 1.3 : fx - 1.3, pz = sx ? fx - 1.3 : s.line - k * 1.3, lamp = part(ball, offMat, group, px, c.y + 2.1, pz, 0.4);
             part(cyl, poleMat, group, px, c.y + 1, pz, 0.08, 2, 0.08);
-            const wires = (c.fork.on || []).map(i => { const p = world.plates[i], h = p.kind === 'rail' ? world.crates[p.crate].home : p; return rod(offMat, [h.x, h.y + 0.04, h.z], [px, c.y + 2.1, pz], 0.05); });
-            live.push(() => { lamp.material = world.test(c.fork) ? markB : markA; for (const r of wires) r.material = lamp.material; });
+            live.push(() => { lamp.material = world.test(c.fork) ? markB : markA; });
           }
         }
       } else {
@@ -410,7 +401,7 @@ function start() {
       cloud.position.set(cx0 + r(12.9) * cw, -9 - r(78.2) * 14 + (k % 5 ? 0 : 26), cz0 + r(39.3) * cd); cloud.scale.set(5 + r(4.1) * 7, 1.2 + r(9.7), 3 + r(2.3) * 5); group.add(cloud);
     }
     $('stageInfo').textContent = `🗺 ${i + 1}/${STAGES.length}　${st.name}`;
-    banner(`ステージ ${i + 1}　${st.name}${startHalf ? '（後半から）' : ''}`, 2500); hint(st.cps[me.cp].hint);
+    banner(`ステージ ${i + 1}　${st.name}${startHalf ? '（後半から）' : ''}`, 2500);
     hero.pts = null;                                                                  // 体も新しい場所から作り直す
   }
   // 板張り i が割れた：木っ端を飛ばす（2 秒で消える）
@@ -819,7 +810,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.14'); roomApi.setup('adventure/room', 4); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.15'); roomApi.setup('adventure/room', 4); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
@@ -992,7 +983,7 @@ function start() {
     lastCrank = me.crank;
     for (const e of me.events) {
       if (e === 'fell') { if (holding) release('drop'); banner('セーブ地点からやり直し', 1800); }
-      if (e === 'cp') { banner('セーブ！', 1500); hint(world.stage.cps[me.cp].hint); }
+      if (e === 'cp') banner('セーブ！', 1500);
       if (e === 'cp' && room && world.stage.parts && me.cp >= world.stage.parts[2].cp) roomApi.putItem('h', { g: run });   // 後半に着いた：あとから入る人・読みこみ直した人は、後半から始める
       if (e === 'goal') {                                                             // 少し喜んでから、全員で次のステージへ
         const last = stageIndex === STAGES.length - 1, from = run;
