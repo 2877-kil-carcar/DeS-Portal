@@ -13,6 +13,7 @@
   let serverBatch=false,jobTimer=null,selectedCode='',currentJob=null;
   const statusNames={pending:'待機中',processing:'交換中',completed:'完了',failed:'要確認',cancelled:'中止',expired:'受付終了',invalid:'無効なコード'};
   const summaryOf=job=>summarizeTargets(job?.targets||[],!['pending','processing'].includes(job?.status));
+  const wrongId=p=>p.status==='failed'&&/IDまたは王国|ID・王国/.test(p.msg||'');
   function notifyShell(count){if(globalThis.parent&&globalThis.parent!==globalThis.window)globalThis.parent.postMessage({type:'wos:redeem-alert',count},location.origin==='null'?'*':location.origin);}
   function showJob(job) {
     currentJob=job;
@@ -35,7 +36,7 @@
     $('job-summary').hidden=!final;
     $('job-summary').className='job-summary'+(unresolved?'':' informational');
     $('job-summary-counts').textContent=final?(job.status==='expired'?`${job.code}：成功${summary.success}／期限切れ確認${summary.expired||0}／未実行${summary.unprocessed||0}`:job.status==='invalid'?`${job.code}：成功${summary.success}／無効なコード／未実行${summary.unprocessed||0}`:`${job.code}：成功${summary.success}／失敗${summary.failed}／未確認${summary.unknown}`)+(summary.condition?`／条件未達${summary.condition}（失敗に含めません）`:'')+(summary.removed?`／登録削除${summary.removed}（未実行）`:''):'';
-    $('job-failures').innerHTML=failures.length?failures.map(p=>{const wrong=/IDまたは王国|ID・王国/.test(p.msg||'')&&state.players.some(v=>v.fid===p.fid);return `<div class="failure-row"${wrong?` data-delete="${esc(p.fid)}"`:''}><strong>${esc(p.name||p.fid||'名前なし')}</strong><span>${esc(p.msg||'理由を確認できません')}</span>${wrong?'<button type="button" class="secondary danger">登録から削除</button>':''}</div>`;}).join(''):'<p class="empty compact">未解決の失敗はありません。</p>';
+    $('job-failures').innerHTML=failures.length?failures.map(p=>{const wrong=wrongId(p)&&state.players.some(v=>v.fid===p.fid);return `<div class="failure-row"${wrong?` data-delete="${esc(p.fid)}"`:''}><strong>${esc(p.name||p.fid||'名前なし')}</strong><span>${esc(p.msg||'理由を確認できません')}</span>${wrong?'<button type="button" class="secondary danger">登録から削除</button>':''}</div>`;}).join(''):'<p class="empty compact">未解決の失敗はありません。</p>';
     const conditions=job.targets.filter(isConditionPlayer);
     $('job-conditions').innerHTML=conditions.length?'<h3>条件未達（失敗件数には含みません）</h3>'+conditions.map(p=>`<div class="failure-row condition-row"><strong>${esc(p.name||p.fid||'名前なし')}</strong><span>${esc(p.msg||'交換条件を満たしていません')}</span></div>`).join(''):'';
     render();
@@ -45,7 +46,9 @@
     try {
       const response=await jobs.list();
       const latest=response.jobs||[];
-      notifyShell(Number.isFinite(Number(response.unresolved))?Number(response.unresolved):latest.reduce((count,job)=>count+(['pending','processing'].includes(job.status)?0:summaryOf(job).failed+summaryOf(job).unknown),0));
+      // ID・王国違いはポータルの通知バッジに数えない。shortcut: 中継の件数から直近20件分を引くだけ、21件より古い記録に残ると数に入る。中継側で除外すれば不要
+      const wrongIds=latest.reduce((count,job)=>count+(job.targets||[]).filter(wrongId).length,0);
+      notifyShell(Math.max(0,(Number.isFinite(Number(response.unresolved))?Number(response.unresolved):latest.reduce((count,job)=>count+(['pending','processing'].includes(job.status)?0:summaryOf(job).failed+summaryOf(job).unknown),0))-wrongIds));
       $('jobs-panel').hidden=false;
       const monitor=response.discord||{};
       $('discord-status').textContent=!monitor.enabled?'自動取得：設定待ち':monitor.status==='failed'?'自動取得：接続を確認してください。 '+(monitor.message||''):monitor.checked_at?'自動取得：最終確認 '+new Date(monitor.checked_at).toLocaleString('ja-JP'):'自動取得：初回接続待ち';
