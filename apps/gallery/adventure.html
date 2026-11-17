@@ -73,7 +73,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.13">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.14">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <button class="ui pill small" id="stageInfo" aria-label="ステージを選ぶ"></button>
@@ -81,7 +81,7 @@
 <div class="ui" id="stagePanel" role="dialog" aria-label="ステージを選ぶ" hidden>
   <div class="box">
     <h2>🗺 ステージを選ぶ</h2>
-    <p>選んだステージを最初から始めます（「後半から」は、後半のはじめのセーブ地点から）。部屋にいるときは、全員がそのステージへ移ります。</p>
+    <p>選んだステージを最初から始めます。部屋にいるときは、全員がそのステージへ移ります。</p>
     <div id="stageList"></div>
     <div class="row"><button class="pill" id="toSave">セーブ地点へもどる</button><button class="pill small" id="stageClose">とじる</button></div>
   </div>
@@ -113,8 +113,8 @@
    キャラの体（ラグドール）は美術館 museum.html と同じ作り。
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
-import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.13';
-import { STAGES } from './adventure-stages.js?v=4.13';
+import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.14';
+import { STAGES } from './adventure-stages.js?v=4.14';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -819,7 +819,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.13'); roomApi.setup('adventure/room', 4); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.14'); roomApi.setup('adventure/room', 4); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
@@ -830,9 +830,9 @@ function start() {
     }
     $('roomCreate').disabled = $('roomJoin').disabled = false;
   }
-  // ステージ選択：1 人ならその場で、部屋にいれば全員で、選んだステージを最初から始める。つないだステージは「後半から」も選べる
+  // ステージ選択：1 人ならその場で、部屋にいれば全員で、選んだステージを最初から始める（後半から始まるのは、部屋でだれかが後半に着いたあとに入った人だけ）
   STAGES.forEach((st, i) => {
-    for (const half of st.parts ? [0, 1] : [0]) {
+    for (const half of [0]) {
       const b = document.createElement('button'); b.className = 'pill'; b.textContent = half ? `${i + 1}　後半から（${st.parts[2].name}）` : `${i + 1}　${st.name}`;
       b.addEventListener('click', () => { stagePanel.hidden = true; const n = nonce(); if (room) roomApi.setMatch({ stage: i, n, half }); else loadStage(i, n, half); });
       $('stageList').append(b);
