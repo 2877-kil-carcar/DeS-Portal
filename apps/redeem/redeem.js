@@ -46,8 +46,8 @@
     try {
       const response=await jobs.list();
       const latest=response.jobs||[];
-      // ID・王国違いはポータルの通知バッジに数えない。shortcut: 中継の件数から直近20件分を引くだけ、21件より古い記録に残ると数に入る。中継側で除外すれば不要
-      const wrongIds=latest.reduce((count,job)=>count+(job.targets||[]).filter(wrongId).length,0);
+      // ID・王国違いはポータルの通知バッジに数えない。新しい中継は除外済みの件数を返す（wrongIdExcluded）。古い中継のときだけ直近20件分をここで引く
+      const wrongIds=response.wrongIdExcluded?0:latest.reduce((count,job)=>count+(job.targets||[]).filter(wrongId).length,0);
       notifyShell(Math.max(0,(Number.isFinite(Number(response.unresolved))?Number(response.unresolved):latest.reduce((count,job)=>count+(['pending','processing'].includes(job.status)?0:summaryOf(job).failed+summaryOf(job).unknown),0))-wrongIds));
       $('jobs-panel').hidden=false;
       const monitor=response.discord||{};

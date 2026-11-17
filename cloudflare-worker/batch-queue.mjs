@@ -11,6 +11,7 @@ const retriableJob = new Set(['failed', 'cancelled']);
 const finishedPlayer = new Set(['done', 'skipped', 'failed', 'unknown', 'condition', 'expired', 'invalid', 'closed', 'removed']);
 const removedPlayer = player => ({...player,status:'removed',retrying:false,msg:'登録から削除されたため未実行'});
 const {isConditionResult,isConditionPlayer,summarizeTargets:summarize} = globalThis.WOS_REDEEM_PROTOCOL;
+const wrongId=player=>player.status==='failed'&&/IDまたは王国|ID・王国/.test(String(player.msg||''));
 const shouldNotify = job => ['discord','integration'].includes(job.source?.type);
 
 export class RedeemQueue {
@@ -163,9 +164,10 @@ export class RedeemQueue {
         if (code) return Response.json({job:this.get(normalizeCode(code))});
         const jobs = this.rows('SELECT code FROM gift_codes ORDER BY detected_at DESC LIMIT 20').map(r => this.get(r.code));
         const unresolved=this.rows("SELECT code FROM gift_codes WHERE status IN ('failed','pending','processing')").map(r=>this.get(r.code))
-          .reduce((count,value)=>count+(value.status==='failed'?(value.summary?.failed||0)+(value.summary?.unknown||0):
-            value.targets.filter(player=>!isConditionPlayer(player)&&(['failed','unknown'].includes(player.status)||(player.retrying&&['pending','sending','recording'].includes(player.status)))).length),0);
-        return Response.json({jobs,unresolved,discord:{enabled:this.env.DISCORD_ENABLED==='true',...JSON.parse(this.meta('discord_status') || '{}')}});
+          // ID・王国違いは登録の直し待ちなので、ポータルの通知バッジ用の件数には入れない
+          .reduce((count,value)=>count+(value.status==='failed'?(value.summary?.failed||0)+(value.summary?.unknown||0)-value.targets.filter(wrongId).length:
+            value.targets.filter(player=>!isConditionPlayer(player)&&!wrongId(player)&&(['failed','unknown'].includes(player.status)||(player.retrying&&['pending','sending','recording'].includes(player.status)))).length),0);
+        return Response.json({jobs,unresolved,wrongIdExcluded:true,discord:{enabled:this.env.DISCORD_ENABLED==='true',...JSON.parse(this.meta('discord_status') || '{}')}});
       }
       if (url.pathname === '/cancel') {
         const {code} = await request.json();

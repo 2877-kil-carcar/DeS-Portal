@@ -168,7 +168,7 @@ for(const type of ['manual','discord','integration']){
   const f=fixture({redeemPlayer:async(_env,code,p)=>{f.exchanges.push([code,p.fid]);return p.fid==='456'&&fail?{done:false,retry:false,msg:'ID・王国が不正です。'}:{done:true,retry:false,msg:'交換成功'};}});
   await f.queue.submit('PARTIAL123',{type:'manual'});await f.drain();
   let job=f.queue.get('PARTIAL123');assert.deepEqual(job.summary,{total:2,success:1,failed:1,unknown:0,expired:0,invalid:0,unprocessed:0,condition:0,removed:0});
-  assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,1);
+  assert.equal((await (await f.queue.fetch(new Request('https://test/jobs'))).json()).unresolved,0,'wrong ID/kingdom stays out of the badge count');
   assert.equal(job.targets.find(p=>p.fid==='456').name,'B');await f.tick();
   assert.equal(f.notifications.length,0);assert.equal(f.queue.get('PARTIAL123').notification,null);
   fail=false;await f.queue.submit('PARTIAL123',{type:'manual'},true);
