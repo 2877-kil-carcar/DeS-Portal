@@ -35,7 +35,7 @@
     $('job-summary').hidden=!final;
     $('job-summary').className='job-summary'+(unresolved?'':' informational');
     $('job-summary-counts').textContent=final?(job.status==='expired'?`${job.code}：成功${summary.success}／期限切れ確認${summary.expired||0}／未実行${summary.unprocessed||0}`:job.status==='invalid'?`${job.code}：成功${summary.success}／無効なコード／未実行${summary.unprocessed||0}`:`${job.code}：成功${summary.success}／失敗${summary.failed}／未確認${summary.unknown}`)+(summary.condition?`／条件未達${summary.condition}（失敗に含めません）`:'')+(summary.removed?`／登録削除${summary.removed}（未実行）`:''):'';
-    $('job-failures').innerHTML=failures.length?failures.map(p=>`<div class="failure-row"><strong>${esc(p.name||p.fid||'名前なし')}</strong><span>${esc(p.msg||'理由を確認できません')}</span></div>`).join(''):'<p class="empty compact">未解決の失敗はありません。</p>';
+    $('job-failures').innerHTML=failures.length?failures.map(p=>{const wrong=/IDまたは王国|ID・王国/.test(p.msg||'')&&state.players.some(v=>v.fid===p.fid);return `<div class="failure-row"${wrong?` data-delete="${esc(p.fid)}"`:''}><strong>${esc(p.name||p.fid||'名前なし')}</strong><span>${esc(p.msg||'理由を確認できません')}</span>${wrong?'<button type="button" class="secondary danger">登録から削除</button>':''}</div>`;}).join(''):'<p class="empty compact">未解決の失敗はありません。</p>';
     const conditions=job.targets.filter(isConditionPlayer);
     $('job-conditions').innerHTML=conditions.length?'<h3>条件未達（失敗件数には含みません）</h3>'+conditions.map(p=>`<div class="failure-row condition-row"><strong>${esc(p.name||p.fid||'名前なし')}</strong><span>${esc(p.msg||'交換条件を満たしていません')}</span></div>`).join(''):'';
     render();
@@ -108,6 +108,8 @@
     if(button.dataset.action==='rename'){const name=prompt('プレイヤー名',player.name||'');if(name!==null)await cloud.setPlayer({...player,name});}
     if(button.dataset.action==='kingdom'){const kid=prompt('王国（公式交換APIでIDを確認します）',player.kid||state.kingdom);if(kid===null)return;if(!/^\d+$/.test(kid.trim()))throw Error('王国は数字で入力してください。');await verifiedSave({...player,kid:kid.trim()});}
   });});
+  // ID・王国違いの失敗行から、その場で登録を削除する（管理者のみ。一覧の削除と同じ扱い）
+  $('job-failures').addEventListener('click',event=>{const row=event.target.closest('[data-delete]');if(!row)return;if(!isAdmin){renderAdmin('管理者ログイン後に操作してください。');$('adminPanel').open=true;$('adminPanel').scrollIntoView?.({block:'center'});return;}const player=state.players.find(value=>value.fid===row.dataset.delete);if(!player)return;change(async()=>{if(confirm(`${player.name||player.fid} を共有登録から削除しますか？`)){await cloud.deletePlayer(player.fid);state.players=state.players.filter(value=>value!==player);showJob(currentJob);}});});
   $('addBtn').addEventListener('click',()=>change(async()=>{
     const fid=$('newFid').value.trim(),kid=$('newKid').value.trim();
     if(!/^\d+$/.test(fid)||!/^\d+$/.test(kid))throw Error('IDと王国は数字で入力してください。');if(!confirm('このプレイヤーを公式交換APIで確認して共有登録しますか？'))return;

@@ -5,3 +5,5 @@
 #job-conditions h3{margin:0;font-size:13px;color:#576b78}
 .failure-row.condition-row{border-color:#d7e1e8;background:#fff}
 .failure-row.condition-row span{color:#576b78}
+.failure-row[data-delete]{cursor:pointer}
+.failure-row[data-delete] button{margin-top:6px}
