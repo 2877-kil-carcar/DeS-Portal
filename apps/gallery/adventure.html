@@ -69,7 +69,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.15">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.17">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <button class="ui pill small" id="stageInfo" aria-label="ステージを選ぶ"></button>
@@ -108,8 +108,8 @@
    キャラの体（ラグドール）は美術館 museum.html と同じ作り。
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
-import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.15';
-import { STAGES } from './adventure-stages.js?v=4.15';
+import { makeWorld, makePlayer, kit, HANG } from './adventure-world.js?v=4.17';
+import { STAGES } from './adventure-stages.js?v=4.17';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -178,7 +178,12 @@ function start() {
   const lit = color => new THREE.MeshBasicMaterial({ color });
   const cut = (w, h, draw, more) => new THREE.MeshBasicMaterial({ map: paint(w, h, draw), alphaTest: 0.5, ...more });   // 抜き模様（描いていない所は透ける）
   const darkMat = std(0x2b2f36, 0.7), steelMat = std(0x6f7b8a, 0.45), offMat = std(0x4a505a, 0.6), markA = lit(0x4aa3ff), markB = lit(0xff9f43);
+  // つかまって動く点：つかむ所（ジップラインの横棒・ロープの先の結び目・ふうせんのひもの輪）は、どれも同じ、光るだいだい色。ロープは麻色、ふうせんは桃色
+  const gripMat = std(0xff8a1f, 0.5), ropeMat = std(0x9a7a48, 0.9), balloonMat = std(0xff5d8f, 0.35);
+  gripMat.emissive.set(0x7a3300); balloonMat.emissive.set(0x5a1028);
   const panMats = { A: std(0x3d8bff), B: std(0xe2485a) };                             // てんびんの皿：A が青、B が赤
+  // 水：すける青（水門のハンドルにも、同じ青の玉）。いかだの帆は生成り色
+  const waterMat = new THREE.MeshStandardMaterial({ color: 0x2f8fd8, transparent: true, opacity: 0.55, roughness: 0.15, depthWrite: false }), sailMat = std(0xfff3d6, 0.8);
   const columnMat = new THREE.MeshBasicMaterial({ color: 0xfff27a, transparent: true, opacity: 0.3, depthWrite: false, fog: false, blending: THREE.AdditiveBlending });   // ゴールの光の柱（遠くても、かすまない）
   const cellTex = paint(32, 64, g => {                                                // でんち：黄色い筒に、黒いふたと光る帯
     g.fillStyle = '#f5c211'; g.fillRect(0, 0, 32, 64); g.fillStyle = '#23262b'; g.fillRect(0, 0, 32, 9); g.fillRect(0, 55, 32, 9); g.fillStyle = '#fffbe0'; g.fillRect(0, 27, 32, 10);
@@ -277,8 +282,14 @@ function start() {
       const m = boxMesh(k, k.fan ? fanWindMat : windMat, group); m.userData.wind = k; m.visible = false; return m;   // せんぷうき箱の風は、世界を 1 コマ進めるまで場所が決まらない（メインループで合わせる）
     });
     for (const m of world.movers) {
-      const mesh = boxMesh(m.box, panMats[m.side] || MATS[m.b.c], group); mesh.userData.m = m; moving.push(mesh);
+      // 水は、底（動かない）から、いまの水面まで
+      const mesh = m.water ? boxMesh({ ...m.b, get y1() { return m.box.y1; } }, waterMat, group) : boxMesh(m.box, panMats[m.side] || MATS[m.b.c], group); mesh.userData.m = m; moving.push(mesh);
       const b = m.b, to = m.to, cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, w = b.x1 - b.x0, d = b.z1 - b.z0;
+      if (m.mode === 'raft') {                                                        // 帆のいかだ：まん中に帆柱と帆。せんぷうき箱がのって向きが決まると、帆がふくらみ、甲板に進む向きの矢印
+        const g = follow(new THREE.Group(), m.box), sail = part(unit, sailMat, g, 0, 1.4, 0, Math.min(w, d) * 0.7, 1.6, 0.06), arrow = part(arrowGeo, arrowMat, g, 0, 0.03, 0, 1, 1, 1.3);
+        part(cyl, darkMat, g, 0, 1.2, 0, 0.12, 2.4, 0.12);
+        live.push(() => { const v = m.dir; arrow.visible = !!v; sail.scale.z = v ? 0.35 : 0.06; if (v) { sail.rotation.y = arrow.rotation.y = Math.atan2(v[0], v[1]); sail.position.set(v[0] * 0.2, 1.4, v[1] * 0.2); } });
+      }
       if (m.mode === 'ride') {                                                        // 乗ると動く床：通り道に 2 本のレール、床の下に車輪の軸。2 人ぶん要る床には、重さの目もり
         const len = Math.hypot(to[0], to[2]), tx = len ? to[0] / len : 0, tz = len ? to[2] / len : 1, across = Math.abs(tz) * w + Math.abs(tx) * d;
         for (const s of [-1, 1]) {
@@ -329,15 +340,44 @@ function start() {
         live.push(() => { for (const l of lamps) { const p = l.userData.p; l.material =(m.load ? p.held >= m.load : p.down) ? l.userData.on : offMat; } });
       }
     }
+    // ── クレーン・鉄球 ──
+    /* クレーン：動かない 2 本の走り台の上を、橋（z のレバーの色）が前後に動き、橋の上を台車（x のレバーの色）が左右に動く。台車からワイヤーでフック（上げ下げのレバーの色）を吊る。
+       動かすレバーのつまみを、動かす部分と同じ色にする（どのレバーが、どこを動かすかを、文字なしで見せる）。フックの爪は、開いている間ひらく */
+    const knobs = new Map(), craneMats = [0xc05cff, 0x22b8a8, 0x9bd12b].map(c => Object.assign(std(c, 0.5), { userData: { tmp: true } }));   // x 紫・z 青緑・上げ下げ 黄緑
+    for (const k of world.cranes) {
+      const s = k.spec, span = a => Array.isArray(s[a]) ? [Math.min(s[a][1], s[a][2]), Math.max(s[a][1], s[a][2])] : [s[a], s[a]];
+      ['x', 'z', 'y'].forEach((a, i) => { if (Array.isArray(s[a])) knobs.set(s[a][0], craneMats[i]); });
+      const [x0, x1] = span('x'), [z0, z1] = span('z'), H = span('y')[1] + 2.5;
+      for (const x of [x0 - 1, x1 + 1]) part(unit, darkMat, group, x, H, (z0 + z1) / 2, 0.3, 0.3, z1 - z0 + 2.3);
+      const bridge = part(unit, craneMats[1], group, (x0 + x1) / 2, H + 0.27, k.z, x1 - x0 + 2.3, 0.25, 0.45), cart = part(unit, craneMats[0], group, k.x, H + 0.55, k.z, 0.8, 0.35, 0.8);
+      const wire = part(unit, darkMat, group, k.x, H, k.z, 0.05, 1, 0.05), claws = [-1, 1].map(() => part(unit, craneMats[2], group, 0, 0, 0, 0.12, 0.35, 0.5));
+      moving.push(boxMesh(k.box, craneMats[2], group));
+      live.push(() => {
+        bridge.position.z = k.z; cart.position.set(k.x, H + 0.55, k.z); wire.position.set(k.x, (H + k.y + 0.5) / 2, k.z); wire.scale.y = Math.max(0.01, H - k.y - 0.5);
+        claws.forEach((m, i) => m.position.set(k.x + (i ? 1 : -1) * (k.open ? 0.62 : 0.46), k.y + (k.open ? 0.05 : -0.05), k.z));
+      });
+    }
+    const ironMat = std(0x30343b, 0.35); ironMat.metalness = 0.6; ironMat.userData.tmp = true;
+    for (const c of world.crates) if (c.pend) {                                       // 鉄球：支点の梁から、くさりで吊った黒い玉（玉の当たりは 1m の箱）
+      const a = c.rail.axis, mid = (c.rail.min + c.rail.max) / 2, px = a === 'x' ? mid : c.x, pz = a === 'x' ? c.z : mid, py = c.home.y + c.s + c.pend.len;
+      part(unit, darkMat, group, px, py + 0.15, pz, a === 'x' ? 0.4 : 2.4, 0.3, a === 'x' ? 2.4 : 0.4);
+      follow(new THREE.Mesh(ball, ironMat), c.box, -c.s / 2).scale.setScalar(c.s * 1.15);
+      const chain = part(unit, darkMat, group, px, py, pz, 0.07, 0.07, 1);
+      live.push(() => {
+        const bx = (c.box.x0 + c.box.x1) / 2, by = c.box.y1 - 0.1, bz = (c.box.z0 + c.box.z1) / 2;
+        chain.position.set((px + bx) / 2, (py + by) / 2, (pz + bz) / 2); chain.scale.z = Math.hypot(px - bx, py - by, pz - bz); chain.lookAt(px, py, pz);
+      });
+    }
     for (const c of world.crates) {
       if (c.tag === 'cell') follow(new THREE.Mesh(cellGeo, cellMat), c.box, -c.s / 2);
-      else if (c.rail) {                                                              // レールの箱
+      else if (c.pend) continue;                                                      // 鉄球は、上で描いた
+      else if (c.rail) {                                                           // レールの箱
         const { min, max } = c.rail, x = c.rail.axis === 'x', len = max - min, mid = (min + max) / 2;
         const at = (v, y, sx, sy, sz, mat) => part(unit, mat, group, x ? v : c.x, c.y + y, x ? c.z : v, x ? sx : sz, sy, x ? sz : sx);   // レールに沿った場所 v に置く箱
         const g = follow(new THREE.Group(), c.box);
         if (c.s < 1) {                                                                // レバー：黒い台の上を、赤い玉のつまみがすべる。両はしに、色の印
           at(mid, 0.05, len + 0.6, 0.1, 0.5, darkMat); at(min - 0.42, 0.07, 0.2, 0.14, 0.5, markA); at(max + 0.42, 0.07, 0.2, 0.14, 0.5, markB);
-          part(cyl, steelMat, g, 0, -0.4, 0, 0.1, 0.4, 0.1); part(ball, MATS[4], g, 0, -0.2, 0, 0.42);
+          part(cyl, steelMat, g, 0, -0.4, 0, 0.1, 0.4, 0.1); part(ball, knobs.get(c.id) || MATS[4], g, 0, -0.2, 0, 0.42);   // クレーンのレバーは、動かす部分の色
         } else {                                                                      // 台車：2 本のレールと、両はしの車止め。箱の下に車輪の軸
           for (const s of [-0.45, 0.45]) part(unit, darkMat, group, x ? mid : c.x + s, c.y + 0.03, x ? c.z + s : mid, x ? len + c.s : 0.1, 0.06, x ? 0.1 : len + c.s);
           for (const v of [min - c.s / 2 - 0.15, max + c.s / 2 + 0.15]) at(v, 0.25, 0.3, 0.5, 1.2, MATS[4]);
@@ -356,14 +396,15 @@ function start() {
         moving.push(boxMesh(c.box, c.fan ? fanMat : crateMats[+!!c.heavy], group));
         if (c.fan) {                                                                  // せんぷうき箱：上で羽根が回る（風が出ている間は速い）
           const rotor = follow(part(tile, rotorMat, group, 0, 0, 0, 0.7), c.box, 0.02), k = world.winds.find(k => k.fan === c);
-          live.push((time, dt) => { rotor.rotation.y += dt * (k.active ? 14 : 1); });
+          live.push((time, dt) => { rotor.rotation.y += dt * (k.active || c.on?.m?.mode === 'raft' ? 14 : 1); });   // いかだの上では、風は帆に当たる（上へは吹かない）
         }
       }
     }
     world.handles.forEach((h, i) => {                                                 // まきあげハンドル：柱の上の輪（回している間、回る）と、その上の輪の目もり
       const g = new THREE.Group(), m = world.movers.find(m => m.mode === 'crank' && m.handles.includes(i)); group.add(g);
       part(cyl, darkMat, g, 0, 0.45, 0, 0.14, 0.9, 0.14);
-      if (m && h.ride == null) { const b = m.b; rod(steelMat, [h.x, h.y + 0.9, h.z], [(b.x0 + b.x1) / 2 + m.to[0], b.y1 + m.to[1], (b.z0 + b.z1) / 2 + m.to[2]], 0.05); }   // くさり：動かないハンドルから、その床が行き着く場所へ（どのハンドルが、どの床を動かすか）
+      if (m?.water) part(ball, waterMat, g, 0, 0.95, 0, 0.4);                         // 水門のハンドル：輪のまん中に、水と同じ青の玉（くさりは引かない）
+      else if (m && h.ride == null) { const b = m.b; rod(steelMat, [h.x, h.y + 0.9, h.z], [(b.x0 + b.x1) / 2 + m.to[0], b.y1 + m.to[1], (b.z0 + b.z1) / 2 + m.to[2]], 0.05); }   // くさり：動かないハンドルから、その床が行き着く場所へ（どのハンドルが、どの床を動かすか）
       const wheel = part(tile, wheelMat, g, 0, 0.95, 0, 0.9), gauge = part(new THREE.RingGeometry(0.2, 0.3, 24), goalMat, g, 0, 1.75, 0);
       live.push((time, dt, now) => {
         g.position.set(h.x, h.y, h.z); if (gripped.includes(i)) wheel.rotation.y += dt * 5;
@@ -372,6 +413,23 @@ function start() {
         if (gauge.visible) { gauge.geometry.setDrawRange(0, Math.ceil(24 * (m.rel && now - m.rel.t > (m.hold ?? 12) * 1000 ? m.f / m.rel.f : 1)) * 6); gauge.quaternion.copy(camera.quaternion); }
       });
     });
+    for (const r of world.ropes) {                                                    // つかまって動く点：grip が、つかむ所（毎コマ r.at へ動かす）
+      const grip = new THREE.Group(); group.add(grip);
+      if (r.kind === 'zip') {                                                         // ジップライン：両端の黒い玉を結ぶ線（とっての 0.6m 上）と、線を走る車にぶら下がった横棒
+        const e = [r.x + r.to[0], r.y + r.to[1] + 0.6, r.z + r.to[2]];
+        rod(darkMat, [r.x, r.y + 0.6, r.z], e, 0.06); part(ball, darkMat, group, r.x, r.y + 0.6, r.z, 0.3); part(ball, darkMat, group, ...e, 0.3);
+        part(unit, steelMat, grip, 0, 0.6, 0, 0.26, 0.2, 0.5); part(unit, gripMat, grip, 0, 0, 0, 0.8, 0.1, 0.1);
+        for (const s of [-0.3, 0.3]) part(unit, darkMat, grip, s, 0.3, 0, 0.04, 0.6, 0.04);
+        grip.rotation.y = Math.atan2(r.to[0], r.to[2]);                               // 横棒は、線と直角
+      } else if (r.kind === 'swing') {                                                // ターザンロープ：上の支点の横木から、先に結び目のついたロープ
+        const x = r.axis === 'x', line = part(unit, ropeMat, group, 0, 0, 0, 0.08, 0.08, 1);
+        part(unit, darkMat, group, r.x, r.y + 0.1, r.z, x ? 0.3 : 1.2, 0.3, x ? 1.2 : 0.3); part(ball, gripMat, grip, 0, 0, 0, 0.32);
+        live.push(() => { const a = r.at; line.position.set((r.x + a[0]) / 2, (r.y + a[1]) / 2, (r.z + a[2]) / 2); line.scale.z = Math.hypot(r.x - a[0], r.y - a[1], r.z - a[2]); line.lookAt(r.x, r.y, r.z); });
+      } else {                                                                        // ふうせん：ひもの先の輪と、その 1.6m 上の大きな玉
+        part(hoop, gripMat, grip, 0, 0, 0, 0.5); part(cyl, poleMat, grip, 0, 0.8, 0, 0.03, 1.6, 0.03); part(ball, balloonMat, grip, 0, 2.6, 0, 1.8, 2.1, 1.8);
+      }
+      live.push(time => { grip.position.set(...r.at); if (r.kind === 'balloon') grip.rotation.z = Math.sin(time * 1.3 + r.x) * 0.05; });   // ふうせんは、少しゆれる
+    }
     for (const k of world.warps) {                                                    // ワープ台：むらさきの円盤と、立ちのぼる光
       const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.08, 28), warpMat); disc.position.set(k.x, k.y + 0.04, k.z); group.add(disc);
       const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 2.4, 20, 1, true), warpGlow); beam.position.set(k.x, k.y + 1.2, k.z); group.add(beam);
@@ -499,6 +557,8 @@ function start() {
   const ACT = { NONE: 0, REACH: 2, HELD: 3, HANG: 4, FALL: 5, OUCH: 6 };              // 他の人へ伝える見た目の動作
   // あみを登っている体 fig がつかむ所：あみ b のうち、手の届く高さ（足から 1.3m 上。てっぺんが近ければ、てっぺん）までを「縁」として pose へ渡す
   const rung = (fig, b, y) => { const o = fig.rung ||= {}; o.x0 = b.x0; o.x1 = b.x1; o.z0 = b.z0; o.z1 = b.z1; o.y0 = b.y0; o.y1 = Math.min(b.y1, y + 1.3); return o; };
+  // とって・ロープ・ふうせんにつかまっている体 fig がつかむ所：点 a のまわりの小さな箱を「縁」として pose へ渡す
+  const knot = (fig, a) => { const o = fig.knot ||= {}; o.x0 = a[0] - 0.05; o.x1 = a[0] + 0.05; o.z0 = a[2] - 0.05; o.z1 = a[2] + 0.05; o.y0 = a[1] - 0.1; o.y1 = a[1]; return o; };
   const weight = c => c && !c.heavy ? 2 : 1;                                          // ふみ板・おもさ板にかかる体の重さ：軽い箱 c を持っている人は 2
   const STRIDE = 5;                                                                   // 足の回転の速さ（1m 進む間に進む歩行の位相）。毎秒 2.8m で毎秒 4.5 歩ほど
   /* 姿勢：まず「目標の姿勢」を決め、粒をそこへばねで寄せる。腕・脚の角度は負が前。
@@ -749,7 +809,7 @@ function start() {
     world.fit(c);
   };
   /* 部屋の内容が変わるたびに呼ばれる。m = { stage, n } は「いまのステージと、何回目の出発か」、
-     boxes は箱の置き場所（c 番号。置いた人・押した人が書く）と、巻き上げる床から手を放した知らせ（k 番号）と、割れた板張り（b 番号）と、つないだステージの後半にだれかが着いた知らせ（h） */
+     boxes は箱の置き場所（c 番号。置いた人・押した人が書く）と、巻き上げる床から手を放した知らせ（k 番号）と、割れた板張り（b 番号）と、つないだステージの後半にだれかが着いた知らせ（h）と、帆のいかだが止まった場所（r 番号） */
   function onRoom(code, players, id, fx, m, boxes) {
     const first = !room; roomMe = id; room ||= { code };
     if (first) lastFx = fx?.n;                                                        // 入室前から残っていた合図は無視する
@@ -759,11 +819,24 @@ function start() {
       run = nonce(); roomApi.setMatch({ stage: stageIndex, n: run, half: +!!(startHalf || world.stage.parts && me.cp >= world.stage.parts[2].cp) });   // 1 人で後半まで来ていれば、仲間も後半から
       for (const i of world.broken) roomApi.putItem('b' + i, { g: run, n: nonce(), t: 0 });   // 1 人で割っておいた板張りも知らせる（t: 0 なので、木っ端は飛ばない）
     }
+    /* 帆のいかだが止まった場所（r 番号。止まったときに、それぞれの端末が書く）。いかだの上の箱の知らせは、いかだからのずれなので、箱より先に読む。
+       この端末のいかだが進んでいる最中に届いた知らせは、もう古いので読み捨てる（止まったら、この端末も書く）。8 秒の「元の場所へ戻る」は、読んだときから数えなおす */
+    for (const [key, d] of Object.entries(boxes || {})) {
+      const k = key[0] === 'r' && world.movers[+key.slice(1)];
+      if (k?.mode !== 'raft' || d.g !== run || d.n === k.seen || !Array.isArray(d.p)) continue;
+      k.seen = d.n; if (k.go) continue;
+      const dx = (+d.p[0] || 0) - k.o[0], dz = (+d.p[1] || 0) - k.o[2];               // いかだが跳ぶ分、のっている箱と自分も一緒に動かす（置き去りにすると、水に落ちる）
+      for (const c of world.crates) if (c.on === k.box && !c.held) { c.x += dx; c.z += dz; world.fit(c); }
+      if (me.on === k.box) { me.x += dx; me.z += dz; }
+      k.o[0] += dx; k.o[2] += dz; k.sent = [k.o[0], k.o[2]]; k.idle = 0;
+    }
     for (const [key, d] of Object.entries(boxes || {})) {
       const c = key[0] === 'c' && world.crates[+key.slice(1)];
       if (!c || d.g !== run || d.n === c.seen || !Array.isArray(d.p)) continue;
       c.seen = d.n;
-      if (c.heavy) c.net = d;                                                         // 重い箱（レバー・台車も）は、知らされた場所へなめらかに寄せる（メインループ）
+      if (c.hook != null) { c.hook = null; delete c.box.m; }                          // クレーン：知らせの k が、吊っているフックの番号。k のない知らせは、置いた（吊っていない）箱
+      if (world.cranes[d.k] && !c.held) { c.hook = d.k; c.net = null; continue; }      // 吊られている箱の場所は、この端末のフックが決める（あとから入っても、レバーを追うフックについて行く）
+      if (c.heavy) c.net = d;                                                        // 重い箱（レバー・台車も）は、知らされた場所へなめらかに寄せる（メインループ）
       else if (c.held && c.held !== 'me') c.pending = d;                               // まだ仲間の手元にある：放したと分かった時点で、この場所に置く
       else if (me.carry !== c) place(c, d);                                           // 自分が持っている箱は、自分の手元を優先
     }
@@ -810,7 +883,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.15'); roomApi.setup('adventure/room', 4); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.17'); roomApi.setup('adventure/room', 4); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
@@ -888,7 +961,7 @@ function start() {
     const onGround = me.grounded;                                                     // つかむ前に覚えておく（仲間の体にぶら下がると、me.grounded が消えて、持ち上げるはずが登ってしまう）
     const c = me.grabStart();                                                        // 箱が先。目の前に箱があるのに、横の仲間をつかんでしまわないように
     if (c) { if (c.heavy && dragMode() === 'stuck') banner('重い！　もう1人つかんで', 2000); return; }
-    if (me.crank != null) return;                                                     // ハンドルをつかんだ：そばの仲間は持ち上げない
+    if (me.crank != null || me.rope != null) return;                                  // ハンドル・とって・ロープ・ふうせんをつかんだ：そばの仲間は持ち上げない
     // 地面にいるときに目の前の仲間をつかむと、持ち上げる。跳んでからつかむと、仲間の頭へよじ登る
     const id = onGround && (!me.hang || me.hang.flat || me.hang.b.friend) ? friendInFront() : null;
     if (id) { me.grabEnd(); holding = id; holdT = 0; roomApi.fx(id, { k: 'grab', n: nonce(), by: roomMe }); }
@@ -942,10 +1015,11 @@ function start() {
       if (c && !c.heavy && (c.held === id || !c.held)) { c.held = id; c.x = g.position.x + Math.sin(g.rotation.y) * 0.75; c.y = g.position.y + 0.55; c.z = g.position.z + Math.cos(g.rotation.y) * 0.75; world.fit(c); }
     }
 
-    // 仲間の体も足場・壁になる：ぶつかるし、頭の上に乗れる（肩車で高い所へ届く）。持ち上げている・持ち上げられている相手とは当たらない
+    // 仲間の体も足場・壁になる：ぶつかるし、頭の上に乗れる（肩車で高い所へ届く）。持ち上げている・持ち上げられている相手とは当たらない。
+    // とって・ロープ・ふうせんにつかまっている仲間（s[7] が負）は足場にならない（頭に乗って、荷物ごと運ばれたり、ふうせんを重くせずに上がったりしない）
     world.extra = [];
     for (const [id, r] of remotes) {
-      if (id === holding || id === heldBy || r.target[5] === ACT.HELD) continue;
+      if (id === holding || id === heldBy || r.target[5] === ACT.HELD || r.target[7] < 0) continue;
       const q = r.fig.g.position;
       world.extra.push({ x0: q.x - 0.25, x1: q.x + 0.25, z0: q.z - 0.25, z1: q.z + 0.25, y0: q.y, y1: q.y + 1.3, friend: true });
     }
@@ -956,6 +1030,13 @@ function start() {
       const q = r.fig.g.position, h = r.target[7]; bodies.push([q.x, q.y, q.z, weight(world.crates[r.target[6] - 1])]);
       if (h !== r.mute) { r.mute = -1; if (h > 0) grips.push(h - 1); }                // 手を放した知らせが届いた仲間の s[7] は、値が変わるまで数えない
     }
+    // s[7] が負なら、つかまっている点：-(番号 + 1)。あとからつかんだ人は、さらに 0.5 引く。その仲間の足の位置を、点に渡す（点は、先につかんだ仲間の手に合わせて動く）
+    for (const k of world.ropes) k.others = [];
+    for (const r of remotes.values()) {
+      const h = r.target[7], q = r.fig.g.position;
+      if (h < 0) world.ropes[Math.floor(-h) - 1]?.others.push([q.x, q.y, q.z, -h % 1 ? 1 : 0]);
+    }
+    for (const c of world.crates) if (c.pend && (c.net || [...remotes.values()].some(r => r.target[6] === c.id + 1))) c.grip = true;   // 鉄球：仲間がつかんでいる間・知らされた場所へ寄せている間は、ふれない
     const now = room ? roomApi.serverNow() : Date.now();                             // 部屋ではサーバーの時計を使う（端末の時計がずれていても、動く床が全員で同じ位置になる）
     world.step(dt, now, bodies, grips); gripped = grips;
     for (const i of world.smashed) { chips(i); if (room) roomApi.putItem('b' + i, { g: run, n: nonce(), t: now }); }   // この端末で割れた板張り：木っ端を飛ばし、部屋へ知らせる
@@ -1000,15 +1081,16 @@ function start() {
     // 見た目を合わせる
     hero.g.position.set(me.x, me.y, me.z); hero.g.rotation.y = me.ry;
     // あみを登っている間も、ぶら下がりの姿勢。ボタンを離して持っている軽い箱にも、手をのばしたまま
-    const act = heldBy ? ACT.HELD : Math.hypot(me.kvx, me.kvz) > 1.5 ? ACT.OUCH : me.hang && (!me.hang.flat || me.hang.climb) ? ACT.HANG
+    const act = heldBy ? ACT.HELD : Math.hypot(me.kvx, me.kvz) > 1.5 ? ACT.OUCH : me.rope != null || me.hang && (!me.hang.flat || me.hang.climb) ? ACT.HANG
       : holding || grabbing || me.carry ? ACT.REACH : me.falling ? ACT.FALL : ACT.NONE;
-    pose(hero, dt, act, time, !me.grounded, me.on, me.hang?.climb ? rung(hero, me.hang.b, me.y) : me.hang?.b || me.carry?.box);
+    pose(hero, dt, act, time, !me.grounded, me.on, me.rope != null ? knot(hero, [me.x, world.ropes[me.rope].at[1], me.z])
+      : me.hang?.climb ? rung(hero, me.hang.b, me.y) : me.hang?.b || me.carry?.box);
     for (const [id, r] of remotes) {
       const f = r.fig, q = f.g.position, a = id === holding ? ACT.HELD : r.target[5], fx = Math.sin(f.g.rotation.y), fz = Math.cos(f.g.rotation.y);
       const under = world.groundBox(q.x, q.z, q.y + 0.01);
       // 仲間がつかんでいる物は、こちらで探す：木箱は番号で分かる。縁と壁は目の前を調べる（よじ登る途中で見失ったら、前のまま）
       const front = a === ACT.HANG || a === ACT.REACH ? world.blocked(q.x + fx * 0.6, q.z + fz * 0.6, q.y) : null;
-      f.hold = a === ACT.HANG ? world.ledge(q.x, q.z, q.y, fx, fz) || (front?.climb ? rung(f, front, q.y) : f.hold)
+      f.hold = r.target[7] < 0 ? knot(f, [q.x, q.y + HANG, q.z]) : a === ACT.HANG ? world.ledge(q.x, q.z, q.y, fx, fz) || (front?.climb ? rung(f, front, q.y) : f.hold)
         : a === ACT.REACH ? world.crates[r.target[6] - 1]?.box || front : null;
       // 動く床の上では、通信の合間に床だけが先へ動く。少し浮いて見えても、跳んでいる姿勢にしない
       pose(f, dt, a, time, !under || q.y - under.y1 > (under.m ? 0.5 : 0.15), under, f.hold, 0);
@@ -1051,16 +1133,23 @@ function start() {
       sendT += dt;
       if (sendT >= 0.1) {
         sendT = 0;
-        // s = [x, y, z, 向き, 歩いているか, 動作, 持っている箱の番号 + 1, 回しているハンドルの番号 + 1, 何回目の出発か（run）]（箱とハンドルは、なければ 0。古い版は s[7]・s[8] を読まないだけ）
-        const s = [me.x, me.y, me.z, me.ry].map(v => Math.round(v * 100) / 100).concat(me.walk ? 1 : 0, act, me.carry ? me.carry.id + 1 : 0, me.crank == null ? 0 : me.crank + 1, run);
+        // s = [x, y, z, 向き, 歩いているか, 動作, 持っている箱の番号 + 1, 回しているハンドルの番号 + 1, 何回目の出発か（run）]（箱とハンドルは、なければ 0。古い版は s[7]・s[8] を読まないだけ）。
+        // とって・ロープ・ふうせん（ropes の番号 i）につかまっている間の s[7] は -(i + 1)、仲間がつかんでいる点をあとからつかんだなら -(i + 1.5)（古い版は、負の値を数えない）
+        const s = [me.x, me.y, me.z, me.ry].map(v => Math.round(v * 100) / 100).concat(me.walk ? 1 : 0, act, me.carry ? me.carry.id + 1 : 0, me.crank != null ? me.crank + 1 : me.rope != null ? -(me.rope + 1 + me.slot / 2) : 0, run);
         if (s.join() !== lastSent) { lastSent = s.join(); roomApi.send(s); }
         // 箱の場所は、置いて止まってから知らせる（落ちている途中の場所は書かない）。動く床の上なら、その床の番号と、床から見た場所を書く
         // 知らされた場所へ寄せている途中の重い箱（c.net）は書かない：あとから入った端末で、中二階の下を通って寄る途中に壁からすべり出た場所を、仲間へ広めない
-        for (const c of world.crates) if (c.moved && !c.held && !c.net && (c.on || c.rail)) {
+        for (const c of world.crates) if (c.moved && !c.held && !c.net && (c.on || c.rail || c.hook != null)) {
           const k = world.movers.indexOf(c.on?.m), o = c.on?.m?.o, d = { p: [c.x, c.y, c.z].map((v, i) => Math.round((v - (o ? o[i] : 0)) * 100) / 100), n: c.seen = nonce(), g: run };
           if (o) d.m = k;
+          if (c.hook != null) d.k = c.hook;                                           // クレーンに吊った：フックの番号（吊った瞬間に 1 回だけ書く。放して落ち、着いたら、k のない知らせで上書きする）
           c.moved = false; roomApi.putItem('c' + c.id, d);
         }
+        // 帆のいかだ：止まっていて、最後に知らせた（読んだ）場所から 5cm より動いていれば、その場所を知らせる
+        world.movers.forEach((m, i) => {
+          if (m.mode !== 'raft' || m.go || Math.hypot(m.o[0] - (m.sent?.[0] ?? 0), m.o[2] - (m.sent?.[1] ?? 0)) < 0.05) return;
+          m.sent = [m.o[0], m.o[2]]; roomApi.putItem('r' + i, { p: m.sent.map(v => Math.round(v * 100) / 100), g: run, n: m.seen = nonce() });
+        });
       }
     }
 
@@ -1069,7 +1158,7 @@ function start() {
        ただし 1.3m より高く上がれば下から追い、0.6m より下へ落ちれば追う（トランポリン・風・穴）。
        やり直しで空へ戻されたときは、足場の高さを目ざす：体を画面の上のほうに入れたまま一緒に下り、最後は足場で待つ（体が上から落ちてきて、べちゃっとつぶれる） */
     if (me.y - camRef > 8 && floor > -90) camRef = camY = floor;
-    if (me.grounded || me.hang || me.y < camRef - 0.6) camRef = me.y; else if (me.vy > 0) camRef = Math.max(camRef, me.y - 1.3);
+    if (me.grounded || me.hang || me.rope != null || me.y < camRef - 0.6) camRef = me.y; else if (me.vy > 0) camRef = Math.max(camRef, me.y - 1.3);
     camY += (camRef - camY) * (1 - Math.exp(-dt * 4));
     camY = Math.min(Math.max(camY, me.y - 2.4), me.y + 1.5);                          // 大砲で打ち上げられても、空から落ちてきても、キャラを画面の外へ出さない
     const far = 4.8 + 1.7 * Math.min(1, Math.max(0, Math.sin(pitch)));

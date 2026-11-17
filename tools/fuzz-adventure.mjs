@@ -4,7 +4,7 @@
 // 使い方：node tools/fuzz-adventure.mjs [回数=40] [ステージ番号か、つないだステージの文字 …]（乱数の種は固定なので、同じ結果を再現できる）
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { kit, makeWorld, makePlayer } from '../apps/gallery/adventure-world.js';
+import { kit, makeWorld, makePlayer, HANG } from '../apps/gallery/adventure-world.js';
 
 let seed = 12345;
 const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32;
@@ -24,6 +24,7 @@ for (const n of only.length ? only : all) {
     for (let i = 0; i < 30 * 45; i++) {                                  // 45 秒ぶん
       if (i % 20 === 0) { const a = rnd() * Math.PI * 2, go = rnd() < 0.85; mx = go ? Math.sin(a) : 0; mz = go ? Math.cos(a) : 0; }
       if (i % 20 === 0 && st.handles?.length) ghost = rnd() < 0.3 ? [Math.floor(rnd() * st.handles.length)] : [];   // ハンドルがあれば、いることにした仲間が、でたらめに回したり放したりする
+      if (i % 20 === 0) for (const r of w.ropes) r.others = rnd() < 0.2 ? [[r.at[0], r.at[1] - HANG, r.at[2]]] : [];   // とって・ロープ・ふうせんは、いることにした仲間が、でたらめにつかんだり放したりする（つかまっている点の足にぶら下がる・仲間が放して落ちる）
       if (rnd() < 0.03) p.jump();
       if (rnd() < 0.02) p.grabStart(); else if (rnd() < 0.03) p.grabEnd();
       const x0 = p.x, z0 = p.z;
@@ -32,6 +33,7 @@ for (const n of only.length ? only : all) {
       const at = `ステージ ${n}「${st.name}」 セーブ地点 ${cp} / ${run} 回目 (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`;
       assert.ok([p.x, p.y, p.z, p.vy, p.hvx, p.hvz].every(Number.isFinite), `数値がこわれた ${at}`);
       for (const c of w.crates) assert.ok([c.x, c.y, c.z].every(Number.isFinite), `箱の数値がこわれた ${at}`);
+      for (const r of w.ropes) assert.ok(r.at.every(Number.isFinite), `とって・ロープ・ふうせんの数値がこわれた ${at}`);
       // はまり：地面に立ち、何もつかまず、歩こうとしているのに動けない状態が続き、しかも 8 方向どこへも出られない
       const trying = (mx || mz) && p.grounded && !p.hang && !p.carry?.heavy;
       stuckT = trying && Math.hypot(p.x - x0, p.z - z0) < 1e-5 ? stuckT + DT : 0;
@@ -45,7 +47,7 @@ for (const n of only.length ? only : all) {
   }
   // 上下に動く床のすぐ横（縁から 0.2m 外。体の半径ぶん、床に重なる）に立っていても、はさまって動けなくならない。
   // 床を動かすふみ板と、乗ると動く床・てんびん・はねシーソーの皿には「いることにした体」を 8 秒乗せ、床が行って帰る間、1 秒ごとに外へ歩けるかを確かめる
-  for (const [mi, m0] of st.movers.entries()) if (m0.to?.[1] && m0.mode !== 'crumble') for (const [sx, sz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+  for (const [mi, m0] of st.movers.entries()) if (m0.to?.[1] && m0.mode !== 'crumble' && !m0.water) for (const [sx, sz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
     const w = makeWorld(st), p = makePlayer(w), m = w.movers[mi], b = m0.b;
     const x = (b.x0 + b.x1) / 2 + sx * ((b.x1 - b.x0) / 2 + 0.2), z = (b.z0 + b.z1) / 2 + sz * ((b.z1 - b.z0) / 2 + 0.2), y = w.floorY(x, z, Math.max(b.y1, b.y1 + m0.to[1]));
     if (y < -90) continue;                                                // そこには足場がない

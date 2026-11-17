@@ -121,6 +121,12 @@ export function makeBot(stage, cp = 0) {
     assert.equal(p.crank, h, `${name}: ハンドル ${h} をつかめない ${where()}`);
     tick(); api.wait(`ハンドル ${h} を回しきる`, pred, 60); p.grabEnd();               // 少なくとも 1 コマは回す（もう行ききっている床も、止まっている時間が数えなおしになる）
   };
+  // とって・ロープ・ふうせん i（ropes の番号）の真下（from があれば、そこ：点が足場の外にあるとき）へ行ってつかみ、pred が合うまでつかまってから放す（放すと、点の速さのまま飛ぶ。pred を省くと放さない）
+  api.hang = (i, pred, from) => {
+    const r = w.ropes[i]; api.go(from || (() => [r.at[0], r.at[2]])); p.grabStart();
+    assert.equal(p.rope, i, `${name}: とって・ロープ・ふうせん ${i} をつかめない ${where()}`);
+    if (pred) { api.wait(`とって・ロープ・ふうせん ${i} を放すとき`, pred, 60); p.grabEnd(); }
+  };
   // 検査のために、キャラをその場所へ置く（セーブ地点 cp も指定できる）
   api.place = (x, y, z, cp) => { Object.assign(p, { x, y, z, vy: 0, hvx: 0, hvz: 0, grounded: true }); if (cp != null) p.cp = cp; };
   api.wait('空から着地', () => p.grounded, 6);
@@ -128,12 +134,12 @@ export function makeBot(stage, cp = 0) {
 }
 
 /* つないだステージ（adventure-join.js）の一部分 part を、その部分だけのステージと同じ座標・番号で見せる自動操縦（部分ごとのボットを、そのまま動かすため）。
-   読むときは、ずらした座標（x・x0・x1・z・z0・z1）と番号（配列の添え字・p.cp・p.near・p.seen・p.crank・w.broken・w.smashed・信号の crate・ハンドルの ride）から part の分を引き、
+   読むときは、ずらした座標（x・x0・x1・z・z0・z1）と番号（配列の添え字・p.cp・p.near・p.seen・p.crank・p.rope・w.broken・w.smashed・信号の crate・ハンドルの ride）から part の分を引き、
    書くときは足す。p.goal は、前半（part.end がある）では「前半のゴールの場所に立っている」。
-   shortcut: レールの min・max・ポイントの at・to と、w.test・w.smash・w.release に渡す番号は、ずらさない（いまのボットは読まない）。読むボットができたら、ここに足す */
+   shortcut: レールの min・max・ポイントの at・to・ropes の点の場所 at と、w.test・w.smash・w.release に渡す番号は、ずらさない（いまのボットは読まない）。読むボットができたら、ここに足す */
 export function view(b, part) {
   const [dx, dz] = part.off, base = part.base, D = { x: dx, x0: dx, x1: dx, z: dz, z0: dz, z1: dz };
-  const INDEX = { cp: 'cps', near: 'cps', crank: 'handles', crate: 'crates', ride: 'movers', id: 'crates' }, SETS = { broken: 'boxes', smashed: 'boxes', seen: 'cps' };
+  const INDEX = { cp: 'cps', near: 'cps', crank: 'handles', rope: 'ropes', crate: 'crates', ride: 'movers', id: 'crates' }, SETS = { broken: 'boxes', smashed: 'boxes', seen: 'cps' };
   const XZ = new Set(['groundBox', 'floorY', 'blocked', 'wall', 'ledge', 'footing', 'heldSpot']);   // (x, z, y, …) を受け取る関数
   const shift = k => D[k] ?? (INDEX[k] ? base[INDEX[k]] : 0), proxies = new WeakMap(), raw = new WeakMap();
   const unwrap = v => raw.get(v) ?? v;
@@ -174,7 +180,7 @@ export function view(b, part) {
     center: m => { const [x, z] = b.center(M(m)); return [x - dx, z - dz]; },
     hop: (m, reach) => b.hop(M(m), reach), ride: (m, f) => b.ride(M(m), f), board: m => b.board(M(m)), tram: (m, off) => b.tram(M(m), P(off)),
     fanUp: (i, spot, y, landing) => b.fanUp(C(i), P(spot), y, P(landing)), climb: (f, t) => b.climb(P(f), P(t)), hoist: (f, t) => b.hoist(P(f), P(t)),
-    crank: (h, pred) => b.crank(h + base.handles, pred), place: (x, y, z, cp) => b.place(x + dx, y, z + dz, cp == null ? cp : cp + base.cps),
+    crank: (h, pred) => b.crank(h + base.handles, pred), hang: (i, pred, from) => b.hang(i + base.ropes, pred, P(from)), place: (x, y, z, cp) => b.place(x + dx, y, z + dz, cp == null ? cp : cp + base.cps),
   };
 }
 

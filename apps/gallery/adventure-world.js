@@ -34,6 +34,28 @@ const railEnd = (crate, at) => ({ kind: 'rail', crate, at });               // �
 const planks = b => Object.assign(b, { planks: true, c: 12 });             // 板張り（boxes に書く）：重い箱（1m 以上）がふれると割れて、なくなる（色 12）
 // はねシーソー（movers に ...seesaw(…) で書く）：すわる皿 a（はじめは下）と、ふむ皿 b（はじめは h 上）。b に重さがあり、a 以上に重いと、b が沈み、a がはね上がる
 const seesaw = (a, b, h, v, pair) => [{ b: a, to: [0, h, 0], mode: 'seesaw', pair, side: 'A', v }, { b, to: [0, -h, 0], mode: 'seesaw', pair, side: 'B' }];
+// ── クレーンと鉄球（書き方は下の「クレーン・鉄球」） ──
+// クレーン（cranes に書く）：x・z・y は、数（動かない）か [レールの箱の番号, はじめ, 終わり]。y はフックの底の高さで [番号, 上, 下]
+const crane = (x, z, y) => ({ x, z, y });
+// 鉄球（crates に書く）：止まっているときの玉の底 (x, y, z)。axis の向きに、まん中から ±pull m まで引ける。支点は玉の上 len m
+const ironball = (x, y, z, axis, pull, len) => { const v = axis === 'x' ? x : z; return { x, y, z, s: 1, heavy: true, solo: true, rail: { axis, min: v - pull, max: v + pull }, pend: { len } }; };
+// 水（movers に書く。書き方は下の「水・水門・帆のいかだ」）：(x, z) を中心に w×d、水面の高さ level、底 bottom。gate { rise, handles, up, hold, down } を書くと水門（ハンドルで水面が rise 上がる）
+const water = (x, z, w, d, level, bottom, gate) => ({ b: B(x, level, z, w, d, level - bottom, 1), water: true, ...gate ? { to: [0, gate.rise, 0], mode: 'crank', ...gate } : { to: [0, 0, 0], mode: 'still' } });
+// 帆のいかだ（movers に、浮かべる水 pool より後に書く）：(x, z) に浮かぶ w×d の床（上面は水面の 0.25m 上）。のせたせんぷうき箱の反対がわへ、毎秒 speed m 進む
+const raft = (pool, x, z, w = 3, d = 3, speed = 1.5) => ({ b: B(x, pool.b.y1 + 0.25, z, w, d, 0.5, 2), to: [0, 0, 0], mode: 'raft', speed });
+// つかまって動く点（ropes に書く。書き方は下の「ropes」）：ジップラインのとって・ターザンロープの先・ふうせんのひも
+export const HANG = 1.9;                                                             // つかまっている人の足から、つかんでいる点までの高さ（ページが、仲間の足の位置から点を決めるときに使う）
+const zip = (x, y, z, to, speed = 6) => ({ kind: 'zip', x, y, z, to, speed });
+const swing = (x, y, z, len, axis, rest) => ({ kind: 'swing', x, y, z, len, axis, rest });
+const balloon = (x, y, z, top, up = 0.8) => ({ kind: 'balloon', x, y, z, top, up });
+// 点 r の、いまの場所 r.at を、f（ジップライン）・a（ロープ）・b（ふうせん）から決める
+const ropePos = r => {
+  const s = Math.sin(r.a) * r.len, x = r.axis === 'x';
+  r.at = r.kind === 'zip' ? [r.x + r.to[0] * r.f, r.y + r.to[1] * r.f, r.z + r.to[2] * r.f] : r.kind === 'swing' ? [r.x + (x ? s : 0), r.y - r.len * Math.cos(r.a), r.z + (x ? 0 : s)] : [...r.b];
+  return r;
+};
+// 2 人目に同じ点をつかんだ人が、横にずれて並ぶ向きと長さ（ジップラインは線と直角、ロープはふれる向きと直角、ふうせんは x の向き）
+export const ropeSide = r => { if (r.kind !== 'zip') return r.axis === 'x' ? [0, 0.45] : [0.45, 0]; const n = Math.hypot(r.to[0], r.to[2]) || 1; return [-r.to[2] / n * 0.45, r.to[0] / n * 0.45]; };
 
 /* 動く床・門（movers）: b を to だけ動かす。
    mode 'always' 行ったり来たりし続ける／'loop' ふみ板（on）が押されている間だけ行き来し、離すと元へ戻る／'hold' 押されている間だけ動いた先にいる
@@ -124,6 +146,33 @@ const seesaw = (a, b, h, v, pair) => [{ b: a, to: [0, h, 0], mode: 'seesaw', pai
      planks(B(…))  板張り。ふさいだ戸口や床のふた。重い箱（1m 以上の箱。台車も。レバーのつまみと軽い箱、人はのぞく）が、押しこまれたり、上に落ちてきたりして
                     0.1m 以内にふれると割れ、当たりがなくなる（上にのっていた人や箱は落ちる）。割れた板は、そのステージをやり直すまで戻らない。
                     はじめから重い箱にふれる所には置かない。動く床や戸（門）は、戸口の敷居（0.5m の段）で重い箱を止める：閉まる戸に重なった重い箱は、もう動かせない
+   ropes（ステージの項目。番号は書いた順）　つかまって動く点。どれも、頭の上の点を「つかむ」でつかまり、放すと点の速さのまま落ちる（放した直後は、大砲台と同じに舵が少ししかきかない）。
+                  つかめるのは、点が横 0.8m 以内・足から 1.5〜2.4m 上にあるとき（向きは問わない。跳んで「つかむ」を押したままなら、足から 3.4m 上まで）。ハンドルより後、箱より先。
+                  つかまっている間は、歩けず跳べず、手がふさがる：軽い箱を持ったままではつかめない（荷物は運べない）。体は点の真下（つかんだときの点と足の高さの差だけ下）。
+                  足が床につかえると、床に立ったまま持つ。点と足の間が 1m を切ると、手を放して立つ。点につかまった体が動かない箱（壁・天井）にぶつかる所へは、点が進まない（そこで止まる）。
+                  動く床・箱・仲間の体はすり抜ける。仲間の頭の上に立っていても、運ばれない
+                  2 人目：だれかがつかんでいる点も、同じにつかめる（横 0.45m に並ぶ。ジップラインは線と直角、ロープはふれる向きと直角、ふうせんは x の向き）。先の人が放せば、あとの人がそのまま続ける。
+                  何人でもつかめる（4 人でこわれないことを検査した）。ふうせんだけは、2 人以上で重くなる
+     zip(x, y, z, [横 x, 上, 横 z], speed = 6)　ジップライン。(x, y, z) がとって（足場の上面から 1.9m 上に置く）。線は、そこから [ ] の向きと長さだけ先まで。
+                  つかんでいる間、毎秒 speed m で先の端へ進み、先の端で止まる（16.3m なら 2.7 秒）。だれもいないと、とっては毎秒 4m で出発点へ戻る（片道だけの乗り物：帰り道を別に作る）。
+                  先の端のとっても、着く岸の上面から 1.9m 上にすると、足が岸についてから放せる。途中で放すと前へ飛ぶ（水平・毎秒 6m で、2m 下の床までに 3.0〜3.1m、4m 下で 3.9m、8m 下で 4.8m 進む）。
+                  線の下を通る体（足はとっての 1.9m 下）が壁にぶつからないこと（点検が見る）。出発の岸は、とってのすぐ手前で終わらせる（とっての先まで岸があると、足がつかえて岸の上を引きずる）
+       例：zip(2.6, 1.9, 0, [16, -3, 0])　上面 0 の岸の東の縁（x 3）から、15m 先の 3m 低い岸（上面 -3、x 18〜）へ
+     swing(x, y, z, len, axis, rest)　ターザンロープ。(x, y, z) が支点、len が長さ。axis（'x' か 'z'）の向きにふれる。だれもいないと、角度 rest（ラジアン。負は -axis のがわ。1.3 まで）
+                  で止まっている（ロープの先が、出発の岸の上面から 1.9m 上に来るように置く）。つかむと、その角度から放したふりことしてふれ、反対がわの同じ角度まで行って戻ってくる
+                  （片道 ≒ 3.14 × √(len ÷ 10) 秒。len 6・角度 0.7 で 2.5 秒）。向こうの端（速さ 0）で放せば、その真下に下りる＝向こうの岸は、向こうの端の点の 1.9m 下あたりに置く。
+                  いちばん下の速さは √(20 × len × (1 − cos rest))（len 6・0.7 で毎秒 5.3m。そこで放すと、6m 下の床までに 4.0m 前へ飛ぶ）。だれもいなくなると、毎秒 1.5 ラジアンで rest へ戻る。
+                  仲間が押す：ふれの底の近く（乗っている人から、ふれる向きに 0.9m・横に 0.6m 以内、足の高さの 1.2m 下〜0.8m 上）に立っている人がいると、遠ざかっていく人を押して、ふれが大きくなる
+                  （len 6・0.7 で、1.0 以上。1.35 まで）。1 人ではふれは大きくならない。ふれる途中で向こうの岸の縁にぶつかると、そこで止まって戻る（向こうの岸は、点の通り道より低く置く）
+       例：swing(6, 8, 0, 6, 'x', -0.7)　上面 1.5 の岸（x 2.2 まで）から、東の上面 0.5 の岸（x 9.5〜）へ
+     balloon(x, y, z, top, up = 0.8)　ふうせん。(x, y, z) がひもの輪（足場の上面から 1.9m 上）。1 人でつかむと、毎秒 up m で、輪の高さ top まで上がって止まる（10m 上げるなら 12.6 秒）。
+                  横風（gust）の中では、吹いている間、その速さで流される（ふうせんを横へ動かせるのは風だけ）。2 人以上でつかむと重く、元の高さ y まで毎秒 1m で下がる（それより下へは行かない）。
+                  放すと落ちる。だれもいないと、毎秒 2m で元の場所へ戻る。ふうせん（輪から 2.6m 上まで）と体が天井にぶつかる所では止まる
+       例：balloon(0, 1.9, 0, 12) と gust(0, 0, 8, 8, 7, 13, [0, 1], 4000)　広場から上がると、7m より上で北へ流される
+     通信：s[7] に、つかまっている点を -(番号 + 1) で送る（あとからつかんだ人は -(番号 + 1.5)）。ページは毎コマ w.ropes[i].others に、その仲間の足の位置 [x, y, z, あとからなら 1] を入れる。
+                  先につかんだ仲間がいる点は、その仲間の足＋HANG に合わせる（r.pin）。自分が先につかんでいれば、自分の端末で動かす。だれもいなければ、どの端末でも元の場所へ戻る。
+                  だから、あとから入った端末でも、仲間がつかまっていれば仲間の手に、放したあとは元の場所にそろう（新しい items はない）。
+                  shortcut: 2 人が同じコマに同じ点をつかむと、どちらも「先」になり、端末ごとに点の場所がずれる（片方が放せばそろう）
    CP(x, y, z, hint, r)　最後にふれたセーブ地点が、やり直しの場所になる（前の地点へ戻れば、そこになる）。r は、ふれたことになる半径（省くと 2.2）
 
    ── adventure.html へ：ハンドルと、巻き上げる床の合わせ方 ──
@@ -179,16 +228,111 @@ const seesaw = (a, b, h, v, pair) => [{ b: a, to: [0, h, 0], mode: 'seesaw', pai
          [0, 14, 6]    てっぺん 9.7　T8 で 6.0
          ほかの向きへ飛ばすには、横の速さ（x と z）を同じ大きさのまま回す。着地させる足場は、この着地点を中心に 6×6 以上。
          大砲台・カタパルトで飛んでいる間（着地するか、つかまるまで）は、スティックで動けるのは毎秒 0.8m まで：倒しつづけても、台と同じ高さへ下りてくるまでに、着地点は 2.1m までしかずれない */
+/* ── 水・水門・帆のいかだ（movers に書く。tools/test-adventure-mechanics.mjs の最後の 5 つの検査で、毎秒 60・30・20 コマで確かめた） ──
+   water(x, z, w, d, level, bottom)　ただの水。底 bottom から水面 level までの、すける青い箱（当たりはない。動かない）。
+       人：水面より 0.5m 深く沈むと、やり直し（0.5m までの浅い所は歩ける）。水の上を「歩いて」は渡れない。すき間の寸法は、穴と同じに考える。
+       箱：ただの水に落ちた箱（でんち・せんぷうき箱も）は沈んで、元の場所へ戻る。
+       セーブ地点は、水の上（水面より上の段）に置く。水の中に置くと、点検（lint）が「動く床が入る」と知らせる
+   water(x, z, w, d, low, bottom, { rise, handles: [ハンドルの番号…], up, hold, down })　水門。水面は low から low + rise まで。
+       巻き上げる床（mode 'crank'）と同じ：handles のどれかを回している間、up 秒で上がりきる速さで上がり、放すと hold 秒そのまま、そのあと down 秒で引ききる（省くと 4・12・8 秒）。
+       ハンドルのつかみ方・届く距離・仲間との合わせ方も、まきあげハンドルと同じ。ハンドルの輪のまん中に、水と同じ青の玉が付く（くさりは引かない）。
+       箱：水門の水には、どの箱（重い箱・軽い箱・でんち・せんぷうき箱。レールの箱はのぞく）も半分沈んで浮かぶ（足元 c.on は水の箱。水面と一緒に上下する）。
+         浮かんだ箱の上面は水面の s/2 上：軽い箱 0.4、重い箱（1.4）0.7。上に立った人や積んだ箱も、一緒に上がり下がりする。浮かんだ箱は流れない（置いた所で上下するだけ）。
+         浮かんだせんぷうき箱からは風が出ない。水が引けば底に下り、底に着いた箱はふつうの箱にもどる（せんぷうき箱の風も出る）。
+       作り方のめやす：「上げると、底に置いた木箱が浮かんで、岸から岸への飛び石になる」「下げると（hold・down のあと）、底の通り道を歩ける」。
+         水はかならず引く（hold ＋ down 秒）ので、浮かべた箱が手の届かない所へ行っても、底へ下りて取りに行ける。だから底は、歩いて出られる（岸へ上がれる）形にする。
+         底の通り道に人がいる間に、だれかが水を上げると、0.5m の深さでその人はやり直しになる（つまずかせることはできるが、詰ませることはできない）。
+         浮かぶ箱の真上に天井を置かない（箱は天井にめり込んでも上がる。shortcut: 箱と天井の当たりは見ない）
+   raft(水, x, z, w = 3, d = 3, speed = 1.5)　帆のいかだ（水 は、上で作った water(…) をそのまま渡す。movers には、その水より後に書く）。
+       水面の 0.25m 上が上面の、厚さ 0.5 の木の床（ふつうの動く床と同じに、乗っている人と箱を運ぶ）。まん中に帆柱と帆。
+       進む：だれかが乗っている間（縁から 0.3m 外・上面の 1m 下まで。仲間でもよい。となりの岸に立っている人は数えない）だけ、のっているせんぷうき箱から、いかだのまん中へ向かう向きへ、毎秒 speed m 進む。
+         向きは東西か南北の、差の大きいほう。箱がまん中から 0.3m 以内なら進まない。2 個以上のっていれば足し合わせる（向かい合わせなら進まない）。
+         いかだの上のせんぷうき箱は、上へは風を出さない（帆に当てる）。向きが決まっている間、帆がふくらみ、甲板に進む向きの矢印が出る（だれも乗っていなくても出る）。
+       止まる：水の外へはみ出る所と、動かない箱（boxes。割れた板張りはのぞく）に、いかだの厚みの高さでぶつかる所の手前（コマ数によらず、同じ所で止まる）。
+         ほかの動く床・門・箱・人にはぶつからない（すり抜ける）。いかだの通り道に門を置かない。
+       水門に浮かべると、いかだは水面と一緒に上下する：水が低い間は沈んだ壁（上面が、いかだの下面＝水面の 0.25m 下より高い壁）にぶつかり、水を上げると越えられる。
+         水が引いて、いかだの下に底や壁があれば、その上に止まり、水がもどるまで進まない。
+       戻る：だれも乗らないまま 8 秒たつと、いかだは元の場所へ（のっていたせんぷうき箱は、その箱の元の場所へ。ほかの箱は、いかだにのったまま一緒に）。
+         だから、岸に置き去りにされても詰まない。そのかわり、いかだで運んだ箱を岸に下ろさないまま、みんなで下りると、箱も一緒に戻る。
+         はじめから、いかだの上に置いたせんぷうき箱は「いかだのもの」：だれも乗らないまま 8 秒たつと、どこにあっても（持っている間はのぞく）いかだの上の元の場所へ戻る
+         （遠くの島に置き去り・水門の水に落として浮かんだまま、でも詰まない）。岸に置いたせんぷうき箱は、いかだにのっていたときだけ、その箱の元の場所へ戻る
+       1 人：せんぷうき箱を持って乗り、帆の反対がわ（行きたい向きの逆の縁）に置く。向きを変えるときは、箱を拾って置きなおす（拾っている間は止まる）。
+       2〜4 人：だれか 1 人が乗っていれば進む。岸の仲間は、いかだが行ってしまうと 8 秒待つ（または乗っている人に、箱を逆の縁へ置きなおしてもらう）。
+         いかだの上で仲間を投げる・頭に乗る・積んだ箱に乗るのは、地面と同じ寸法（上の「寸法のめやす」）。渡らせたくない岸は、いかだの止まる所から、その寸法より離す
+   ── adventure.html へ ──
+   水は w.list に入らない（当たりがない）。w.waterAt(x, z, y) が、その場所の水（水の動く床。いまの水面は .box.y1）。水門の水面は、まきあげハンドルと同じ k<番号> の知らせでそろう。
+   浮かんだ箱・いかだの上の箱は、動く床の上の箱と同じに、その床（水・いかだ）の番号とずれを書く。
+   いかだの場所：止まっていて（m.go が false）、最後に知らせた・読んだ場所（m.sent）から 5cm より動いていれば、items の "r<動く床の番号>" に { p: [東西のずれ, 南北のずれ], g: run, n } を書く。
+   読むときは（あとから入ったときも）、箱の知らせより先に読み、m.o の [0] と [2] に入れ、m.sent をそろえ、m.idle を 0 にする。この端末のいかだが進んでいる最中（m.go）に届いた知らせは、読み捨てる */
 // ステージのファイル（adventure-stages/sN.js）へ渡す「作り方」一式（2 つのステージを 1 本につなぐときは adventure-join.js。つないだステージは adventure-stages/a.js〜d.js）
-export const kit = { B, ice, pad, belt, P, CP, crumble, wind, gust, saw, cannon, warp, cell, socket, WP, fan, net, launcher, lever, cart, railEnd, seesaw, planks };
+export const kit = { B, ice, pad, belt, P, CP, crumble, wind, gust, saw, cannon, warp, cell, socket, WP, fan, net, launcher, lever, cart, railEnd, seesaw, planks, zip, swing, balloon, water, raft };
+Object.assign(kit, { crane, ironball });                                             // クレーン・鉄球
+/* ── クレーン・鉄球 ──
+   crane(x, z, y)（ステージの cranes に書く。番号は書いた順）　つり下げたフックを、レールの箱（ふつうは lever）の場所で動かす。
+       x・z は、数（その場所から動かない）か [レールの箱の番号, はじめ, 終わり]。y はフックの底の高さで、数か [番号, 上, 下]。
+       例：crates: [lever(-9, 0, -4, 'x'), lever(-9, 0, -6, 'x'), lever(-9, 0, -8, 'x'), …], cranes: [crane([0, -4, 8], [1, 2, 9.5], [2, 4, 1.4])]
+       → つまみ 0 を min の端に置くとフックは x -4、max の端で x 8。つまみ 2 を min で底 4m、max の端へ倒すと底 1.4m（床から 1.4 なら、どの大きさの箱も吊れる）。
+       レバーの両端 5% は遊び（端の手前で止まっても端まで行く）。フックは x・y・z それぞれ毎秒 3m まで（12m なら 4 秒。レバーより遅れて着く）。
+       開く：上げ下げのレバーを 85% より先へ倒し、フックが下の端に着いている間。吊っていた箱は放して落ちる。
+       吊る：開いていたフックが閉じたコマ（レバーを 85% より手前へ戻しはじめた）だけ。フックのまん中から横 0.5m 以内で、上面が底の 0.7m 下〜0.05m 上の箱を 1 つ吊り、
+             箱の上面をフックの底にそろえる（0.8m の軽い箱も 1m・1.4m の重い箱も）。レールの箱（レバー・台車・鉄球）は吊らない。置いた箱を残すなら、開いたままフックを横へずらしてから戻す
+             （そのまま戻すと、また吊る）。横に動く・上下するだけでは、何も拾わない。
+       吊った箱は、壁・床にめり込む所へは運ばない：その手前で放す（下へ落ちる）。重い箱（1m 以上）は板張りへは運び、割る（上から下ろしても割れる）。
+       人が手に取った軽い箱は外れる。吊った箱の上に立った人・置いた箱は、フックと一緒に運ばれる。
+       フックは 0.8m 四方・高さ 0.5m の当たりのある箱（w.cranes[i].box。その m.hook が true）。上に乗れ（運ばれる）、上面の縁にぶら下がれる（立ったまま 1.7m、跳んで 2.7m まで。
+       ぶら下がった体は、つかんだときの高さのまま運ばれる。前へ倒せば上に乗る）。体がフックからはなれたら（壁に当たって体だけが残った）手が離れる（「つかむ」を押したままなら、目の前の縁につかまる）。
+       上がってくるフックは、上にいる人を持ち上げる。下りてくるフック・吊った箱は、人をすり抜ける（歩いて出られる）。
+       1 人で：レバーを 1 本ずつ動かして、箱を運べる。乗る・ぶら下がるのは、レバーを動かす仲間がいるときだけ（2〜4 人）。だから、フックの届く所（x・z の範囲、上の端の底＋0.5m に立ち、
+       そこから跳んで 2.7m 上の縁）から先へ進めないように作る（乗れば行けてしまう岸を、フックの範囲に入れない）。人を運ばせたいなら、その先を 2 人用の道にする
+   ironball(x, y, z, axis, pull, len)（crates に書く）　鉄球。止まっているときの玉（1m の重い箱）の底が (x, y, z)。支点は、玉の上 len m（ふりこの長さは len＋0.5）。
+       axis の向きに、まん中から ±pull m まで、つかんで引ける（重い箱と同じ：毎秒 1.2m、部屋でも 1 人で動かせる。つかんでいる間はふれない）。放すと、ふりこになってふれる。
+       ふれは、毎秒 2m 以上の速さで板張りに当たると、その板張りを割って進む。遅ければ、当たった所で止まって戻る。人・箱・動く床はすり抜け、壁では止まる。押しつけても（毎秒 1.2m）割れない。
+       板張りから 0.1m 離して吊ったとき、割れる引き幅：len 2 → 1.2m（1.0 は割れない）／len 3 → 1.4m（1.2 は割れない）／len 4 → 1.6m（1.4 は割れない）。
+       0.6m 離すと：len 2 → 1.4／len 3 → 1.6／len 4 → 2.0（1.85 から割れる。確実なのは 2.0）。毎秒 20 コマでも 60 コマでも同じ。ふれは 25〜30 秒で止まる（つかめば、すぐ止まる）。
+       玉の上がる高さ：(len＋0.5) − √((len＋0.5)² − 引き幅²)（len 3・2m 引くと 0.63m）。玉の下に床はなくてよい。pull は len＋0.5 の 0.6 倍まで（点検 lint が見る）。
+       例：boxes: [床, planks(B(6.75, 3, -6, 0.3, 4, 3))], crates: [ironball(6, 0.3, -6, 'x', 2, 3)]　玉は x 5.5〜6.5、板張りは 0.1m 東。1.4m より西へ引いて放すと割れる
+   ── adventure.html へ：クレーン・鉄球 ──
+   w.cranes[i]  { spec, x, y, z（フックの底のまん中）, open, box }。レバーの場所だけで決まるので、通信では送らない。
+   箱の c.hook  吊っているクレーンの番号（なければ null）。吊った瞬間に c.moved が立つ：箱の知らせ "c<番号>" に k: 番号を足して書く（足元の床がなくても書く）。
+                知らせを受けたら（あとから入ったときも）、k があれば c.hook = k（場所はフックが決める）、なければ c.hook を消して、いつものように置く。開いたフックは、すぐ放す
+   鉄球の c.grip　そのコマにだれかがつかんでいる。p.step が自分の分を書く。仲間（s[6] が玉）がつかんでいる間と、知らされた場所へ寄せている間（c.net）は、ページが w.step の前に書く。
+                ふれが止まると c.moved が立つ（止まった場所を知らせる）。割れた板張りは、いつもの w.smashed と "b<番号>" */
 
 export function makeWorld(stage) {
   const w = { stage, list: [], extra: [] };                                          // extra：呼び出し側が毎コマ入れる箱（仲間の体。friend: true）
   w.movers = stage.movers.map(m => ({ ...m, f: 0, o: [0, 0, 0], d: [0, 0, 0], clock: 0, idle: 99, wt: 0, low: 0, box: { ...m.b } }));
   w.movers.forEach(m => { m.box.m = m; if (m.pair) m.twin = w.movers.find(k => k !== m && k.pair === m.pair); });
+  // 帆のいかだが浮かぶ水：いかだのまん中の真下にある水
+  for (const m of w.movers) if (m.mode === 'raft') { const x = (m.b.x0 + m.b.x1) / 2, z = (m.b.z0 + m.b.z1) / 2; m.pool = w.movers.find(k => k.water && x > k.b.x0 && x < k.b.x1 && z > k.b.z0 && z < k.b.z1); m.idle = 0; }
   w.plates = stage.plates.map(p => ({ ...p, down: false, load: 0, held: 0, low: 0, lost: 9 }));
   w.warps = stage.warps || [];
   w.handles = (stage.handles || []).map(h => ({ ...h }));                            // ハンドルの、いまの場所（ride の床に付いたものは、床と一緒に動く）
+  w.cranes = (stage.cranes || []).map(spec => ({ spec, m: { d: [0, 0, 0], hook: true }, box: {} }));   // クレーンのフック（spec は書いたもの。x・y・z はフックの底のまん中のいまの場所。box は当たりのある 0.8m 四方・高さ 0.5m。m.d がこのコマに動いた長さ）
+  // クレーンの軸 s が、レバーのどこまで倒れているか（0〜1。数で書いた軸は null）
+  const lean = s => { if (!Array.isArray(s)) return null; const c = w.crates[s[0]], r = c?.main || c?.rail; return r ? Math.max(0, Math.min(1, (c[r.axis] - r.min) / (r.max - r.min))) : 0; };   // レールの箱でなければ 0（点検 lint が見つける）
+  // フックの行き先 [x, z, y]。レバーの両端 5% は遊び（端の手前で止まっても、端まで行く）。上げ下げは、レバーの 85% で下の端に着く（そこから先は「開く」ための遊び）
+  const aim = k => ['x', 'z', 'y'].map(a => { const s = k.spec[a], f = lean(s); return f == null ? s : s[1] + (s[2] - s[1]) * Math.max(0, Math.min(1, (f - 0.05) / (a === 'y' ? 0.8 : 0.9))); });
+  const hook = k => Object.assign(k.box, { x0: k.x - 0.4, x1: k.x + 0.4, y0: k.y, y1: k.y + 0.5, z0: k.z - 0.4, z1: k.z + 0.4, m: k.m });
+  const unhook = c => { c.hook = null; c.moved = true; delete c.box.m; };            // 放した箱は、ふつうの箱として落ちる（着いたら場所を知らせる）
+  w.unhook = unhook;
+  /* 鉄球：レールのまん中の真上（玉の底から len＋0.5m）を支点に、レールの向きにふれる（ふれはばは小さいとして、ふりこの式で動かす）。
+     だれかがつかんでいる間（c.grip。p.step と、仲間の分はページが書く）は止まり、放すとふれる。毎秒 2m 以上の速さで板張りに当たると割り、それより遅ければ、そこで止まる */
+  const pendulum = (c, dt) => {
+    const a = c.rail.axis, mid = (c.rail.min + c.rail.max) / 2, L = c.pend.len + c.s / 2, h = c.s / 2, was = c[a];
+    const lift = () => L - Math.sqrt(Math.max(0, L * L - (c[a] - mid) ** 2));
+    if (c.grip) c.v = 0;
+    else if (c.v || c[a] !== mid) {
+      c.v = ((c.v || 0) - GRAV * (c[a] - mid) / L * dt) * Math.exp(-0.25 * dt);
+      c[a] += c.v * dt;
+      const k = w.wall(c.x, c.z, c.home.y + lift(), c.box, h, c.s);                  // 当たるのは、動かない箱（壁・板張り）だけ。人・箱・動く床はすり抜ける
+      if (k?.planks && Math.abs(c.v) >= 2) { const i = stage.boxes.indexOf(k); w.broken.add(i); w.smashed.push(i); }
+      else if (k) { c[a] = was; c.v = 0; }
+      if (Math.abs(c[a] - mid) < 0.03 && Math.abs(c.v) < 0.05) { c[a] = mid; c.v = 0; c.moved = true; }   // 止まった：まん中にそろえて、場所を知らせる
+    }
+    c.grip = false; c.y = c.home.y + lift(); fit(c); c.on = null;
+  };
+  // つかまって動く点：at がいまの場所。f（ジップラインの進み 0〜1）・a と av（ロープの角度と角速度）・b（ふうせんの場所）から決まる
+  w.ropes = (stage.ropes || []).map(r => ropePos({ ...r, f: 0, a: r.rest || 0, av: 0, b: [r.x, r.y, r.z], others: [], v: [0, 0, 0], mine: null, pin: false, load: 0, hang: HANG }));
   w.crates = stage.crates.map((c, id) => ({ ...c, id, home: { ...c }, vy: 0, held: null, on: null, box: { c: 2 } }));
   for (const c of w.crates) if (c.fork) {                                            // ポイントつき台車：本線 main と、分かれ目から直角にのびる支線 side（line は分かれ目での支線の座標、at は行き止まり）
     const a = c.rail.axis === 'x' ? 'z' : 'x', line = c[a], to = c.fork.to;
@@ -201,7 +345,7 @@ export function makeWorld(stage) {
   w.smash = i => { w.broken.add(i); relist(); };                                    // 板張り i を割る（部屋の知らせを受けたとき）
   w.broken = new Set(); w.smashed = [];                                              // 割れた板張り／この端末のこのコマで割れた板張り（ページが読んで空にする）
   const boards = stage.boxes.flatMap((b, i) => b.planks ? [i] : []);
-  const relist = () => { w.list = [...stage.boxes.filter((b, i) => !w.broken.has(i)), ...w.movers.map(m => m.box), ...w.crates.filter(c => !c.held).map(c => c.box), ...w.extra]; };
+  const relist = () => { w.list = [...stage.boxes.filter((b, i) => !w.broken.has(i)), ...w.movers.filter(m => !m.water).map(m => m.box), ...w.crates.filter(c => !c.held).map(c => c.box), ...w.cranes.map(k => k.box), ...w.extra]; };
 
   // (x, z) の真下で、足の高さ y から歩いて上がれる範囲にある、いちばん高い箱（なければ null ＝ 下は空）
   w.groundBox = (x, z, y, skip) => {
@@ -239,6 +383,8 @@ export function makeWorld(stage) {
   };
   // その場所に吹いている風（なければ null）
   w.windAt = (x, y, z) => w.winds.find(k => k.active && x > k.x0 && x < k.x1 && z > k.z0 && z < k.z1 && y > k.y0 - 0.2 && y < k.y1) || null;
+  // (x, z) の水（水の動く床。高さ y が、その水の底より 0.5m 以上下なら数えない）。いまの水面は .box.y1
+  w.waterAt = (x, z, y) => w.movers.find(m => m.water && x > m.b.x0 && x < m.b.x1 && z > m.b.z0 && z < m.b.z1 && y > m.b.y0 - 0.5);
 
   // 条件（動く床・風・カタパルトのねらいで共通）：on の信号のうち、押されている（load があれば、重さが load 以上の）ものが need 個以上あるか。not で逆になる
   w.test = c => !c.on || !c.not === (c.on.filter(i => c.load ? w.plates[i].held >= c.load : w.plates[i].down).length >= (c.need ?? (c.any ? 1 : c.on.length)));
@@ -276,7 +422,7 @@ export function makeWorld(stage) {
     }
     for (const k of w.winds) {
       const c = k.fan;                                                                // せんぷうき箱の風は、箱について回る。持っている間・落ちている間・ほかの箱や仲間の頭の上にある間は止まる
-      if (c) Object.assign(k, { active: !c.held && !!c.on && !c.on.crate && !c.on.friend, x0: c.x - 1, x1: c.x + 1, z0: c.z - 1, z1: c.z + 1, y0: c.y + c.s + 0.1, y1: c.y + c.s + 3.5 });
+      if (c) Object.assign(k, { active: !c.held && !!c.on && !c.on.crate && !c.on.friend && !c.on.m?.water && c.on.m?.mode !== 'raft', x0: c.x - 1, x1: c.x + 1, z0: c.z - 1, z1: c.z + 1, y0: c.y + c.s + 0.1, y1: c.y + c.s + 3.5 });
       else k.active = w.test(k) && (!k.period || Math.floor(now / k.period) % 2 === 0);
     }
     for (const b of pads) { b.aimV = null; for (const a of b.launch.aims) if (w.test(a)) b.aimV = a.v; }   // カタパルト：条件が合うねらいのうち、最後に書いたものが勝つ
@@ -297,9 +443,40 @@ export function makeWorld(stage) {
       m.low = v < m.wt ? m.low + dt : 0;
       if (v > m.wt || m.low >= 0.6) m.wt = v;
     }
+    /* 帆のいかだ m の、このコマのずれ：だれかが乗っている間だけ、のっているせんぷうき箱（2 個以上なら足し合わせる）から、いかだのまん中へ向かう向き
+       （東西か南北の、強いほう。まん中から 0.3m 以内なら進まない）へ、毎秒 speed m 進む。水の外へはみ出る所・動かない箱にぶつかる所の手前で止まる。
+       上下は水面について行く（水が引いて底に着いたら、底の上に止まって進まない）。だれも乗らないまま 8 秒たつと、元の場所へ戻る（のっていたせんぷうき箱も元の場所へ）。
+       m.dir は進む向き [x, z]（なければ null）、m.go は、このコマに進んだか */
+    const sail = m => {
+      const s = m.b, k = m.pool, o = [...m.o], cx = (s.x0 + s.x1) / 2 + o[0], cz = (s.z0 + s.z1) / 2 + o[2], fans = w.crates.filter(c => c.fan && !c.held && c.on === m.box);
+      const dx = fans.reduce((n, c) => n + cx - c.x, 0), dz = fans.reduce((n, c) => n + cz - c.z, 0);
+      m.dir = Math.max(Math.abs(dx), Math.abs(dz)) < 0.3 ? null : Math.abs(dx) > Math.abs(dz) ? [Math.sign(dx), 0] : [0, Math.sign(dz)];
+      const over = (b, x, z) => b.x0 < s.x1 + x && b.x1 > s.x0 + x && b.z0 < s.z1 + z && b.z1 > s.z0 + z;
+      const floor = stage.boxes.reduce((y, b, i) => !w.broken.has(i) && over(b, o[0], o[2]) && b.y1 <= s.y0 + o[1] + 0.01 ? Math.max(y, b.y1) : y, -99);   // いかだの下の、いちばん高い底
+      o[1] = Math.max(k ? k.o[1] : 0, floor - s.y0);
+      const hit = (x, z) => k && (s.x0 + x < k.b.x0 || s.x1 + x > k.b.x1 || s.z0 + z < k.b.z0 || s.z1 + z > k.b.z1)
+        || stage.boxes.some((b, i) => !w.broken.has(i) && over(b, x, z) && b.y1 > s.y0 + o[1] + 0.01 && b.y0 < s.y1 + o[1]);
+      m.idle = aboard(m.box, 0.3, 1, undefined, true) ? 0 : m.idle + dt; m.go = false;   // 岸に立って待っている人は、乗っていない（いかだが戻れなくなる）
+      if (m.dir && !m.idle && (!k || o[1] <= k.o[1] + 1e-6)) {
+        for (let k = 1; k > 0.01; k /= 2) {                                           // ぶつかる手前までは、短く刻んで寄る（コマ数によらず、同じ所で止まる）
+          const x = o[0] + m.dir[0] * m.speed * dt * k, z = o[2] + m.dir[1] * m.speed * dt * k;
+          if (!hit(x, z)) { o[0] = x; o[2] = z; m.go = k === 1; break; }
+        }
+      }
+      // いかだの上が元の場所のせんぷうき箱（m.own）は、いかだのもの：だれも乗らないまま 8 秒たつと、岸・水の上・遠くの島に置いてあっても、いかだの上へ戻る（持ち去られて、だれも進めなくなるのを防ぐ）
+      m.own ||= w.crates.filter(c => c.fan && c.home.x > s.x0 && c.home.x < s.x1 && c.home.z > s.z0 && c.home.z < s.z1 && Math.abs(c.home.y - s.y1) < 0.05);
+      const lost = m.idle > 8 ? m.own.filter(c => !c.held && c.on !== m.box) : [];
+      if (m.idle > 8 && (o[0] || o[2] || lost.length)) {
+        o[0] = o[2] = 0;
+        for (const c of new Set([...fans, ...lost])) { Object.assign(c, c.home, { y: c.home.y + (m.own.includes(c) ? o[1] : 0), vy: 0, on: null, kv: null }); c.moved = true; fit(c); }   // いかだのものは、いまの水面のいかだの上へ
+      }
+      return o;
+    };
     for (const m of w.movers) {
       let o;
-      if (m.orbit) {                                                                  // 円を回る
+      if (m.mode === 'raft') o = sail(m);
+      else if (m.mode === 'still') o = [0, 0, 0];                                     // 動かない水（to が 0 なので、下の速さの計算に通さない）
+      else if (m.orbit) {                                                             // 円を回る
         const a = (now / m.period + m.phase) * Math.PI * 2, r = m.orbit;
         o = m.plane === 'zy' ? [0, -r * Math.cos(a), r * Math.sin(a)] : [r * Math.cos(a), 0, r * Math.sin(a)];
       } else {
@@ -340,8 +517,66 @@ export function makeWorld(stage) {
       if (m.calm > 0) m.calm -= dt;                                                   // calm：部屋の知らせで皿の上に箱が置かれた直後。ほかの端末に追いつくだけなので、飛ばさない
     }
     w.handles.forEach((h, i) => { if (h.ride != null) { const s = stage.handles[i], o = w.movers[h.ride].o; h.x = s.x + o[0]; h.y = s.y + o[1]; h.z = s.z + o[2]; } });
+    /* つかまって動く点。r.mine は、この端末の人が、いまつかんでいるか（0 先につかんだ人／1 仲間がつかんでいる点を、あとからつかんだ人。p.step が毎コマ書く）。
+       r.others は、つかんでいる仲間の足の位置と、あとからつかんだか [x, y, z, 0 か 1] の列（ページが毎コマ書く）。
+       先につかんだ仲間がいて、自分が先につかんだ人でなければ、点はその仲間の手（足＋HANG。何人もいれば、いちばん高い人）に合わせる（r.pin）。
+       そうでなく、自分がつかんでいれば、この端末で動かす。だれもつかんでいなければ、元の場所へ戻る */
+    for (const r of w.ropes) {
+      const high = list => list.reduce((a, q) => a && a[1] >= q[1] ? a : q, null), first = high(r.others.filter(q => !q[3])), top = first || high(r.others), was = r.at;
+      const lead = r.mine === 0 || r.mine === 1 && !first;                          // あとからつかんだ人も、先の人が放したあとは、自分で動かす
+      r.load = (r.mine != null ? 1 : 0) + r.others.length; r.pin = !lead && !!top;
+      if (r.pin) {
+        const [sx, sz] = top[3] ? ropeSide(r) : [0, 0], [x, y, z] = [top[0] - sx, top[1] + HANG, top[2] - sz], t = r.to, k = r.axis === 'x' ? x - r.x : z - r.z;
+        if (r.kind === 'zip') r.f = Math.max(0, Math.min(1, ((x - r.x) * t[0] + (y - r.y) * t[1] + (z - r.z) * t[2]) / (t[0] ** 2 + t[1] ** 2 + t[2] ** 2)));
+        else if (r.kind === 'swing') { const a = Math.atan2(k, r.y - y); r.av = dt > 0 ? (a - r.a) / dt : 0; r.a = a; } else r.b = [x, y, z];   // 角速度も覚える（先の人が放したあと、あとからつかんだ人が、そのままふれつづける）
+      } else if (lead) {
+        const keep = [r.f, r.a, r.av, r.b];
+        if (r.kind === 'zip') r.f = Math.min(1, r.f + r.speed * dt / Math.hypot(...r.to));   // とってを、決まった速さで先の端へ
+        else if (r.kind === 'swing') {                                               // ふりこ（1 コマを 5ms ずつに分けて、毎秒 20 コマでも同じにふれる）
+          const n = Math.ceil(dt / 0.005), h = dt / n, feet = r.at[1] - r.hang;
+          for (let i = 0; i < n; i++) {
+            r.av -= GRAV / r.len * Math.sin(r.a) * h;
+            /* 仲間が押す：乗っている人の横（ふれる向きに 0.9m・横に 0.6m 以内、足の高さの 1.2m 下〜0.8m 上）に立っている体が、遠ざかっていく人を押して、ふれを大きくする。
+               乗っている本人と、その足にぶら下がっている人（0.3m 以内）は数えない */
+            for (const q of bodies) {
+              const u = r.axis === 'x' ? q[0] - r.at[0] : q[2] - r.at[2], v = r.axis === 'x' ? q[2] - r.at[2] : q[0] - r.at[0], s = -Math.sign(u);
+              if (Math.hypot(u, v) > 0.3 && Math.abs(u) < 0.9 && Math.abs(v) < 0.6 && q[1] > feet - 1.2 && q[1] < feet + 0.8 && r.av * s >= 0) r.av += s * 3 * h;
+            }
+            r.a += r.av * h;
+            if (Math.abs(r.a) > 1.35) { r.a = Math.sign(r.a) * 1.35; r.av = 0; }   // それより大きくはふれない
+          }
+        } else {                                                                     // ふうせん：1 人なら up の速さで top まで上がる。2 人以上なら、元の高さまで毎秒 1m で下がる。横風に流される
+          const k = w.windAt(r.b[0], r.b[1] - 1, r.b[2]), up = r.load > 1 ? -1 : r.up;
+          r.b = [r.b[0] + (k?.push ? k.push[0] * dt : 0), Math.max(r.y, Math.min(r.top, r.b[1] + up * dt)), r.b[2] + (k?.push ? k.push[1] * dt : 0)];
+        }
+        ropePos(r);
+        // 動いた先で、乗っている人（足は点の r.hang 下）が動かない箱（壁・天井）にめり込むなら、動かない（ロープは、そこで止まって戻りはじめる）。ふうせんは、ふうせんも天井にめり込まない
+        if (w.wall(r.at[0], r.at[2], r.at[1] - r.hang) || r.kind === 'balloon' && w.wall(r.at[0], r.at[2], r.at[1], null, 0.6, 2.6)) { [r.f, r.a, , r.b] = keep; r.av = 0; }
+      } else if (r.kind === 'zip') r.f = Math.max(0, r.f - 4 * dt / Math.hypot(...r.to));   // だれもつかんでいない：とっては毎秒 4m で戻る
+      else if (r.kind === 'swing') { r.a += Math.max(-1.5 * dt, Math.min(1.5 * dt, r.rest - r.a)); r.av = 0; }   // ロープは、元の角度へ戻る
+      else { const d = r.b.map((v, i) => [r.x, r.y, r.z][i] - v), n = Math.hypot(...d), s = n > 2 * dt ? 2 * dt / n : 1; r.b = r.b.map((v, i) => v + d[i] * s); }   // ふうせんは、毎秒 2m で元の場所へ
+      ropePos(r); r.v = r.at.map((v, i) => dt > 0 ? (v - was[i]) / dt : 0); r.mine = null;
+    }
+    w.cranes.forEach((k, i) => {                                                     // ── クレーン：フックはレバーの場所へ、毎秒 3m で寄る ──
+      const [tx, tz, ty] = aim(k), f = lean(k.spec.y), was = [k.x, k.y, k.z], go = (v, t) => Math.abs(t - v) <= 3 * dt ? t : v + Math.sign(t - v) * 3 * dt;
+      k.x = go(k.x, tx); k.y = go(k.y, ty); k.z = go(k.z, tz); k.m.d = [k.x - was[0], k.y - was[1], k.z - was[2]]; hook(k);
+      const open = f != null && f >= 0.85 && k.y === ty, shut = k.open && !open;      // 上げ下げのレバーを下の端まで倒し、フックが下りきると開く。レバーを戻しはじめたコマに閉じる（shut）
+      k.open = open;
+      let c = w.crates.find(c => c.hook === i);
+      if (c && (c.held || k.open)) { unhook(c); c = null; }                            // 開いた・人が手に取った：放す（箱は落ちる）
+      /* 閉じたコマに、フックの真下（まん中から 0.5m 以内）で、上面がフックの底の 0.7m 下〜0.05m 上にある箱を吊る（置いた箱を残すなら、開いたままフックを横へずらしてから戻す）。
+         閉じるのは、開いていたフックだけ：あとから入った端末が、レバーを追う間に箱を拾うことはない */
+      if (!c && shut) c = w.crates.find(c => !c.held && !c.rail && c.hook == null && Math.abs(c.x - k.x) < 0.5 && Math.abs(c.z - k.z) < 0.5 && c.y + c.s > was[1] - 0.7 && c.y + c.s < was[1] + 0.05);   // was[1]：開いていたときの底
+      if (!c) return;
+      const y = k.y - c.s, hit = w.wall(k.x, k.z, y, c.box, c.s / 2, c.s);
+      if (hit && !(hit.planks && c.heavy && c.s >= 1)) { unhook(c); return; }          // 壁・床の中へは運ばない：その場で放す（重い箱は、板張りには押しこむ＝割れる）
+      if (c.hook !== i) { c.hook = i; c.moved = true; }                                // 吊った：場所を知らせる（ページが k: i も書く）
+      Object.assign(c, { x: k.x, y, z: k.z, vy: 0, kv: null, on: null }); c.box.m = k.m; fit(c);   // 吊った箱の上の人・箱は、フックと一緒に運ばれる
+    });
     for (const c of w.crates) {
       if (c.held) { c.kv = null; continue; }                                          // 飛んでいる途中で手に取った箱は、横の勢いをなくす（置いたあとに、すべっていかない）
+      if (c.hook != null) continue;                                                   // クレーンに吊られている（上で動かした）
+      if (c.pend) { pendulum(c, dt); continue; }                                      // 鉄球
       const h = c.s / 2;
       if (c.fork) {
         /* ポイント：どのレールにいるかは、場所と条件だけで決まる。支線へ 0.07m より出ていれば支線。本線の分かれ目から 0.05m 以内（1 コマに進むのは 0.06m まで）では、
@@ -362,10 +597,12 @@ export function makeWorld(stage) {
         const nx = c.x + c.kv[0] * dt, nz = c.z + c.kv[1] * dt;
         if (w.blocked(nx, nz, c.y, c.box, h, c.s)) c.kv = null; else { c.x = nx; c.z = nz; }
       }
-      const g = w.footing(c.x, c.z, c.y, c.box, h, c.s), gy = g ? g.y1 : -99;
+      let g = w.footing(c.x, c.z, c.y, c.box, h, c.s), gy = g ? g.y1 : -99, sunk = false;
+      const pool = w.waterAt(c.x, c.z, c.y), fy = pool && pool.box.y1 - h;             // 水：水門の水には、半分沈んで浮かぶ（足元は水。水面と一緒に上下する）。ただの水では沈んで、元の場所へ戻る
+      if (fy > gy) { if (pool.handles) { g = pool.box; gy = fy; } else sunk = c.y <= fy; }
       if (c.vy <= 0 && c.y - gy < 0.05) { c.y = gy; c.vy = 0; c.on = g; c.kv = null; }
       else { c.on = null; c.vy -= GRAV * dt; c.y += c.vy * dt; if (c.y <= gy) { c.y = gy; c.vy = 0; } }
-      if (c.y < stage.kill || c.on?.hurt) { Object.assign(c, c.home, { vy: 0, on: null, kv: null }); c.moved = true; }   // 落とした箱と、のこぎりの上に乗った箱は、元の場所へ戻る（のこぎりには、もう運ばれない）
+      if (c.y < stage.kill || c.on?.hurt || sunk) { Object.assign(c, c.home, { vy: 0, on: null, kv: null }); c.moved = true; }   // 落とした箱と、のこぎりの上に乗った箱は、元の場所へ戻る（のこぎりには、もう運ばれない）
       const k = c.heavy && w.wall(c.x, c.z, c.y, c.box, h, c.s);                     // 重い箱が壁に重なったら（段の縁から押し落とすと、段の壁に重なって下りる）、近い面から外へすべり出る：重なったままでは、押しても引いても動かない
       if (k) {
         const out = [c.x - k.x0 + h, k.x1 + h - c.x, c.z - k.z0 + h, k.z1 + h - c.z], i = out.indexOf(Math.min(...out)), a = i < 2 ? 'x' : 'z';
@@ -375,11 +612,11 @@ export function makeWorld(stage) {
     }
     for (const i of boards) {                                                        // 板張り：重い箱（1m 以上）が 0.1m 以内にふれたら割れる（押しつけた箱は、すき間 0.06m まで寄って止まる）
       const b = stage.boxes[i];
-      if (!w.broken.has(i) && w.crates.some(c => c.heavy && c.s >= 1 && ['x', 'y', 'z'].every(a => c.box[a + '0'] < b[a + '1'] + 0.1 && c.box[a + '1'] > b[a + '0'] - 0.1))) { w.broken.add(i); w.smashed.push(i); }
+      if (!w.broken.has(i) && w.crates.some(c => c.heavy && c.s >= 1 && !c.pend && ['x', 'y', 'z'].every(a => c.box[a + '0'] < b[a + '1'] + 0.1 && c.box[a + '1'] > b[a + '0'] - 0.1))) { w.broken.add(i); w.smashed.push(i); }
     }
     relist();
   };
-  w.crates.forEach(fit); relist();
+  w.crates.forEach(fit); w.cranes.forEach(k => { [k.x, k.z, k.y] = aim(k); hook(k); }); relist();
   return w;
 }
 
@@ -420,6 +657,10 @@ export function makePlayer(w) {
     }
     if (p.hang) { p.vy = 0; p.grounded = false; p.on = null; }                       // つかまったら、足は地面を離れた扱い（下の床に運ばれない・下ののこぎりに当たらない・跳べない）
   };
+  // ropes の点のうち、いま手が届くものの番号（なければ -1）：横 0.8m 以内で、足から 1.5〜2.4m 上（仲間がつかんでいる点も、同じにつかめる）
+  const ropeNear = () => w.ropes.findIndex(r => { const h = r.at[1] - p.y; return Math.hypot(r.at[0] - p.x, r.at[2] - p.z) < 0.8 && h >= 1.5 && h <= 2.4; });
+  // 点 i につかまる。p.rope がその番号、p.slot は 0（先につかんだ）か 1（仲間がつかんでいる点を、あとからつかんだ：その横 0.45m に並ぶ）、p.hangLen は点から足までの長さ
+  const hangOn = i => { const r = w.ropes[i]; Object.assign(p, { rope: i, slot: r.others.length ? 1 : 0, hangLen: r.at[1] - p.y, hang: null, vy: 0, grounded: false, on: null }); r.mine = p.slot; r.hang = p.hangLen; };
 
   /* つかむ（押している間ずっと）：目の前のハンドル → 回す／目の前の箱 → 持つ（重い箱は押し引き）／登れる縁 → ぶら下がる（前へ倒すとよじ登る）／壁 → 張りつく（あみは登れる）。
      戻り値は、つかんだ箱（なければ null） */
@@ -431,6 +672,7 @@ export function makePlayer(w) {
       const dx = h.x - p.x, dz = h.z - p.z, d = Math.hypot(dx, dz);
       if (d < 1 && Math.abs(h.y - p.y) < 1 && (dx * fx + dz * fz) / d > 0.5) { p.crank = i; return null; }
     }
+    const ri = ropeNear(); if (ri >= 0) { hangOn(ri); return null; }                  // 頭の上のとって・ロープ・ふうせんのひも（向きは問わない。跳んでいてもつかめる）
     if (p.grounded) for (const c of w.crates) {                                     // 箱をつかむのは地面にいるときだけ（跳んでつかめば、箱の縁をよじ登れる）
       const dx = c.x - p.x, dz = c.z - p.z, d = Math.hypot(dx, dz);
       if (!c.held && d < c.s / 2 + 0.95 && (dx * fx + dz * fz) / d > 0.5 && Math.abs(c.y - p.y) < 1.2 && w.groundBox(p.x, p.z, p.y) !== c.box) {
@@ -444,6 +686,9 @@ export function makePlayer(w) {
   // 放す。持っていた軽い箱は目の前（ふさがっていれば後ろ）に置く。戻り値は、放した箱
   p.grabEnd = () => {
     const c = p.carry; p.grab = false; p.hang = null; p.carry = null; p.crank = null;
+    if (p.rope != null) {                                                            // 点から手を放すと、点の速さのまま飛ぶ（飛んでいる間は、大砲台と同じに舵が少ししかきかない）
+      const v = w.ropes[p.rope].v; p.kvx = v[0]; p.kvz = v[2]; p.vy = v[1]; p.flung = Math.hypot(v[0], v[2]) > 1; p.rope = null;
+    }
     if (c && !c.heavy) {
       const [fx, fz] = facing();
       // 斜めを向いていても体と重ならない距離に置く（重なると、箱にはさまって動けなくなる）。そこまでの途中もふさがっていないこと（うすい壁の向こうへは置かない）
@@ -463,15 +708,26 @@ export function makePlayer(w) {
     }
     const far = p.carry;                                                             // つかんでいる重い箱が、つかめる距離より遠くへ離れても、手が離れる（床に運ばれながら、遠くのレバーを動かせないように）
     if (far?.heavy && (Math.hypot(far.x - p.x, far.z - p.z) > far.s / 2 + 1 || Math.abs(far.y - p.y) > 1.2)) p.grabEnd();
+    if (p.carry?.pend) p.carry.grip = true;                                          // 鉄球をつかんでいる間は、ふれない（次の w.step が読む）
+    const hk = p.hang?.b?.m?.hook && p.hang.b;                                        // クレーンのフックにぶら下がっていて、フックだけが壁の向こうへ行った（体が残った）：落ちる
+    if (hk && (hk.y1 - p.y > 1.8 || hk.y1 - p.y < 0.3 || Math.max(hk.x0 - p.x, p.x - hk.x1, hk.z0 - p.z, p.z - hk.z1) > 0.8)) p.hang = null;
     const h = w.handles[p.crank];                                                    // ハンドルが 1m より遠く（横か、高さ）へ離れたら、手が離れる（つかめる距離と同じ）
     if (h && (Math.hypot(h.x - p.x, h.z - p.z) > 1 || Math.abs(h.y - p.y) > 1)) { p.crank = null; p.grab = false; }
     if (p.on?.belt && !w.blocked(p.x + p.on.belt[0] * dt, p.z + p.on.belt[1] * dt, p.y)) { p.x += p.on.belt[0] * dt; p.z += p.on.belt[1] * dt; }   // ベルトに運ばれる
     const hit = w.blocked(p.x, p.z, p.y);                                            // 動く床や壁に押されたら、その動きのぶん押し出される
-    if (hit?.m) {
+    if (hit?.m && hit.m.d !== d) {                                                  // 乗っている床そのものに重なっているだけなら（クレーンに吊った箱の上で、フックに重なる）、押し出さない
       if (hit.m.crush && hit.m.d[1] < -1e-4 && p.grounded && hit.y0 > p.y + 0.3) return die();   // 上から下りてきたプレス機（crush: true）と地面にはさまれた。ほかの動く床は、体をすり抜ける
       if (!w.blocked(p.x + hit.m.d[0], p.z + hit.m.d[2], p.y, hit)) { p.x += hit.m.d[0]; p.z += hit.m.d[2]; }   // 壁の中へは押しこまない
     }
-    if (p.grab && !p.hang && !p.carry && p.crank == null && !p.grounded) cling(false);                // 空中で「つかむ」を押している間は、縁やあみに届いたとたんにつかまる
+    if (p.grab && !p.hang && !p.carry && p.crank == null && p.rope == null && !p.grounded) { const i = ropeNear(); if (i >= 0) hangOn(i); else cling(false); }   // 空中で「つかむ」を押している間は、縁やあみ・点に届いたとたんにつかまる
+    const rope = w.ropes[p.rope];
+    if (rope) {                                                                 // 点にぶら下がっている：体は点の真下（hangLen 下）。歩かない・跳べない。足が床につかえたら、床の上に立ったまま持つ
+      const [sx, sz] = p.slot ? ropeSide(rope) : [0, 0], y = rope.at[1] - p.hangLen, gy = w.floorY(rope.at[0] + sx, rope.at[2] + sz, Math.max(y, p.y));   // 足が床の上に止まっている間は、その床を見つづける
+      Object.assign(p, { x: rope.at[0] + sx, z: rope.at[2] + sz, y: Math.max(y, gy), vy: 0, hvx: 0, hvz: 0, kvx: 0, kvz: 0, walk: false, falling: false, flung: false, on: null, grounded: false });
+      rope.mine = p.slot; rope.hang = p.hangLen;
+      if (rope.at[1] - p.y < 1) { p.grabEnd(); Object.assign(p, { vy: 0, kvx: 0, kvz: 0, flung: false, grounded: true, on: w.groundBox(p.x, p.z, p.y) }); }   // 点が下りてきて、足がつかえた：手を放して立つ
+      else return p.y < st.kill || w.blocked(p.x, p.z, p.y, undefined, R + 0.08)?.hurt ? die() : undefined;
+    }
 
     const [fx, fz] = facing(), len = Math.hypot(mx, mz), input = len > 0.05 && !p.hang;
     const heavy = p.carry?.heavy ? p.carry : null;
@@ -539,8 +795,8 @@ export function makePlayer(w) {
     p.falling = !p.grounded && !p.hang && p.vy < -8;                                 // 長く落ちている（空から落ちてくる姿勢にする）
     if (p.carry && !p.carry.heavy) { const c = p.carry, [ax, az] = facing(); c.x = p.x + ax * 0.75; c.y = p.y + 0.55; c.z = p.z + az * 0.75; }
 
-    // 落ちた・のこぎりにさわった（乗った）→ セーブ地点からやり直し
-    if (p.y < st.kill || (p.grounded && g?.hurt) || w.blocked(p.x, p.z, p.y, undefined, R + 0.08)?.hurt) return die();
+    // 落ちた・のこぎりにさわった（乗った）・水に 0.5m より深く沈んだ → セーブ地点からやり直し
+    if (p.y < st.kill || (p.grounded && g?.hurt) || (w.waterAt(p.x, p.z, p.y)?.box.y1 ?? -99) - p.y > 0.5 || w.blocked(p.x, p.z, p.y, undefined, R + 0.08)?.hurt) return die();
     p.warpT = Math.max(0, (p.warpT || 0) - dt);
     if (p.grounded && !p.warpT) for (const k of w.warps) {                            // ワープ台（続けて飛ばないよう、着いてから 1.5 秒は働かない）
       if (Math.hypot(k.x - p.x, k.z - p.z) > 0.8 || Math.abs(k.y - p.y) > 0.5) continue;

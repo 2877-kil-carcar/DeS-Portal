@@ -6,6 +6,7 @@
 // となり合うソケット・あみの真下からつかまない・うすい壁ごしに箱を置かない・となりの岸に立つ人は乗っていない扱い・遅れて見える仲間とリフト・レールの箱の c.on・いることにした仲間。
 // 公開後の見直しの検査：となり合う 2 つの箱の境目からの脱出・段から押し落とした重い箱・のこぎりの上の箱・壁に張りついたまま跳ぶ・飛んでいる間の舵。
 // 板張り（重い箱で割れる戸口・床のふた。部屋の知らせで割る w.smash）。
+// 水・水門・帆のいかだ（ファイルの最後。浮かぶ箱・沈む人・いかだの向きと止まる所・あとから入った端末）。
 // 最後に、ステージの点検（tools/lint-adventure.mjs）が、わざと入れたまちがいを見つけることも確かめる。
 // 使い方：node tools/test-adventure-mechanics.mjs          … 毎秒 60 コマで
 //         FPS=20 node tools/test-adventure-mechanics.mjs   … 遅い端末のコマ数で
@@ -912,4 +913,484 @@ group('2 つのステージをつなぐ（adventure-join.js）：後半の座標
   assert.deepEqual([st.warps[1].to, st.deco[1].beacon, z.objective.on, st.objective.on], [[102, 0, 52], [103, 0, 53], [2], [0]]);
   assert.deepEqual(lint(st), [], 'つないだステージで、まちがいが見つかった');
   const w = makeWorld(st); assert.equal(w.movers[3].twin, undefined); assert.equal(w.movers[4].twin, w.movers[5]);   // 組は部分の中だけ（後半のシーソーは、前半のシーソーと組まない）
+});
+
+// ── 水・水門・帆のいかだ ──
+const { water, raft } = kit;
+group('水門：ハンドルを回す間、水面が上がる。木箱は浮かんで足場になり、上に立つ人も一緒に上下する。0.5m より深く沈んだ人はやり直し', () => {
+  const shores = [B(-8, 2, 0, 8, 24, 2), B(8, 2, 0, 8, 24, 2)];                      // 西岸 x -12〜-4・東岸 x 4〜12（上面 2）。間の x -4〜4 が水路（底 0）
+  const gate = water(0, 0, 8, 24, 0.3, 0, { rise: 1.6, handles: [0], up: 4, hold: 3, down: 4 });   // 水面 0.3 → 1.9
+  const st = { boxes: [floor, ...shores], movers: [gate], handles: [{ x: -5, y: 2, z: -6 }], cps: [CP(-8, 2, 6)],
+    crates: [{ x: 0, y: 0, z: 0, s: 1.4, heavy: true }, { x: -2, y: 0, z: 5, s: 0.8 }, fan(2, 0, 5)] };
+  assert.deepEqual(lint({ name: '水門', kill: -12, goal: { x: 9, y: 2, z: 9 }, plates: [], ...st }), []);
+  const b = bot(st), { p, w } = b, m = w.movers[0], [heavy, light, f] = w.crates;
+  assert.ok(!w.list.includes(m.box), '水に当たりがある');
+  b.place(0, 1.4, 0); b.tick();                                                    // 底に置いた重い箱の上に立つ
+  assert.ok(p.on === heavy.box && near(heavy.y, 0), '検査の前提：重い箱の上に立っている');
+  b.friendGrip = 0; run(b, 4.2); b.friendGrip = null;                             // 仲間がハンドルを回す
+  assert.ok(near(m.box.y1, 1.9), `水面が上がりきらない (${m.box.y1})`);
+  assert.ok(near(heavy.y, 1.2, 0.05) && near(light.y, 1.5, 0.05) && near(f.y, 1.5, 0.05), `箱が半分沈んで浮かばない (${heavy.y}, ${light.y}, ${f.y})`);
+  assert.ok(heavy.on === m.box && light.on === m.box, '浮かんだ箱の足元が水でない（部屋の知らせは、水からのずれで書く）');
+  assert.ok(near(p.y, 2.6, 0.05) && b.falls === 0, `浮かぶ箱の上の人が一緒に上がらない (y=${p.y}, falls=${b.falls})`);
+  assert.equal(w.winds.find(k => k.fan === f).active, false, '水に浮かぶせんぷうき箱から風が出ている');
+  run(b, 3 + 4.5);                                                                  // hold 秒待ってから、down 秒で引く
+  assert.ok(near(m.box.y1, 0.3) && near(heavy.y, 0) && near(p.y, 1.4, 0.05) && b.falls === 0, `水が引いても、箱と人が底へ戻らない (水面 ${m.box.y1}, 箱 ${heavy.y}, 人 ${p.y})`);
+  assert.ok(near(f.y, 0) && w.winds.find(k => k.fan === f).active, '水が引いた底のせんぷうき箱から風が出ない');
+  b.place(2.5, 0, -6); b.friendGrip = 0; run(b, 1.5); b.friendGrip = null;       // 底の通り道に立っている間に、水が上がってくる
+  assert.equal(b.falls, 1, '0.5m より深い水に沈んだ人が、やり直しにならない');
+  b.place(-2.5, 0, -9); run(b, 0.5);                                               // いまの水面（1.5m 上がった所から 1 秒）
+  assert.equal(b.falls, 2, '深い水に入った人がやり直しにならない');
+});
+
+group('ただの水（gate なし）：動かない。落とした箱は沈んで元の場所へ戻る。深い所に入った人はやり直し、浅い所は歩ける', () => {
+  const pond = water(0, 0, 8, 8, 1, 0), shallow = water(0, 8, 8, 4, 0.4, 0);
+  const b = bot({ cps: [CP(-8, 1.3, -2)], boxes: [floor, B(-8, 1.3, 0, 8, 8, 1.3)], movers: [pond, shallow], crates: [{ x: -6, y: 1.3, z: 0, s: 0.8 }, { x: -6, y: 1.3, z: 2.5, s: 1.4, heavy: true }] });
+  const { p, w } = b, [light, heavy] = w.crates;
+  move(light, 1, 3, 0); move(heavy, -2, 3, 2); run(b, 1.5);
+  assert.ok(near(light.x, -6) && near(light.y, 1.3) && near(heavy.x, -6) && near(heavy.z, 2.5), `水に落ちた箱が元の場所へ戻らない (${light.x}, ${light.y} / ${heavy.x}, ${heavy.z})`);
+  b.place(0, 0, 8); run(b, 1, 1, 0); assert.equal(b.falls, 0, '0.4m の浅い水で、やり直しになった');
+  b.place(-3.5, 0, 0); run(b, 0.5); assert.equal(b.falls, 1, '1m の深い水で、やり直しにならない');
+});
+
+group('帆のいかだ：だれかが乗っている間、せんぷうき箱の反対がわへ進み、岸か水の端で止まる。だれも乗らないまま 8 秒で元の場所へ（せんぷうき箱も）', () => {
+  const pond = water(0, 0, 16, 8, 1, 0);                                            // x -8〜8・z -4〜4、水面 1
+  const st = { boxes: [floor, B(-10, 1.3, 0, 4, 24, 1.3), B(10, 1.3, 0, 4, 24, 1.3)], movers: [pond, raft(pond, -6, 0)], crates: [fan(-10, 1.3, 3), { x: -10, y: 1.3, z: -9, s: 0.8 }], cps: [CP(-10, 1.3, -6)] };
+  assert.deepEqual(lint({ name: 'いかだ', kill: -12, goal: { x: 10, y: 1.3, z: 9 }, plates: [], ...st }), []);
+  assert.ok(lint({ name: 'いかだ', kill: -12, goal: { x: 10, y: 1.3, z: 9 }, plates: [], ...st, movers: [pond, raft(pond, -6, 9)] }).some(t => t.includes('の真下に、水がない')), '水の外のいかだを、見のがした');
+  const b = bot(st), { p, w } = b, m = w.movers[1], [f] = w.crates;
+  assert.ok(w.list.includes(m.box) && near(m.box.y1, 1.25), 'いかだの上面が水面の 0.25m 上でない');
+  move(f, -7, 1.25, 0); run(b, 3);                                                 // せんぷうき箱を西の端にのせる。だれも乗っていない
+  assert.ok(m.o[0] === 0 && m.dir?.[0] === 1 && f.on === m.box, `だれも乗っていないのに進む／向きがおかしい (o=${m.o}, dir=${m.dir})`);
+  assert.equal(w.winds.find(k => k.fan === f).active, false, 'いかだの上のせんぷうき箱から、上へ風が出ている');
+  b.place(-5.5, 1.25, 1); run(b, 10);
+  assert.ok(near(m.box.x1, 8, 0.05) && near(m.o[2], 0) && !m.go, `いかだが東の水の端で止まらない (x1=${m.box.x1})`);
+  assert.ok(near(p.x, -5.5 + m.o[0], 0.1) && near(f.x, -7 + m.o[0], 0.05) && b.falls === 0, `乗っている人や箱が一緒に運ばれない (人 ${p.x}, 箱 ${f.x})`);
+  move(f, m.box.x0 + 1.5, 1.25, 1.2); run(b, 0.5);                                             // 箱を北の縁へ：南へ進む
+  assert.deepEqual(m.dir, [0, -1]); assert.ok(m.o[2] < -0.5, '向きが変わらない');
+  run(b, 3); assert.ok(near(m.box.z0, -4, 0.05), `南の水の端で止まらない (z0=${m.box.z0})`);
+  const box = w.crates[1]; move(box, m.box.x0 + 0.6, 1.25, m.box.z0 + 0.6); w.fit(box);   // ふつうの箱をのせたまま下りる
+  b.go([10, -2]); assert.equal(b.falls, 0);                                       // 東岸へ下りる。8 秒たつまでは、そのまま
+  while (m.idle < 7.8) b.tick();
+  assert.ok(m.o[0] > 10, '8 秒たつ前に戻った');
+  run(b, 1); assert.ok(m.o[0] === 0 && m.o[2] === 0 && near(f.x, -10) && near(f.z, 3), `だれも乗らないまま 8 秒で、元の場所へ戻らない (o=${m.o}, 箱 ${f.x}, ${f.z})`);
+  assert.ok(box.on === m.box && near(box.x, -6.9) && near(box.z, -0.9), `のせたままの箱が、いかだと一緒に戻らない (${box.x}, ${box.z})`);
+  // 2 個のせんぷうき箱を東西に置くと、打ち消しあって進まない
+  const two = makeBot({ name: 'x', kill: -12, ...st, plates: [], goal: { x: 99, y: 0, z: 99 }, crates: [fan(-7, 1.25, 0), fan(-5, 1.25, 0)] });
+  two.place(-6, 1.25, 1); run(two, 1); assert.ok(two.w.movers[1].dir === null && two.w.movers[1].o[0] === 0, '向かい合わせの 2 個で進んだ');
+});
+
+group('帆のいかだと水門：水が低い間は、沈んだ壁にぶつかって止まる。水を上げると、壁の上を越えて進む。水が引くと底に止まり、進まない', () => {
+  const gate = water(0, 0, 16, 8, 1, 0, { rise: 1.2, handles: [0], up: 3, hold: 30, down: 3 });   // 水面 1 → 2.2
+  const st = { boxes: [floor, B(-10, 2.4, 0, 4, 24, 2.4), B(10, 2.4, 0, 4, 24, 2.4), B(1, 1.5, 0, 1, 8, 1.5)], movers: [gate, raft(gate, -6, 0)],
+    crates: [fan(-10, 2.4, 3)], handles: [{ x: -9, y: 2.4, z: -6 }], cps: [CP(-10, 2.4, -2)] };
+  const b = bot(st), { p, w } = b, m = w.movers[1], [f] = w.crates;
+  move(f, -7, 1.25, 0); b.place(-5.5, 1.25, 1); run(b, 6);
+  assert.ok(near(m.box.x1, 0.5, 0.05), `沈んだ壁（上面 1.5）の手前で止まらない (x1=${m.box.x1})`);
+  b.friendGrip = 0; run(b, 3.2); b.friendGrip = null;
+  assert.ok(near(m.box.y1, 2.45) && near(p.y, 2.45, 0.05) && b.falls === 0, `いかだが水面と一緒に上がらない (${m.box.y1}, 人 ${p.y})`);
+  run(b, 5); assert.ok(near(m.box.x1, 8, 0.05), `水を上げても、壁を越えない (x1=${m.box.x1})`);
+  m.o[0] = 6.5; w.movers[0].rel = { f: 1, t: b.now - 31000 }; run(b, 4);        // 壁の真上で水を引く
+  assert.ok(near(m.box.y0, 1.5) && !m.go, `水が引いたいかだが、壁の上に止まらない (y0=${m.box.y0})`);
+});
+
+group('水門といかだの部屋の知らせ：あとから入った端末も、水の知らせ（w.release）・箱の知らせ（水やいかだからのずれ）・いかだの場所で、同じ形にそろう', () => {
+  const gate = water(0, 0, 8, 24, 0.3, 0, { rise: 1.6, handles: [0], up: 4, hold: 20, down: 4 }), pond = water(0, 20, 16, 8, 1, 0);
+  const st = { name: 'x', kill: -12, goal: { x: 99, y: 0, z: 99 }, plates: [], cps: [CP(-8, 2, 6)], boxes: [floor, B(-8, 2, 0, 8, 24, 2), B(10, 1.3, 20, 4, 8, 1.3)],
+    movers: [gate, pond, raft(pond, -6, 20)], handles: [{ x: -5, y: 2, z: -6 }], crates: [{ x: 0, y: 0, z: 0, s: 1.4, heavy: true }, fan(-7, 1.25, 20)] };
+  let now = 0;
+  // 1 コマずつ進める。aboard なら、いかだの上にだれかが立っている（いかだと一緒に動く）
+  const tick = (w, n, grips = [], aboard = true) => { for (let i = 0; i < n * FPS; i++) { const o = w.movers[2].o; now += 1000 / FPS; w.step(1 / FPS, now, aboard ? [[-5.5 + o[0], 1.25 + o[1], 21 + o[2], 1]] : [], grips); } };
+  const a = makeWorld(st);
+  tick(a, 2.5, [0]); a.release(0, { f: a.movers[0].f, t: now }); tick(a, 4); tick(a, 0.2, [], false);   // 2.5 秒回して放す。いかだは、乗った人と東へ 4 秒進み、下りると止まる
+  const rec = c => ({ p: [c.x - c.on.m.o[0], c.y - c.on.m.o[1], c.z - c.on.m.o[2]], m: a.movers.indexOf(c.on.m) });   // ページの箱の知らせ（床からのずれと、床の番号）
+  const r = a.movers[2], cs = a.crates.map(rec), raftAt = [r.o[0], r.o[2]];   // いかだの知らせ（止まったときに書く）
+  assert.ok(a.crates[0].on === a.movers[0].box && a.crates[1].on === r.box && raftAt[0] > 5 && !r.go, '検査の前提：箱が水といかだの上にあり、いかだが進んで止まった');
+  const b = makeWorld(st);                                                         // あとから入った端末：知らせを読む
+  b.release(0, a.movers[0].last); b.movers[2].o[0] = raftAt[0]; b.movers[2].o[2] = raftAt[1];
+  cs.forEach((d, i) => { const c = b.crates[i], o = b.movers[d.m].o; [c.x, c.y, c.z] = d.p.map((v, k) => v + o[k]); b.fit(c); });
+  const t0 = now; tick(b, 0.5, [], false); now = t0; tick(a, 0.5, [], false);
+  const same = () => {
+    assert.ok(near(a.movers[0].f, b.movers[0].f, 1e-9), `水面がそろわない (${a.movers[0].f}, ${b.movers[0].f})`);
+    for (const i of [0, 1]) assert.ok(['x', 'y', 'z'].every(k => near(a.crates[i][k], b.crates[i][k], 0.01)), `箱 ${i} がそろわない (${a.crates[i].x}, ${a.crates[i].y} / ${b.crates[i].x}, ${b.crates[i].y})`);
+    assert.ok(near(a.movers[2].o[0], b.movers[2].o[0], 0.01), `いかだがそろわない (${a.movers[2].o[0]}, ${b.movers[2].o[0]})`);
+  };
+  same();
+  const t1 = now; tick(b, 1); now = t1; tick(a, 1); same();                        // また乗ると、どちらの端末でも同じだけ進む
+  assert.ok(a.movers[2].o[0] > raftAt[0] + 1, 'また乗っても進まない');
+  a.step(0, now, [], []); assert.ok(a.movers.every(m => m.o.every(Number.isFinite)), '0 秒のコマで、水やいかだの位置が数でなくなった');   // ページの最初のコマは dt が 0 になりうる
+});
+
+// ── クレーン・鉄球 ──
+const { crane, ironball } = kit;
+// クレーンの検査用：レバー 0（x）・1（z）・2（上げ下げ）を広場の西に置き、フックは x -4〜8、z 2〜9.5、底の高さ 4（上）〜1（下）
+const craneStage = more => ({ boxes: [floor], cps: [CP(0, 0, -9)], cranes: [crane([0, -4, 8], [1, 2, 9.5], [2, 4, 1])],
+  crates: [lever(-9, 0, -4, 'x'), lever(-9, 0, -6, 'x'), lever(-9, 0, -8, 'x'), { x: -4, y: 0, z: 2, s: 1, heavy: true }], ...more });
+// レバー i を、フックが行き先の t（0〜1）に着く所へ倒したことにする（仲間が倒した・部屋の知らせで寄せた）。上げ下げは t: 1 で下の端、open で開く所まで
+const leverTo = (w, i, t, open) => { const c = w.crates[i], r = c.rail, f = open ? 0.95 : 0.05 + t * (i === 2 ? 0.8 : 0.9); c.x = r.min + f * (r.max - r.min); w.fit(c); };
+
+group('クレーン：レバーでフックを動かす。下の端で開き、戻しはじめに閉じて真下の箱を吊る。吊った箱は壁の手前で放し、重い箱なら板張りを割る', () => {
+  const wall = B(6, 4, 5, 1, 4, 4), door = planks(B(-6, 3, 10, 4, 0.6, 3));
+  const b = bot(craneStage({ boxes: [floor, wall, door], crates: [...craneStage().crates, cell(0, 0, 5)] })), { w, p } = b, k = w.cranes[0], box = w.crates[3], light = w.crates[4];
+  assert.deepEqual([k.x, k.y, k.z, !!k.open], [-4, 4, 2, false]);
+  // 1 人で：上げ下げのレバーを押しきると、フックが下りて開く。押し戻しはじめると閉じて、真下の重い箱を吊る
+  b.push(2, [-9.9, -8], 1, 0); p.grabEnd();
+  b.wait('フックが下りて開く', () => k.open, 3);
+  assert.ok(near(k.y, 1) && box.hook == null, `下りきらない (y=${k.y})`);
+  b.push(2, [-6.6, -8], -1, 0); p.grabEnd();
+  assert.equal(box.hook, 0, '閉じたのに、真下の箱を吊らない');
+  b.wait('箱が上がる', () => near(box.y, 3) && near(k.y, 4), 3);
+  assert.ok(near(k.x, -4) && near(k.z, 2), '押し戻したレバーの端の手前で止まっても、フックが端まで行かない');
+  // 吊った重い箱を、板張りの戸口へ運ぶと割れる（板張りの中へは運ぶ）
+  leverTo(w, 1, 1); b.wait('板張りが割れる', () => w.broken.has(2), 5);
+  assert.equal(box.hook, 0, '板張りに当たって、箱を放した');
+  b.wait('フックが奥に着く', () => near(k.z, 9.5), 3);
+  // 壁へ向かうと、壁の手前で放す（壁の中へは運ばない）。放した箱は下へ落ち、着いた場所を知らせる
+  leverTo(w, 1, 0.4); b.wait('フックが z 5 に戻る', () => near(k.z, 5), 3); box.moved = false;
+  leverTo(w, 0, 1); b.wait('箱を放す', () => box.hook == null, 5);
+  b.wait('箱が床に着く', () => box.on === floor, 3);
+  assert.ok(box.x <= 5.5 - 0.5 + 1e-6 && !w.wall(box.x, box.z, box.y, box.box, 0.5, 1) && box.moved, `壁の中へ運んだ (x=${box.x})`);
+  b.wait('フックは壁の上を通って東の端へ', () => near(k.x, 8), 3);
+  // 軽い箱（0.8m）も吊れる（上面がフックの底の 0.7m 下まで）。開くと放して落ちる。そのまま閉じると、また吊る（残すなら、開いたまま横へずらす）
+  leverTo(w, 0, 4 / 12); b.wait('でんちの上へ', () => near(k.x, 0), 5);
+  leverTo(w, 2, 1, true); b.wait('開く', () => k.open, 3);
+  leverTo(w, 2, 0); b.tick(); assert.equal(light.hook, 0, '軽い箱を吊らない');
+  b.wait('上がる', () => near(k.y, 4), 3); assert.ok(near(light.y, 4 - 0.8));
+  leverTo(w, 2, 1, true); b.wait('開いて放す', () => light.hook == null && light.on === floor, 3);
+  leverTo(w, 2, 0.9); b.tick(); assert.equal(light.hook, 0, '開いたあと閉じても、真下の箱を吊らない');
+  leverTo(w, 2, 1, true); b.wait('開く', () => k.open && light.on === floor, 3);
+  leverTo(w, 0, 6 / 12); b.wait('横へずらす', () => near(k.x, 2), 3);
+  leverTo(w, 2, 0); b.wait('上がる', () => near(k.y, 4), 3);
+  assert.ok(light.hook == null && near(light.x, 0) && light.y === 0, '横へずらしてから閉じたのに、箱を吊った');
+  // 人が手に取った軽い箱は、フックから外れる
+  leverTo(w, 0, 4 / 12); leverTo(w, 2, 1, true); b.wait('でんちの上で開く', () => k.open && near(k.x, 0), 5);
+  leverTo(w, 2, 0.85); b.tick(); assert.equal(light.hook, 0);
+  b.place(0, 0, 3.7); b.face(0, 5); assert.equal(p.grabStart(), light); b.tick(); assert.equal(light.hook, null, '手に取った箱が、フックについたまま');
+  p.grabEnd(); b.tick(); assert.equal(b.falls, 0);
+});
+
+group('クレーン：フックにぶら下がる・上に乗ると一緒に運ばれる。フックが壁の向こうへ行くと手が離れて落ちる', () => {
+  const wall = B(6, 4, 5, 1, 4, 4);
+  const b = bot(craneStage({ boxes: [floor, wall], crates: craneStage().crates.slice(0, 3) })), { w, p } = b, k = w.cranes[0];
+  leverTo(w, 0, 4 / 12); leverTo(w, 1, 0.4); leverTo(w, 2, 1, true); b.wait('フックが (0, 5) で下りる', () => k.open && near(k.x, 0) && near(k.z, 5), 6);
+  b.place(-0.75, 0, 5); b.face(0, 5); p.grabStart();
+  assert.equal(p.hang?.b, k.box, '下りたフック（上面 1.5m）に、立ったままつかまれない');
+  leverTo(w, 2, 0); run(b, 1.5);
+  assert.ok(p.hang?.b === k.box && near(k.y, 4) && near(p.y, 3, 0.05), `ぶら下がった人が、フックと一緒に上がらない (y=${p.y})`);
+  leverTo(w, 0, 1); b.wait('壁の手前でフックから手が離れる', () => p.hang?.b !== k.box, 4);
+  b.wait('「つかむ」を押したままなら、目の前の壁の縁につかまる', () => p.hang?.b === wall, 1);
+  p.grabEnd(); b.wait('床に下りる', () => p.grounded, 3);
+  assert.ok(p.x < 5.5 - 0.3 + 1e-6 && p.y === 0 && b.falls === 0, `壁を通りぬけた・落ちた (x=${p.x}, y=${p.y})`);
+  // つかまって前へ倒すと、フックの上に乗れる。乗った人も運ばれる
+  leverTo(w, 0, 4 / 12); leverTo(w, 2, 1, true); b.wait('フックが戻って下りる', () => k.open && near(k.x, 0), 6);
+  b.place(-0.75, 0, 5); b.face(0, 5); p.grabStart(); hold(b, 'フックの上に乗る', 1, 0, () => p.grounded && p.on === k.box, 3); p.grabEnd();
+  leverTo(w, 2, 0); leverTo(w, 1, 0); run(b, 2);
+  assert.ok(p.on === k.box && near(p.y, 4.5, 0.05) && near(p.z, 2, 0.2), `乗った人が、フックと一緒に運ばれない (${b.where()})`);
+});
+
+group('クレーン：あとから入った端末は、レバーと「吊った」知らせ（k）だけで同じになる。レバーを追う間に箱を拾わない。遅れた知らせは、開いたフックが放す', () => {
+  const st = { ...craneStage({ crates: [...craneStage().crates, { x: 0, y: 0, z: 2, s: 1, heavy: true }] }), name: '検査', kill: -12, plates: [], movers: [], goal: { x: 99, y: 0, z: 99 } };
+  const a = makeWorld(st), dt = 1 / FPS, steps = (w, s) => { for (let i = 0; i < s * FPS; i++) w.step(dt, i * 1000 * dt, []); };
+  leverTo(a, 2, 1, true); steps(a, 2); leverTo(a, 2, 0); steps(a, 0.1);
+  assert.equal(a.crates[3].hook, 0);
+  leverTo(a, 0, 1); leverTo(a, 2, 0.9); steps(a, 4);                                 // 箱を吊ったまま、フックを東の端の低い所へ（フックの通り道に、もう 1 つの箱がある）
+  const late = makeWorld(st), net = [0, 1, 2].map(i => a.crates[i].x);
+  late.crates[3].hook = 0;                                                          // 部屋の知らせ：箱 3 は、クレーン 0 に吊られている
+  for (let i = 0; i < 6 * FPS; i++) {                                               // レバーは、知らされた場所へなめらかに寄せる（ページの c.net と同じ）
+    for (const j of [0, 1, 2]) { const c = late.crates[j]; c.x += (net[j] - c.x) * (1 - Math.exp(-dt * 14)); late.fit(c); }
+    late.step(dt, i * 1000 * dt, []); a.step(dt, i * 1000 * dt, []);
+    assert.ok(late.crates[4].hook == null, 'あとから入った端末が、レバーを追う間に箱を拾った');
+  }
+  for (const k of ['x', 'y', 'z']) { assert.ok(near(late.cranes[0][k], a.cranes[0][k], 0.01), `フックの場所がちがう (${k})`); assert.ok(near(late.crates[3][k], a.crates[3][k], 0.01), `吊った箱の場所がちがう (${k})`); }
+  assert.ok(near(late.crates[4].x, 0) && late.crates[4].y === 0, '通り道の箱が動いた');
+  // 開いているフックに「吊った」知らせが遅れて届いても、すぐ放して床に落とす
+  leverTo(late, 2, 1, true); steps(late, 2); late.crates[3].hook = 0; steps(late, 2);
+  assert.ok(late.crates[3].hook == null && late.crates[3].y === 0, '開いたフックが、遅れた知らせの箱を吊ったまま');
+  // つないだステージ：レバーの番号と x・z がずれる
+  const half = () => ({ ...craneStage(), name: 'h', kill: -12, plates: [], movers: [], goal: { x: 9, y: 0, z: 9 } });
+  const j = join(kit, { name: 'j', first: ['x', half], second: ['y', half], off: [100, 50], link: () => ({ boxes: [floor], cps: [CP(0, 0, 30, 'l')] }) });
+  assert.deepEqual(j.cranes[1], { x: [4, 96, 108], z: [5, 52, 59.5], y: [6, 4, 1] });
+  assert.deepEqual(lint(j), []);
+});
+
+group('鉄球：引いて放すとふれ、速く当たると板張りを割る。押しつけ・弱いふれでは割れず、止まる。つかんでいる間はふれない', () => {
+  const door = planks(B(0.5 + 0.1 + 0.15, 3, 0, 0.3, 4, 3));                          // 玉（止まると x -0.5〜0.5）の 0.1m 東
+  const make = () => bot({ boxes: [floor, door], cps: [CP(-8, 0, -8)], crates: [ironball(0, 0.3, 0, 'x', 2, 3)] });
+  const pull = (b, to) => { b.grab(0, [-1.1, 0]); hold(b, `玉を ${to} まで引く`, -1, 0, () => b.w.crates[0].x <= to, 4); };
+  let b = make(), { w, p } = b, c = w.crates[0];
+  assert.deepEqual(lint(b.w.stage), [], '鉄球（玉の下に床がない・板張りにふれている）を、まちがいにした');
+  // 押しつけても割れない（人が押す速さは毎秒 1.2m）
+  b.grab(0, [-1.1, 0]); run(b, 2, 1, 0); p.grabEnd(); assert.ok(!w.broken.size && c.x > 0.05, `押しつけて割れた・押せない (x=${c.x})`);
+  // 引いている間はふれない。1.4m 引いて放すと、割れる
+  pull(b, -1.4); run(b, 1); const x = c.x; run(b, 1); assert.ok(near(c.x, x) && !c.v && p.carry === c, 'つかんでいる間に、ふれた');
+  assert.ok(near(c.y, 0.3 + 3.5 - Math.sqrt(3.5 ** 2 - c.x ** 2), 0.01), `玉が、ふりこの高さにない (y=${c.y})`);
+  p.grabEnd(); w.smashed.length = 0;
+  b.wait('板張りが割れる', () => w.broken.has(1), 3);
+  assert.deepEqual(w.smashed, [1]);
+  b.wait('ふれが止まる', () => c.v === 0 && c.x === 0, 60); assert.ok(c.moved, '止まったのに、場所を知らせない');
+  // 1m しか引かないと、板張りの手前で止まって割れない。ふれは止まる
+  b = make(); ({ w, p } = b); c = w.crates[0];
+  pull(b, -1); p.grabEnd(); b.wait('ふれが止まる', () => c.v === 0 && c.x === 0, 20);
+  assert.equal(w.broken.size, 0, '弱いふれで割れた');
+  // 仲間がつかんでいる（ページが c.grip を書く）間は、ふれない
+  b = make(); ({ w, p } = b); c = w.crates[0];
+  pull(b, -1.6); p.grabEnd(); b.place(-8, 0, -8);
+  for (let i = 0; i < 2 * FPS; i++) { c.grip = true; b.tick(); }
+  assert.ok(c.x <= -1.6 && !w.broken.size, '仲間がつかんでいるのに、ふれた');
+  // 部屋の知らせで割った板張りは、w.smashed に入らない（木っ端も知らせも出さない）
+  const late = makeWorld(b.w.stage); late.smash(1); late.step(1 / FPS, 0, []); assert.deepEqual(late.smashed, []);
+  assert.ok(lint({ ...b.w.stage, crates: [ironball(0, 0.3, 0, 'x', 2, 2.5)] }).some(t => t.includes('鉄球')), '引ける長さが長すぎる鉄球を、見のがした');
+  assert.ok(lint({ ...b.w.stage, cranes: [crane([1, -4, 4], 2, 3)], crates: [ironball(0, 0.3, 0, 'x', 2, 3), { x: 5, y: 0, z: 5, s: 1, heavy: true }] }).some(t => t.includes('クレーン 0')), 'レールの箱でないものを指すクレーンを、見のがした');
+});
+
+group('クレーン：吊った箱の上に立つ仲間は、箱と一緒に運ばれる（フックに重なっていても、押し出されない）', () => {
+  const b = bot(craneStage()), { w, p } = b, k = w.cranes[0], box = w.crates[3];
+  b.place(-4.3, 1, 2); run(b, 0.3); assert.equal(p.on, box.box);
+  leverTo(w, 2, 1, true); run(b, 2); leverTo(w, 2, 0); run(b, 1.5);
+  assert.ok(box.hook === 0 && near(p.y, 4, 0.02) && p.on === box.box, `吊った箱と一緒に上がらない (${b.where()})`);
+  leverTo(w, 0, 1); run(b, 5);
+  assert.ok(near(k.x, 8) && near(p.x, 7.7, 0.05) && p.on === box.box && b.falls === 0, `吊った箱と一緒に運ばれない (${b.where()})`);
+});
+
+/* ── つかまって動く点（ropes：ジップライン・ターザンロープ・ふうせん）。どれも、毎秒 60・30・20 コマのそれぞれで動かす ── */
+{
+  const { makePlayer, HANG, ropeSide } = await import('../apps/gallery/adventure-world.js');
+  const { zip, swing, balloon } = kit;
+  const stage = o => ({ name: '点の検査', kill: -12, plates: [], movers: [], crates: [], cps: [CP(0, 0, 0)], goal: { x: 99, y: 0, z: 99 }, ...o });
+  // 1 台の端末。others は、いることにした仲間の体 [x, y, z, 重さ]（ロープを押す）。点の r.others（つかまっている仲間）は、検査が直接書く
+  const sim = (st, fps, x, y, z) => {
+    const w = makeWorld(st), p = makePlayer(w), s = { w, p, t: 0, now: 0, others: [], falls: 0 };
+    Object.assign(p, { x, y, z, vy: 0, grounded: true });
+    s.tick = (n = 1, mx = 0, mz = 0) => {
+      for (let i = 0; i < n; i++) {
+        s.now += 1000 / fps; s.t += 1 / fps; w.step(1 / fps, s.now, [[p.x, p.y, p.z, 1], ...s.others]); p.step(1 / fps, mx, mz);
+        if (p.events.includes('fell')) s.falls++;
+        p.events.length = 0;
+      }
+    };
+    s.until = (what, pred, sec = 20) => { for (let i = 0; !pred(); i++) { assert.ok(i < sec * fps, `${fps} コマ：「${what}」にならない (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`); s.tick(); } return s.t; };
+    return s;
+  };
+  const FPSES = [60, 30, 20];
+  // ジップライン：出発の岸（上面 0、x -3〜3）から、15m 先の 3m 低い岸（x 18〜24）へ。とっては (2.6, 1.9, 0)、線は 16m 先・3m 下まで（長さ 16.28m）
+  const zipStage = (extra = {}) => stage({ boxes: [B(0, 0, 0, 6, 6, 1), B(21, -3, 0, 6, 6, 1)], ropes: [zip(2.6, 1.9, 0, [16, -3, 0])], ...extra });
+
+  group('ジップライン：とってをつかむと、毎秒 6m で先の端まで運ばれる。先の端で放すと岸に立つ。途中で放すと、とっての速さのまま落ちる。とっては毎秒 4m で戻る', () => {
+    for (const fps of FPSES) {
+      const s = sim(zipStage(), fps, 2.4, 0, 0), { w, p } = s, r = w.ropes[0];
+      s.tick(); assert.equal(p.grabStart(), null); assert.deepEqual([p.rope, p.slot], [0, 0], `${fps} コマ：地面からとってをつかめない`);
+      const t0 = s.t, arrive = s.until('先の端に着く', () => r.f === 1, 5) - t0;
+      assert.ok(Math.abs(arrive - 16.28 / 6) < 0.1, `${fps} コマ：着くまで ${arrive.toFixed(2)} 秒`);
+      s.tick(10); assert.ok(near(p.x, 18.6) && near(p.y, -3) && p.rope === 0, '先の端で、足が岸についたまま、つかまっていない');
+      p.grabEnd(); s.tick(); assert.ok(p.grounded && near(p.y, -3) && near(p.x, 18.6, 0.05), `${fps} コマ：先の端で放しても、岸に立てない`);
+      const t1 = s.t; s.until('とってが戻る', () => r.f === 0, 6);
+      assert.ok(Math.abs(s.t - t1 - 16.28 / 4) < 0.1, `${fps} コマ：とってが戻るまで ${(s.t - t1).toFixed(2)} 秒`);
+      assert.equal(s.falls, 0);
+      // 途中で放すと、前へ飛びながら落ちる（下に何もなければ、落ちてやり直し）
+      const q = sim(zipStage(), fps, 2.4, 0, 0); q.tick(); q.p.grabStart(); q.until('半分まで進む', () => q.w.ropes[0].f > 0.5, 3);
+      q.p.grabEnd(); assert.ok(q.p.flung && near(q.p.kvx, 6 * 16 / 16.28, 0.05) && q.p.rope == null, `${fps} コマ：放したときの勢い ${q.p.kvx}`);
+      q.until('落ちる', () => q.falls > 0, 6);
+    }
+  });
+
+  group('ジップライン：手がふさがっている（軽い箱を持っている）とつかめない。跳んで空中でつかめる。線の下の壁の手前で止まり、点検も見つける', () => {
+    const s = sim(zipStage({ crates: [{ x: -0.6, y: 0, z: 0, s: 0.8 }] }), 60, 0.5, 0, 0), { w, p } = s;   // とっての下で「つかむ」を押すと、そばの箱より、頭の上のとってが先
+    s.tick(); p.ry = -Math.PI / 2; assert.equal(p.grabStart(), w.crates[0], '検査の前提：箱を持つ'); s.tick(); for (let i = 0; i < 180 && p.x < 2.4; i++) s.tick(1, 1, 0); s.tick(1, 0, 0); s.tick(30);
+    assert.ok(p.grabStart() == null && p.rope == null && p.carry === w.crates[0], '箱を持ったまま、とってにつかまった（ページでは、もう一度「つかむ」で箱を置く）');
+    // 立ったままでは届かない 2.6m 上のとってに、跳んでつかまる
+    const q = sim(zipStage({ ropes: [zip(2.6, 2.6, 0, [16, -3, 0])] }), 60, 2.4, 0, 0); q.tick();
+    q.p.grabStart(); assert.ok(q.p.rope == null, '立ったまま 2.6m 上のとってに届いた'); q.p.grabEnd();
+    q.p.jump(); q.p.grabStart(); q.until('跳んで、空中でつかまる', () => q.p.rope === 0, 1);
+    // 線の下に壁（x 9.5〜10.5）：体は壁の手前で止まる。放せば落ちる
+    const walled = { boxes: [B(0, 0, 0, 6, 6, 1), B(21, -3, 0, 6, 6, 1), B(10, 1, 0, 1, 6, 6)] };
+    const k = sim(zipStage(walled), 60, 2.4, 0, 0); k.tick(); k.p.grabStart(); k.tick(3 * 60);
+    assert.ok(k.p.rope === 0 && k.p.x < 9.5 - 0.29 && k.p.x > 9, `壁の手前で止まっていない (x=${k.p.x})`);
+    assert.ok(lint(zipStage(walled)).some(t => t.includes('壁にぶつかる')), '線の下の壁を、点検が見のがした');
+  });
+
+  group('同じ点を 2 人でつかむ：あとからつかんだ人は横 0.45m に並び、先の人の手に合わせて動く。先の人が放すと、あとの人がそのまま進める。4 人でもこわれない', () => {
+    for (const fps of FPSES) {
+      const s = sim(zipStage(), fps, 2.4, 0, 0.3), { w, p } = s, r = w.ropes[0];
+      r.others = [[2.6, 0, 0, 0]]; s.tick();                                         // 仲間がとってをつかんでいる（足は岸の上）
+      assert.ok(r.pin && near(r.at[1], HANG) && r.load === 1, '仲間がつかんでいるとってが、仲間の手の高さにない');
+      p.grabStart(); assert.deepEqual([p.rope, p.slot], [0, 1], `${fps} コマ：仲間がつかんでいるとってを、一緒につかめない`);
+      const [sx, sz] = ropeSide(r);
+      for (let i = 1; i <= fps; i++) {                                               // 仲間の端末から、仲間が進む知らせ
+        r.others = [[2.6 + 3 * i / fps, -3 / 16 * 3 * i / fps, 0, 0]]; s.tick();
+        assert.ok(near(p.x, r.at[0] + sx, 1e-9) && near(p.z, r.at[2] + sz, 1e-9) && r.load === 2, '先の人の横に並んで、ついていかない');
+      }
+      const f = r.f; r.others = []; s.tick();                                        // 先の人が放した：自分の端末で、そのまま進む
+      assert.ok(p.rope === 0 && !r.pin && r.f > f, `${fps} コマ：先の人が放したあと、とってが進まない`);
+      s.until('先の端に着く', () => r.f === 1, 4); s.tick(5); p.grabEnd(); s.tick(fps);
+      assert.ok(p.grounded && near(p.y, -3) && s.falls === 0, `${fps} コマ：あとからつかんだ人が、先の岸に着かない`);
+      // 4 人：先につかんだ人（0）と、あとからつかんだ 2 人（1）。自分は 4 人目。点は、先につかんだ人の手に合わせる
+      const q = sim(zipStage(), fps, 2.4, 0, 0.3), k = q.w.ropes[0]; k.others = [[2.6 + sx, -0.2, sz, 1], [2.6, 0, 0, 0], [2.6 + sx, 0.1, sz, 1]]; q.tick();
+      assert.ok(near(k.at[0], 2.6, 1e-9) && near(k.at[1], HANG) && k.load === 3, '何人もつかんでいるとき、先につかんだ人の手に、とってがない');
+      q.p.grabStart(); q.tick(); assert.ok(q.p.rope === 0 && q.p.slot === 1 && k.load === 4);
+    }
+  });
+
+  // ターザンロープ：支点 (6, 8, 0)・長さ 6・x の向きにふれる。元の角度は -0.7（出発の岸のがわ）で、先は出発の岸（上面 1.5）の 1.9m 上。向こうの岸は上面 0.5、x 9.5〜15.5
+  const ropeStage = (extra = {}) => stage({ boxes: [B(0, 1.5, 0, 4.4, 6, 1), B(12.5, 0.5, 0, 6, 6, 1)], cps: [CP(0, 1.5, 0)], ropes: [swing(6, 8, 0, 6, 'x', -0.7)], ...extra });
+  group('ターザンロープ：つかむと、ふりこのようにふれる。向こうの端で放すと、向こうの岸に下りる。放さなければ、出発の岸のがわへ戻ってくる', () => {
+    for (const fps of FPSES) {
+      const s = sim(ropeStage(), fps, 1.95, 1.5, 0), { w, p } = s, r = w.ropes[0];
+      s.tick(); p.grabStart(); assert.equal(p.rope, 0, `${fps} コマ：岸からロープの先をつかめない`);
+      let lo = 9, hi = -9; const t0 = s.t;
+      s.until('向こうの端まで行く', () => { hi = Math.max(hi, r.a); return r.a > 0.3 && r.av <= 0; }, 4);
+      const half = s.t - t0; assert.ok(Math.abs(half - 2.5) < 0.1 && near(hi, 0.7, 0.02), `${fps} コマ：向こうの端まで ${half.toFixed(2)} 秒・角度 ${hi.toFixed(3)}`);
+      s.until('出発の岸のがわへ戻る', () => { lo = Math.min(lo, r.a); return r.a < -0.3 && r.av >= 0; }, 4);
+      assert.ok(near(lo, -0.7, 0.03), `${fps} コマ：戻ってきた角度 ${lo}`);
+      p.grabEnd(); s.tick(fps); assert.ok(p.grounded && near(p.y, 1.5), `${fps} コマ：出発の岸のがわの端で放しても、岸に下りない`);
+      s.until('ロープが元の角度に戻る', () => r.a === -0.7, 3);
+      const q = sim(ropeStage(), fps, 1.95, 1.5, 0); q.tick(); q.p.grabStart();
+      q.until('向こうの端', () => q.w.ropes[0].a > 0.3 && q.w.ropes[0].av <= 0, 4); q.p.grabEnd(); q.tick(fps);
+      assert.ok(q.p.grounded && near(q.p.y, 0.5) && q.p.x > 9.6 && q.falls === 0, `${fps} コマ：向こうの端で放して、向こうの岸に下りない (${q.p.x.toFixed(2)}, ${q.p.y.toFixed(2)})`);
+      assert.equal(s.falls, 0);
+    }
+  });
+
+  group('ターザンロープ：いちばん下で放すと前へ飛ぶ。仲間が押すと、ふれが大きくなる（1.35 まで）。一緒につかんだ人は、先の人が放してもふれつづける', () => {
+    const land = [];
+    for (const fps of FPSES) {
+      const s = sim(ropeStage({ boxes: [B(0, 1.5, 0, 4.4, 6, 1), B(20, -6, 0, 30, 6, 1)] }), fps, 1.95, 1.5, 0), { w, p } = s;
+      s.tick(); p.grabStart(); s.until('いちばん下', () => w.ropes[0].a >= 0, 3); const v = w.ropes[0].v[0]; p.grabEnd();
+      s.until('着地', () => p.grounded, 4); land.push(p.x);
+      assert.ok(v > 5 && v < 5.6, `${fps} コマ：いちばん下の速さ ${v}`);
+      // 押す：ロープの下（ふれの底の足の高さ 0.1）に立つ仲間が、遠ざかる人を押す
+      const q = sim(ropeStage(), fps, 1.95, 1.5, 0); q.others = [[6, 0.1, 0.3, 1]]; q.tick(); q.p.grabStart();
+      let hi = 0; for (let i = 0; i < 4 * fps; i++) { q.tick(); hi = Math.max(hi, Math.abs(q.w.ropes[0].a)); }
+      assert.ok(hi > 1 && hi <= 1.35 + 1e-9, `${fps} コマ：押してもらったふれ ${hi.toFixed(3)}`);
+      // 一緒につかむ：先の人が、ふれの途中で放す。あとの人の端末で、ロープはそのままふれつづける
+      const k = sim(ropeStage(), fps, 1.95, 1.5, 0.4), r = k.w.ropes[0], lead = sim(ropeStage(), fps, 1.95, 1.5, 0);
+      lead.tick(); lead.p.grabStart(); r.others = [[lead.p.x, lead.p.y, lead.p.z, 0]]; k.tick(); k.p.grabStart(); assert.deepEqual([k.p.rope, k.p.slot], [0, 1]);
+      lead.until('ふれの途中', () => { r.others = [[lead.p.x, lead.p.y, lead.p.z, 0]]; k.tick(); return lead.w.ropes[0].a > -0.2; }, 3);
+      r.others = []; let top = -9; for (let i = 0; i < 2 * fps; i++) { k.tick(); top = Math.max(top, r.a); }
+      assert.ok(top > 0.6, `${fps} コマ：先の人が放したあと、ふれが止まった（${top.toFixed(3)} までしか行かない）`);
+    }
+    assert.ok(Math.max(...land) - Math.min(...land) < 0.3, `いちばん下で放したときの着地点が、コマ数でずれる ${land.map(v => v.toFixed(2))}`);
+    console.log(`  （ロープの先から 6.1m 下の床に着く x：60・30・20 コマで ${land.map(v => v.toFixed(2)).join(' / ')}。放した所は x 6）`);
+  });
+
+  // ふうせん：ひもの輪は (0, 1.9, 0)、top 12。広場の上面は 0
+  const balloonStage = (extra = {}) => stage({ boxes: [B(0, 0, 0, 8, 8, 1)], ropes: [balloon(0, 1.9, 0, 12)], ...extra });
+  group('ふうせん：1 人なら毎秒 0.8m で top まで上がり、横風に流される。2 人だと重くて、元の高さまで下がる。放すと落ち、ふうせんは元の場所へ戻る', () => {
+    for (const fps of FPSES) {
+      const s = sim(balloonStage({ winds: [gust(0, 0, 8, 8, 7, 13, [0, 1], 999999)] }), fps, 0.2, 0, 0), { w, p } = s, r = w.ropes[0];
+      s.tick(); p.grabStart(); assert.deepEqual([p.rope, p.slot], [0, 0]);
+      const t0 = s.t, top = s.until('top まで上がる', () => r.at[1] >= 12, 20) - t0;
+      assert.ok(Math.abs(top - 10.1 / 0.8) < 0.1, `${fps} コマ：top まで ${top.toFixed(2)} 秒`);
+      assert.ok(r.at[2] > 0.5 && near(p.z, r.at[2], 1e-9), `${fps} コマ：横風に流されていない (z=${r.at[2]})`);
+      p.grabEnd(); assert.ok(p.rope == null); s.tick(fps / 2); assert.ok(!p.grounded && p.vy < -3, `放しても落ちない (vy=${p.vy})`);
+      s.until('ふうせんが元の場所へ戻る', () => r.at.every((v, i) => v === [0, 1.9, 0][i]), 15);
+      // 2 人：3m 上がったところで、仲間も同じひもにつかまる（横に並ぶ）。重くて上がらず、毎秒 1m で元の高さまで下がる
+      const q = sim(balloonStage(), fps, 0.2, 0, 0), k = q.w.ropes[0]; q.tick(); q.p.grabStart(); q.until('3m 上がる', () => k.at[1] > 4.9, 5);
+      const [sx, sz] = ropeSide(k), mate = () => [k.at[0] + sx, k.at[1] - HANG, k.at[2] + sz, 1];
+      k.others = [mate()]; q.tick(); assert.ok(!k.pin && k.load === 2, 'あとからつかんだ仲間に、ふうせんを取られた');
+      const y0 = k.at[1]; for (let i = 0; i < fps; i++) { k.others = [mate()]; q.tick(); }
+      assert.ok(near(k.at[1], y0 - 1, 0.05), `${fps} コマ：2 人で、毎秒 1m で下がらない (${k.at[1]})`);
+      for (let i = 0; i < 5 * fps; i++) { k.others = [mate()]; q.tick(); }
+      assert.ok(k.at[1] === 1.9 && q.p.rope === 0 && near(q.p.y, 0), '2 人で、元の高さで止まらない');
+      k.others = []; q.tick(fps); assert.ok(k.at[1] > 2.5, '仲間が放したのに、上がらない');
+    }
+  });
+
+  group('ふうせん：天井の下で止まる（ふうせんも体も、動かない箱にめり込まない）。点が下りてきて足がつかえたら、手を放して立つ', () => {
+    const s = sim(balloonStage({ boxes: [B(0, 0, 0, 8, 8, 1), B(0, 9, 0, 4, 4, 0.5)] }), 30, 0.2, 0, 0), { p } = s, r = s.w.ropes[0];
+    s.tick(); p.grabStart(); s.tick(30 * 12);
+    assert.ok(r.at[1] < 8.5 - 2.6 + 0.05 && r.at[1] > 8.5 - 2.6 - 0.1 && p.rope === 0, `天井の下で止まっていない (y=${r.at[1]})`);
+    // 先につかんだ仲間の手が、下りてくる（仲間の端末で、2 人ぶんの重さで下がる）：自分の足がつかえて、ひもとの間が 1m を切ると、手を放して立つ
+    const q = sim(balloonStage(), 30, 0.2, 0, 0), k = q.w.ropes[0]; k.others = [[0, 0.6, 0, 0]]; q.tick();
+    Object.assign(q.p, { x: 0, y: 0.5, grounded: false }); q.p.jump(); q.p.grabStart(); assert.deepEqual([q.p.rope, q.p.slot], [0, 1]);
+    for (let i = 0; i < 60 && q.p.rope != null; i++) { k.others = [[0, 0.6 - i / 30, 0, 0]]; q.tick(); }
+    assert.ok(q.p.rope == null && q.p.grounded && near(q.p.y, 0), `足がつかえても、手を放さない (y=${q.p.y})`);
+  });
+
+  group('2 台の端末・あとから入った端末：仲間がつかまっている点は、仲間の手に合わせる。放したあとは、どの端末でも元の場所にそろう（通信で新しく送るのは s[7] だけ）', () => {
+    const all = stage({ boxes: [B(0, 0, 0, 6, 6, 1), B(21, -3, 0, 6, 6, 1), B(0, 1.5, 20, 4.4, 6, 1), B(12.5, 0.5, 20, 6, 6, 1), B(-10, 0, 0, 8, 8, 1)],
+      ropes: [zip(2.6, 1.9, 0, [16, -3, 0]), swing(6, 8, 20, 6, 'x', -0.7), balloon(-10, 1.9, 0, 12)], winds: [gust(-10, 0, 8, 8, 7, 13, [0, 1], 999999)] });
+    for (const fps of FPSES) for (const [i, at, hold] of [[0, [2.4, 0, 0], 2], [1, [1.95, 1.5, 20], 2.5], [2, [-9.8, 0, 0], 8]]) {
+      const a = sim(all, fps, ...at), b = sim(all, fps, -10, 0, -3);
+      let late = null, sent = null;
+      a.tick(); a.p.grabStart(); assert.equal(a.p.rope, i);
+      for (let n = 0; n < (hold + 19) * fps; n++) {
+        if (n === Math.round(hold * fps)) a.p.grabEnd();                            // a が手を放す
+        if (n === Math.round(hold / 2 * fps)) late = sim(all, fps, -10, 0, -3);     // あとから入った端末
+        if (n % Math.round(fps / 10) === 0) sent = a.p.rope === i ? [a.p.x, a.p.y, a.p.z, a.p.slot] : null;   // 1 秒に 10 回の知らせ（s[7] が負の間だけ、その位置を点に渡す）
+        for (const k of [b, late]) if (k) k.w.ropes[i].others = sent ? [sent] : [];
+        a.tick(); b.tick(); late?.tick();
+        if (sent && n > 2) for (const k of [b, late]) if (k) {
+          const d = Math.hypot(...k.w.ropes[i].at.map((v, j) => v - a.w.ropes[i].at[j]));
+          assert.ok(d < 1, `${fps} コマ：点 ${i} が、つかまっている仲間の手から ${d.toFixed(2)}m 離れている`);
+        }
+      }
+      for (const k of [b, late]) assert.deepEqual(k.w.ropes[i].at.map(v => +v.toFixed(6)), a.w.ropes[i].at.map(v => +v.toFixed(6)), `${fps} コマ：点 ${i} が、放したあと元の場所にそろわない`);
+      assert.ok(b.p.rope == null && late.p.rope == null, 'ほかの端末の自分が、つかまった扱いになった');
+    }
+  });
+
+  group('とって・ロープ・ふうせん：でたらめに歩く・跳ぶ・つかむ・放す（仲間もでたらめにつかまる）を毎秒 20 コマで 60 秒。数がこわれない・点につかまった体が壁にめり込まない', () => {
+    const st = stage({ boxes: [B(0, 0, 0, 24, 24, 1), B(6, 4, 6, 3, 3, 4)], ropes: [zip(-6, 1.9, -6, [10, 3, 0]), swing(0, 7, 6, 5, 'z', 0.6), balloon(6, 1.9, -6, 9)], winds: [gust(6, -3, 8, 8, 4, 12, [1.5, 0], 4000)] });
+    let seed2 = 99; const rnd = () => (seed2 = (seed2 * 1664525 + 1013904223) >>> 0) / 2 ** 32;
+    const s = sim(st, 20, 0, 0, 0), { w, p } = s; let mx = 0, mz = 0, hung = 0, aim = 0;
+    for (let i = 0; i < 20 * 60; i++) {
+      if (i % 10 === 0) { if (i % 100 === 0) aim = Math.floor(rnd() * 3);
+        const g = w.ropes[aim].at, a = rnd() < 0.7 ? Math.atan2(g[0] - p.x, g[2] - p.z) : rnd() * 7; mx = Math.sin(a); mz = Math.cos(a);   // 7 割は、5 秒ごとに選びなおす点のほうへ歩く
+        for (const r of w.ropes) r.others = rnd() < 0.25 ? [[r.at[0], r.at[1] - HANG - rnd(), r.at[2], rnd() < 0.5 ? 1 : 0]] : []; }
+      if (rnd() < 0.04) p.jump();
+      if (rnd() < 0.05) p.grabStart(); else if (rnd() < 0.03) p.grabEnd();
+      s.tick(1, mx, mz); hung += p.rope != null;
+      assert.ok([p.x, p.y, p.z, p.vy, p.kvx, p.kvz].every(Number.isFinite) && w.ropes.every(r => r.at.every(Number.isFinite)), `数がこわれた (${i})`);
+      assert.ok(p.rope == null || p.slot || w.ropes[p.rope].pin || !w.wall(p.x, p.z, p.y), `点につかまった体が、壁にめり込んでいる (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`);
+    }
+    assert.ok(hung > 20 * 3, `検査の前提：でたらめに動かして、点にほとんどつかまらない（${hung} コマ）`);
+  });
+
+  group('とって・ロープ・ふうせん：点検（手が届かない・ロープの角度・ふうせんの top）と、つなぐときにずらすこと', () => {
+    const ok = stage({ boxes: [floor], ropes: [zip(2, 1.9, 0, [8, 0, 0]), swing(0, 1.9 + 4 * Math.cos(0.5), 11.5 + 4 * Math.sin(0.5), 4, 'z', -0.5)   /* 広場の北の縁（z 12）から、外へふれる */, balloon(-3, 2, -3, 8)] });
+    assert.deepEqual(lint(ok), [], '正しい点で、まちがいが見つかった');
+    assert.ok(lint({ ...ok, ropes: [zip(2, 3, 0, [8, 0, 0])] }).some(t => t.includes('手が届く')), '高すぎるとってを、見のがした');
+    assert.ok(lint({ ...ok, ropes: [balloon(30, 2, 0, 8)] }).some(t => t.includes('手が届く')), '足場の外のふうせんを、見のがした');
+    assert.ok(lint({ ...ok, ropes: [{ ...ok.ropes[1], rest: 1.5 }] }).some(t => t.includes('角度')), '大きすぎる角度を、見のがした');
+    assert.ok(lint({ ...ok, ropes: [balloon(-3, 2, -3, 1)] }).some(t => t.includes('top')), '低い top を、見のがした');
+    // 通り道の板張りは、割ったあとで見る（ステージ F：鉄球で窓の板を割ると、ジップラインが通れる）。ふつうの壁は、まちがい
+    const heavy = [{ x: -8, y: 0, z: -8, s: 1, heavy: true }];
+    assert.deepEqual(lint({ ...ok, boxes: [floor, planks(B(6, 3.5, 0, 0.3, 3, 3.5))], crates: heavy }), [], 'ジップラインの通り道の板張りを、まちがいにした');
+    assert.ok(lint({ ...ok, boxes: [floor, B(6, 3.5, 0, 0.3, 3, 3.5)], crates: heavy }).some(t => t.includes('壁にぶつかる')), 'ジップラインの通り道の壁を、見のがした');
+    const half = () => ok, st = join(kit, { name: 'つないだ', first: ['x', half], second: ['y', half], off: [100, 50], link: () => ({ boxes: [floor], cps: [CP(0, 0, 30, 'つなぎ')] }) });
+    assert.deepEqual([st.ropes.length, st.parts[2].base.ropes, st.ropes[3].x, st.ropes[3].z, st.ropes[3].to, st.ropes[5].x], [6, 3, 102, 50, [8, 0, 0], 97]);
+    assert.deepEqual(lint(st), [], 'つないだステージの点で、まちがいが見つかった');
+  });
+}
+
+group('クレーン：底を床から 1.4m にすると、0.8m・1m・1.4m のどの箱も吊れる。レールの箱（レバー）は吊らない', () => {
+  for (const s of [0.8, 1, 1.4]) {
+    const w = makeWorld({ ...craneStage({ cranes: [crane([0, -4, 8], [1, 2, 9.5], [2, 4, 1.4])], crates: [...craneStage().crates.slice(0, 3), { x: -4, y: 0, z: 2, s, heavy: s > 0.9 }] }), kill: -12, plates: [], movers: [], goal: { x: 99, y: 0, z: 99 } });
+    const steps = t => { for (let i = 0; i < t * FPS; i++) w.step(1 / FPS, 0, []); };
+    leverTo(w, 2, 1, true); steps(2); leverTo(w, 2, 0); steps(2);
+    assert.ok(w.crates[3].hook === 0 && near(w.crates[3].y + s, 4), `${s}m の箱を吊らない`);
+  }
+  const w = makeWorld({ ...craneStage({ cranes: [crane(-9, -8, [2, 4, 0.6])] }), kill: -12, plates: [], movers: [], goal: { x: 99, y: 0, z: 99 } });
+  leverTo(w, 2, 1, true); for (let i = 0; i < 2 * FPS; i++) w.step(1 / FPS, 0, []); leverTo(w, 2, 0.9); w.step(1 / FPS, 0, []);
+  assert.ok(w.crates.every(c => c.hook == null), 'レバーを吊った');
+});
+
+// ── 帆のいかだ：いかだのもののせんぷうき箱（ステージ E のために足した） ──
+group('帆のいかだ：はじめからいかだの上のせんぷうき箱は、岸に置いても・水門の水に落として浮かんでも、だれも乗らないまま 8 秒でいかだの上へ戻る。持っている間・乗っている間は戻らない', () => {
+  const { water, raft } = kit;
+  const gate = water(0, 0, 16, 8, 1, -2, { rise: 1.2, handles: [0] });                   // 水門（水面 1。底 -2）
+  const st = { boxes: [floor, B(-10, 2.4, 0, 4, 24, 2.4)], movers: [gate, raft(gate, -6, 0)], crates: [fan(-6, 1.25, 0)], handles: [{ x: -9, y: 2.4, z: -6 }], cps: [CP(-10, 2.4, -2)] };
+  assert.deepEqual(lint({ name: 'いかだのもの', kill: -12, goal: { x: -10, y: 2.4, z: 9 }, plates: [], ...st }), []);
+  const b = bot(st), { p, w } = b, m = w.movers[1], [f] = w.crates;
+  const home = () => f.on === m.box && near(f.x, -6) && near(f.z, 0) && near(f.y, m.box.y1);
+  b.place(-10, 2.4, 0); run(b, 8); move(f, -10, 2.4, 3); w.fit(f); run(b, 0.2);   // 8 秒だれも乗らないあとで、岸に置く
+  assert.ok(home(), `岸に置いたいかだのせんぷうき箱が、すぐに戻らない（もう 8 秒たっている） (${f.x}, ${f.z})`);
+  b.place(-5, 1.25, 1); b.tick(); assert.equal(p.on, m.box, '検査の前提：いかだに乗っていない');
+  move(f, 3, 1.5, 0); w.fit(f); run(b, 9);                                          // 乗っている間は、水に落としても戻らない（浮かぶ）
+  assert.ok(f.on === w.movers[0].box && near(f.x, 3, 0.1), `乗っている間に、水に落としたせんぷうき箱が戻った (${f.x})`);
+  b.place(-10, 2.4, 3); run(b, 7.5);                                                 // 下りる。浮かんだ箱は、8 秒たつまでは水の上
+  assert.ok(!home() && f.on === w.movers[0].box, `8 秒たつ前に、水に浮かんだせんぷうき箱が戻った (${f.x})`);
+  run(b, 1); assert.ok(home(), `水に浮かんだいかだのせんぷうき箱が、8 秒で戻らない (${f.x}, ${f.y})`);
+  b.place(-5, 1.25, 0.6); b.tick(); b.face(f.x, f.z); assert.equal(p.grabStart(), f);   // いかだの上で持ち上げる
+  b.place(-10, 2.4, 0); run(b, 10);                                                  // 持ったまま岸へ上がって、10 秒
+  assert.ok(f.held && !home(), '持っている間に、いかだのせんぷうき箱が戻った');
 });

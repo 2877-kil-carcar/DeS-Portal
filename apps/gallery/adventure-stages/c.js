@@ -9,9 +9,9 @@
    石は、橋の手前の敷居（0.5m）で止まり、操車場へは持ちこめない（石と 4 人で、操車場のおもさ板 7 に届かないように。木箱は持ちこめるが、4 人と木箱 2 つで 6）。
    1 人なら：大砲で駅へ → 石を東から押して赤い皿へ（止めで止まる）→ 木箱を青い皿へ → 貨車を東へ押す（分かれ目で止まる）→ 北へ押す → 敷居を跳んで、橋を渡って操車場へ。
    変えたら `node tools/lint-adventure.mjs c` と `node tools/test-adventure.mjs c`（前半 s4.mjs・つなぎ c.mjs・後半 s8.mjs を続けて動かす）で確かめる */
-import s4 from './s4.js?v=4.15';
-import s8 from './s8.js?v=4.15';
-import { join } from '../adventure-join.js?v=4.15';
+import s4 from './s4.js?v=4.17';
+import s8 from './s8.js?v=4.17';
+import { join } from '../adventure-join.js?v=4.17';
 
 export default kit => join(kit, {
   name: 'てんびん貨物線', first: ['s4', s4], second: ['s8', s8], off: [0, 76],

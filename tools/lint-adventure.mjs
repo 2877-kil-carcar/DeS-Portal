@@ -3,13 +3,13 @@
 //           カタパルトを動かすおもさ板は、台から 2m 以上離れているか／止まっている動く床から、歩いて出られるか（出られないなら kill より下に止めてあるか）／
 //           箱の置き場所に床があるか（レールの箱は、レールの中にあるか。ポイントの分かれ目は本線の中にあるか）／
 //           錠が見るソケットの数だけ、でんちがあるか／板張りを割れる重い箱があり、はじめからふれていないか／セーブ地点の真上（3m 四方・高さ 14m）を箱や動く床が通らないか、2.5m 以内をのこぎりが通らないか、
-//           ほかのセーブ地点と 6m 以上離れているか／乗ると動く床・てんびんの上下の速さは毎秒 1m までか／乗ると動く床の行き先から、その床なしで帰れるか
+//           ほかのセーブ地点と 6m 以上離れているか／とって・ロープ・ふうせんに、地面から手が届くか。ジップラインとロープにつかまった体が、通り道で壁にぶつからないか／乗ると動く床・てんびんの上下の速さは毎秒 1m までか／乗ると動く床の行き先から、その床なしで帰れるか
 // 使い方：node tools/lint-adventure.mjs          … 全ステージ
 //         node tools/lint-adventure.mjs 3 5 c    … ステージ 3 と 5 と、つないだステージ c だけ
 // 見つけたら「NG stage 番号「名前」: 内容」を出して、失敗（終了コード 1）で終わる
 import fs from 'node:fs';
 import path from 'node:path';
-import { kit, makeWorld, makePlayer, STEP, BODY } from '../apps/gallery/adventure-world.js';
+import { kit, makeWorld, makePlayer, STEP, BODY, HANG } from '../apps/gallery/adventure-world.js';
 
 // 動く床がいることのある場所：道のり（回る床は 1 周）を 48 に刻んだ箱の列
 const sweep = m => Array.from({ length: 49 }, (_, k) => {
@@ -40,35 +40,54 @@ export function lint(stage) {
     for (const tag in sockets) { const have = crates.filter(k => k.tag === tag).length; need(have >= sockets[tag], `${name} の錠はソケットを ${sockets[tag]} 個見ているのに、入れる箱（${tag}）が ${have} 個しかない`); }
   }
   movers.forEach((m, i) => {
+    // 水・帆のいかだ：いかだは、まん中の真下に水がいる（ないと、水の外へ出るのを止められない）
+    if (m.mode === 'raft') need(movers.some(k => k.water && (m.b.x0 + m.b.x1) / 2 > k.b.x0 && (m.b.x0 + m.b.x1) / 2 < k.b.x1 && (m.b.z0 + m.b.z1) / 2 > k.b.z0 && (m.b.z0 + m.b.z1) / 2 < k.b.z1), `動く床 ${i}（いかだ）の真下に、水がない`);
     if (m.mode === 'crank') need(m.handles?.length, `動く床 ${i}（crank）に、ハンドルがない`);
     if (m.mode === 'crank') need((m.up ?? 4) > 0 && (m.down ?? 8) > 0, `動く床 ${i}（crank）の up と down は、0 より大きくする（0 だと、位置が数でなくなる）`);
     if (m.mode === 'scale' || m.mode === 'seesaw') need(['AB', 'BA'].includes(movers.filter(k => k.mode === m.mode && k.pair === m.pair).map(k => k.side).join('')), `動く床 ${i}（${m.mode}）の組 ${m.pair} が、A と B の 2 枚で 1 組になっていない`);
     // 止まっている場所（かぎの橋を下に止めた所など）に落ちた箱や人が、歩いて出られるか。出られないなら、kill より下に止める（落ちたものが、元の場所へ戻る）
-    if (m.to && !['always', 'crumble'].includes(m.mode)) need(m.b.y1 < stage.kill || boxes.some(b => walk({ at: [m.b] }, { at: [b], ...b })),
+    if (m.to && !['always', 'crumble', 'raft', 'still'].includes(m.mode) && !m.water) need(m.b.y1 < stage.kill || boxes.some(b => walk({ at: [m.b] }, { at: [b], ...b })),
       `動く床 ${i} は、止まっている場所（上面 ${m.b.y1}）から歩いて出られる足場がなく、落とした箱や人が上に残る。上面を kill（${stage.kill}）より下にする`);
     for (const h of m.handles || []) need(handles[h], `動く床 ${i} が、ないハンドル ${h} を指している`);
     const speed = m.speed || { ride: 2.5, scale: 0.8 }[m.mode];                      // 乗ると動く床・てんびんは、人を乗せて上下する（速いと、足が床から離れる）
     if (m.mode === 'ride' || m.mode === 'scale') need(speed * Math.abs(m.to[1]) / Math.hypot(...m.to) <= 1 + 1e-9, `動く床 ${i}（${m.mode}）の上下の速さが、毎秒 1m をこえている`);
   });
   handles.forEach((h, i) => need(h.ride == null || movers[h.ride], `ハンドル ${i} が、ない動く床 ${h.ride} に付いている`));
+  /* つかまって動く点：はじめの場所に、立って手が届くか（足場の縁から横 0.9m 以内・足場の上面から 1.5〜2.4m 上）。
+     ジップラインは線の上、ロープは元の角度から反対がわの同じ角度まで、つかまった体（足は点の HANG 下）が動かない箱にぶつからないか */
+  const open = makeWorld(stage); boxes.forEach((b, i) => { if (b.planks) open.smash(i); });   // 通り道の板張りは、割ったあとで見る（割るまで通れないのは、ステージの仕掛け）
+  w.ropes.forEach((r, i) => {
+    const [x, y, z] = r.at, name = { zip: 'ジップライン', swing: 'ロープ', balloon: 'ふうせん' }[r.kind];
+    need(name, `点 ${i} の kind ${r.kind} は、zip・swing・balloon のどれでもない`);
+    need(boxes.some(b => x > b.x0 - 0.9 && x < b.x1 + 0.9 && z > b.z0 - 0.9 && z < b.z1 + 0.9 && y - b.y1 >= 1.5 && y - b.y1 <= 2.4), `${name} ${i} (${x}, ${y}, ${z}) に、立って手が届く足場がない（横 0.9m 以内・1.5〜2.4m 下）`);
+    if (r.kind === 'swing') need(Math.abs(r.rest) <= 1.3, `ロープ ${i} の元の角度 ${r.rest} が大きすぎる（1.3 まで）`);
+    if (r.kind === 'balloon') need(r.top > r.y, `ふうせん ${i} の top が、元の高さより低い`);
+    const path = r.kind === 'zip' ? Array.from({ length: 41 }, (_, k) => r.to.map((v, j) => [r.x, r.y, r.z][j] + v * k / 40))
+      : r.kind === 'swing' ? Array.from({ length: 41 }, (_, k) => { const a = r.rest * (1 - k / 20); return [r.x + (r.axis === 'x' ? Math.sin(a) * r.len : 0), r.y - Math.cos(a) * r.len, r.z + (r.axis === 'x' ? 0 : Math.sin(a) * r.len)]; }) : [];
+    const hit = path.find(q => open.wall(q[0], q[2], q[1] - HANG));
+    need(!hit, `${name} ${i} につかまった体が、(${hit?.map(v => v.toFixed(1))}) で壁にぶつかる（そこで止まる）`);
+  });
   // おもさ板（と load: n の条件）は、下りてから 0.4 秒は押されたまま。台に近いと、1 人で板を走りぬけて飛べてしまう
   boxes.forEach((b, i) => (b.launch?.aims || []).forEach(a => (a.on || []).forEach(k => { const p = plates[k]; if (p?.w && (p.need || a.load)) need(gap(b, { x0: p.x - p.w / 2, x1: p.x + p.w / 2, z0: p.z - p.d / 2, z1: p.z + p.d / 2 }) >= 2, `箱 ${i}（カタパルト）と、それを動かす信号 ${k} が、2m より近い`); })));
   plates.forEach((p, i) => { if (p.kind === 'rail') need(crates[p.crate]?.rail && ['min', 'max', ...(crates[p.crate].fork ? ['fork'] : [])].includes(p.at), `信号 ${i}（レールの端）が、レールの箱でない箱 ${p.crate} か、'min'・'max'（ポイントつき台車は 'fork' も）でない端を指している`); });
   // ポイントつき台車：分かれ目が本線の中にあるか（外にあると、支線へ入れない）
   crates.forEach((c, i) => { if (c.fork) need(c.fork.at >= c.rail.min && c.fork.at <= c.rail.max, `箱 ${i} のポイントの分かれ目 ${c.fork.at} が、本線（${c.rail.min}〜${c.rail.max}）の外にある`); });
+  // クレーン：x・z・y の [番号, …] が、レールの箱を指しているか。鉄球：引ける長さ pull が、ふりこの長さ（len＋0.5）の 0.6 倍までか（玉の下に床がなくてもよい）
+  (stage.cranes || []).forEach((k, i) => ['x', 'z', 'y'].forEach(a => { const v = k[a]; need(Array.isArray(v) ? crates[v[0]]?.rail && v.length === 3 : Number.isFinite(v), `クレーン ${i} の ${a} が、数か [レールの箱の番号, はじめ, 終わり] になっていない`); }));
+  crates.forEach((c, i) => { if (c.pend) need((c.rail.max - c.rail.min) / 2 <= (c.pend.len + 0.5) * 0.6, `箱 ${i}（鉄球）の引ける長さが、ふりこの長さ（len＋0.5）${c.pend.len + 0.5} の 0.6 倍より長い（玉が高く上がりすぎ、つかんだ手が離れる）`); });
 
   // 板張り：割れる重い箱（1m 以上）があるか。はじめから重い箱にふれていないか（ステージを始めたとたんに割れる）
   const heavy = w.crates.filter(c => c.heavy && c.s >= 1);
   boxes.forEach((b, i) => {
     if (!b.planks) return;
     need(heavy.length, `箱 ${i}（板張り）を割れる重い箱（1m 以上）が、ステージにない`);
-    need(!heavy.some(c => ['x', 'y', 'z'].every(a => c.box[a + '0'] < b[a + '1'] + 0.1 && c.box[a + '1'] > b[a + '0'] - 0.1)), `箱 ${i}（板張り）が、はじめから重い箱にふれている`);
+    need(!heavy.some(c => !c.pend && ['x', 'y', 'z'].every(a => c.box[a + '0'] < b[a + '1'] + 0.1 && c.box[a + '1'] > b[a + '0'] - 0.1)), `箱 ${i}（板張り）が、はじめから重い箱にふれている`);
   });
 
   // 箱：置き場所の真下に床があるか（なければ、落ちては戻るのをくり返す）。レールの箱は、レールの中にあるか（外にあると、二度と動かせない）
   w.crates.forEach((c, i) => {
     const g = w.groundBox(c.x, c.z, c.y, c.box), r = c.rail;
-    need(g && Math.abs(g.y1 - c.y) < 0.05, `箱 ${i} (${c.x}, ${c.y}, ${c.z}) の真下に、床がない`);
+    need(c.pend || g && Math.abs(g.y1 - c.y) < 0.05, `箱 ${i} (${c.x}, ${c.y}, ${c.z}) の真下に、床がない`);
     if (r) need(['x', 'z'].includes(r.axis) && c[r.axis] >= r.min && c[r.axis] <= r.max, `箱 ${i} が、自分のレール（${r.axis} の ${r.min}〜${r.max}）の外に置いてある`);
   });
 
@@ -86,7 +105,7 @@ export function lint(stage) {
      足場（箱・動く床）から足場へ「行ける」とみなすのは：すき間 1.5m 以内で、上がる高さが 2.4m まで（トランポリンからは 5.2m まで。あみは何 m でも。下りるのは何 m でも）／
      ほかの乗ると動く床は、出発点から行き先へだけ／大砲台・カタパルトは、実際に飛ばして着いた足場へ。錠や時間は見ない（開けられるものとして数える）
      shortcut: 風・ワープ・せんぷうき箱・箱の踏み台は帰り道に数えない。それを帰り道にするステージができたら、ここに足す */
-  const nodes = [...boxes.map(b => ({ at: [b], b })), ...movers.flatMap((m, i) => m.mode === 'ride' ? [{ at: [m.b], b: m.b, m: i }, { at: [sweep(m)[48]], b: m.b, far: i }] : [{ at: sweep(m), b: m.b, m: i }])];
+  const nodes = [...boxes.map(b => ({ at: [b], b })), ...movers.flatMap((m, i) => m.water ? [] : m.mode === 'ride' ? [{ at: [m.b], b: m.b, m: i }, { at: [sweep(m)[48]], b: m.b, far: i }] : [{ at: sweep(m), b: m.b, m: i }])];
   const fly = (from, v) => {                                                         // 箱 from の上から速さ v で飛んだ先の足場
     const p = makePlayer(w);
     Object.assign(p, { x: (from.x0 + from.x1) / 2, y: from.y1 + 0.01, z: (from.z0 + from.z1) / 2, vy: v[1], kvx: v[0], kvz: v[2], grounded: false });

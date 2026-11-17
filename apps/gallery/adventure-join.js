@@ -1,5 +1,5 @@
 /* もふもふ冒険：2 つのステージを「つなぎ」でつないで、1 本の長いステージにする（adventure-stages/ の a.js〜d.js が使う）。
-   部分（parts）は [前半, つなぎ, 後半] の 3 つ。どの配列（boxes・plates・movers・crates・handles・winds・cps・warps・deco）も、この順にならべる。
+   部分（parts）は [前半, つなぎ, 後半] の 3 つ。どの配列（boxes・plates・movers・crates・handles・winds・cps・warps・deco・ropes・cranes）も、この順にならべる。
    座標：前半とつなぎは、そのまま。後半だけ off = [東へ, 北へ]（m）ずらす（上下にはずらさない：kill より下にしまう床が、kill より上に出てしまう）。
    番号：条件の on・レールの端（railEnd）の箱・ハンドルの ride・動く床の handles・objective は、それぞれの部分の中で数えた番号で書き、ここで前の部分の数を足す。
          つなぎ（link）も、つなぎの中だけで数えた番号で書く（座標はステージ全体のもの）。てんびん・シーソーの組の名前は、部分ごとに別のものになる。
@@ -7,7 +7,7 @@
    セーブ地点：前半・後半の hint の前に、その部分の名前をつける。parts[k].cp は、その部分のはじめのセーブ地点の番号（ページの「後半から」は parts[2].cp から始める）。
    目標（objective）：parts[k].objective。ページは、最後にふれたセーブ地点の部分の目標を出す（つなぎに目標がなければ、出さない）。
    parts[k].base は、その部分の番号に足した数、parts[k].off は、ずらした座標（tools/test-adventure.mjs の view が、部分ごとの自動操縦に使う） */
-const LISTS = ['boxes', 'plates', 'movers', 'crates', 'handles', 'winds', 'cps', 'warps', 'deco'];
+const LISTS = ['boxes', 'plates', 'movers', 'crates', 'handles', 'winds', 'cps', 'warps', 'deco', 'ropes', 'cranes'];
 
 // ステージ s を off だけずらし、番号に base を足した写しを作る（tag は、てんびん・シーソーの組の名前の前につける）
 function move(s, [dx, dz], base, tag) {
@@ -25,6 +25,8 @@ function move(s, [dx, dz], base, tag) {
     winds: (s.winds || []).map(k => on(at(k))),
     cps: s.cps.map(at),
     warps: (s.warps || []).map(k => ({ ...at(k), to: [k.to[0] + dx, k.to[1], k.to[2] + dz] })),
+    ropes: (s.ropes || []).map(at),                                                 // ジップラインの to は、はじめの点からの向きなので、ずらさない
+    cranes: (s.cranes || []).map(k => Object.fromEntries(['x', 'z', 'y'].map(a => { const v = k[a], e = a === 'y' ? 0 : d(a); return [a, Array.isArray(v) ? [v[0] + base.crates, v[1] + e, v[2] + e] : v + e]; }))),   // クレーン：レバーの番号と、x・z の場所
     deco: (s.deco || []).map(o => o.beacon ? { ...o, beacon: [o.beacon[0] + dx, o.beacon[1], o.beacon[2] + dz] } : at(o)),
     goal: s.goal && at(s.goal), objective: s.objective && on(s.objective),
   };
