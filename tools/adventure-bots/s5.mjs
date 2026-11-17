@@ -1,5 +1,5 @@
-// ステージ 5「ほしぞら天文台」を 1 人で解く手順：西（ハンドルの橋）→ 東（箱を踏み台に、ハンドルのリフト）→ 南西（おもさ板とカタパルト）→ 北の橋 → 塔のリフト → 段の橋 → ゴール
-// そのあと、別の道（南東のつばさ・扇風機・柱の板）、かぞえ錠の組み合わせ、仲間との答え、わざとまずい順番、渡れてはいけない所を確かめる
+// ステージ 5「ほしぞら天文台」を 1 人で解く手順：ソケットのふた（東の下のたんすをリフトで上げて、ぶつけて割る）→ 西（ハンドルの橋）→ 東（箱を踏み台に、ハンドルのリフト）→ 南西（おもさ板とカタパルト）→ 北の橋 → 塔のリフト → 段の橋 → ゴール
+// そのあと、別の道（南東のつばさ・扇風機・柱の板）、かぞえ錠の組み合わせ、仲間との答え、わざとまずい順番、渡れてはいけない所、ふたが割れるまでのことを確かめる
 export default (b, { assert, fresh }) => {
   const isles = { SW1: 9, SM: 11, SF: 13 };                                           // 南西の島・南の島・西の島（boxes の番号）
   // のこぎり s の通り道の手前 from で待ち、のこぎりが横切る所（通り道の向き axis の位置 at）から遠ざかったとたんに、to へ渡る
@@ -19,7 +19,34 @@ export default (b, { assert, fresh }) => {
   // 横風の橋：風が吹いている間は待ち、やんだとたんに渡る
   const calm = (x, from, to) => { const k = x.w.winds[0]; x.go(from); x.wait('横風が吹く', () => k.active, 5); x.wait('横風がやむ', () => !k.active, 5); x.go(to); };
   // 検査のために、でんちをソケットに入れておく
-  const plug = (x, cells) => { for (const [i, s] of cells) { const c = x.w.crates[i], k = x.w.plates[s]; Object.assign(c, { x: k.x, y: k.y, z: k.z, vy: 0 }); x.w.fit(c); } x.tick(); };
+  const plug = (x, cells) => { open(x); for (const [i, s] of cells) { const c = x.w.crates[i], k = x.w.plates[s]; Object.assign(c, { x: k.x, y: k.y, z: k.z, vy: 0 }); x.w.fit(c); } x.tick(); };
+  const CHEST = 10, LID = 27;                                                         // 東の下の台地のたんす（箱の番号）・ソケットの列のふた（boxes の番号）
+  const opened = x => x.w.broken.has(LID);
+  const near = (a, v, e = 0.05) => Math.abs(a - v) < e;
+  const idle = (x, s) => { for (let i = 0; i < s * x.FPS; i++) x.tick(); };
+  const move = (x, i, px, py, pz) => { Object.assign(x.w.crates[i], { x: px, y: py, z: pz, vy: 0, moved: true }); x.w.fit(x.w.crates[i]); };   // 検査のために、箱をその場所へ置く
+  // 重い箱 i を from からつかみ、until が合うまで (dx, dz) の向きへ押す（引く）
+  const drag = (x, i, from, dx, dz, until) => {
+    x.grab(i, from);
+    for (let n = 0; !until(x.w.crates[i]); n++) { assert.ok(n < x.FPS * 30, `箱 ${i} を思った所まで動かせない ${x.where()}`); x.tick(dx, dz); }
+    x.p.grabEnd();
+  };
+  // ソケットのふた：東の下の台地のたんすを南へ引いてリフトにのせ、リフトの上のハンドルで上げる。西へ押して広場へ、北へ押して、ふたの東のはしにぶつけて割る
+  const lid = x => {
+    const c = x.w.crates[CHEST], lift = x.w.movers[3];
+    x.go([9, 0]); x.go([20.5, 0]); x.go([22.5, 0]);                                   // リフト（下にいる）へ飛び下りる
+    assert.ok(near(x.p.y, -5), `下の台地のリフトに下りていない ${x.where()}`);
+    drag(x, CHEST, [22, 1.4], 0, -1, k => k.z <= 0);
+    x.crank(3, () => lift.f === 1);
+    assert.ok(near(c.y, 0) && near(x.p.y, 0), `たんすがリフトで上がらない (たんす y=${c.y.toFixed(2)}) ${x.where()}`);
+    drag(x, CHEST, [23.2, c.z], -1, 0, k => k.x <= 6.9);
+    assert.ok(!opened(x), 'たんすがふたにふれる前に、ふたが割れた');
+    x.go([8.4, c.z - 1.2]); drag(x, CHEST, [c.x, c.z - 1.2], 0, 1, k => k.z >= 7.5);   // 北へ押すと、ふたの東のはしにふれて割れる。そのまま、通り道のじゃまにならない所まで押す
+    assert.ok(opened(x), `たんすをぶつけても、ソケットのふたが割れない (${c.x.toFixed(2)}, ${c.z.toFixed(2)})`);
+    assert.deepEqual(x.w.smashed, [LID], '割れた知らせ（w.smashed）がない');
+  };
+  // 検査のために、たんすをふたにふれさせて割り、通り道のじゃまにならない所へ置いておく
+  const open = x => { if (opened(x)) return; move(x, CHEST, 6.9, 0, 2.9); x.tick(); assert.ok(opened(x), '検査の前提：ふたが割れない'); move(x, CHEST, 6.9, 0, 7.5); x.tick(); };
   // 渡れてはいけない：go が着けずに失敗すること
   const cannot = (x, what, target, seconds = 8) => assert.throws(() => x.go(target, null, seconds), /着けない/, what);
   // せんぷうき箱 4 を spot に置き、その風で浮いて、「つかむ」を押したまま (dx, dz) へ流れる。bad（着いてはいけない所に立った）にならないこと
@@ -36,6 +63,8 @@ export default (b, { assert, fresh }) => {
     const { w, p } = b, m = w.movers, c = w.crates, k = w.plates;
     // 出発：北の橋は下がっている
     assert.equal(m[0].f, 0, 'でんちがないのに、北の橋があがっている');
+    // 東：下の台地のたんすをリフトで上げて、広場のソケットのふたにぶつけて割る
+    lid(b);
     // 西：ハンドルを回して橋をのばし、のこぎりをよけて、でんちを取る
     b.go([-13.5, 0]); b.crank(0, () => m[1].f > 0.99);
     b.go([-22, 0]); b.go([-30.5, 0]);
@@ -43,8 +72,8 @@ export default (b, { assert, fresh }) => {
     // でんちを置いて、むこう岸のハンドルで橋をのばしなおし、持って帰る
     b.go([-30, -1.5]); b.face(-30, -3); b.p.grabEnd(); b.crank(1, () => m[1].f > 0.99); b.grab(0); b.go([-30, 0]);
     b.go([-22, 0]); b.go([-13, 0]); b.go([-5, 3]); socketed(b, 0);
-    // 東：広場の箱を持って下の台地へ下り、台の前に置いて踏み台にする
-    b.grab(5); b.go([9, 0]); b.go([20.5, 0]); b.go([22.5, 0]);
+    // 東：広場の箱を持って下の台地へ下り、台の前に置いて踏み台にする（たんすを上げたリフトが、下りてから）
+    b.wait('東のリフトが下りてくる', () => m[3].f === 0, 30); b.grab(5); b.go([9, 0]); b.go([20.5, 0]); b.go([22.5, 0]);
     pass(b, 4, 'z', -2.2, [24.1, -2.2], [27, -2.2]); b.go([27, 0]); b.put(28.5, 0);
     // 箱に跳びのり、跳んでつかんで台に上がり、でんちを取る
     b.go([26.9, 0]); b.face(c[5].x, c[5].z); p.jump(); b.go([c[5].x, c[5].z]); b.hoist([c[5].x, c[5].z], [29.7, 0]); b.grab(1);
@@ -112,7 +141,7 @@ export default (b, { assert, fresh }) => {
   }
 
   { // ── 別の道：南東（氷・横風・台車）で、でんちを取る。台車は一度もどしてから、もう一度押す ──
-    const x = fresh(), { w, p } = x, c = w.crates;
+    const x = fresh(), { w, p } = x, c = w.crates; open(x);
     x.go([6, -9.5]); x.go([6, -20]);
     // 氷の橋をすべって渡り、横風の橋のはしで、風がやむのを待って渡る
     x.go([6, -28.5]); calm(x, [4.6, -28.5], [4.6, -37.6]);
@@ -139,7 +168,7 @@ export default (b, { assert, fresh }) => {
   }
 
   { // ── 別の道：東の台へ扇風機で上がり、でんちを持ってリフトで帰る ──
-    const x = fresh(), { w, p } = x, m = w.movers;
+    const x = fresh(), { w, p } = x, m = w.movers; open(x);
     // 扇風機を持って下の台地へ下り、のこぎりをよけて、台の前に置く。風に乗って台の上へ
     x.grab(4); x.go([9, 0]); x.go([20.5, 0]); x.go([22.5, 0]);
     pass(x, 4, 'z', -2.2, [24.1, -2.2], [27, -2.2]); p.grabEnd();
@@ -195,7 +224,7 @@ export default (b, { assert, fresh }) => {
   }
 
   { // ── わざとまずい順番でも、1 人で最後まで行ける ──
-    const x = fresh(), { w, p } = x, m = w.movers, c = w.crates, k = w.plates;
+    const x = fresh(), { w, p } = x, m = w.movers, c = w.crates, k = w.plates; open(x);
     // 南西：おもりなしでカタパルトに乗っても、とばない
     x.go([-6, -10]); x.go([-8, -19.5]); for (let i = 0; i < x.FPS; i++) x.tick();
     assert.ok(p.grounded && p.y < 0.2, 'おもりなしで、カタパルトがとばした');
@@ -227,5 +256,18 @@ export default (b, { assert, fresh }) => {
     x.go([0, 27.5]); x.crank(5, () => m[5].f === 1); x.go([0, 30]);
     pass(x, 6, 'x', 2.2, [2.2, 32.5], [2.2, 36.4]); x.crank(6, () => m[7].f > 0.99); x.go([0, 37.6]); x.go([0, 47.5]);
     assert.ok(p.goal && x.falls === 0, `まずい順番で、ゴールに着かない（${x.falls} 回落ちた） ${x.where()}`);
+  }
+
+  { // ── ソケットのふた：割るまでは、でんちを置いても押されない。たんすのほかでは割れない。広場から落としたたんすは、台地へ戻る ──
+    const x = fresh(), { w } = x;
+    for (let s = 0; s < 4; s++) move(x, s, w.plates[s].x, 0.6, w.plates[s].z);           // でんち 4 つを、ソケットの真上から落とす
+    idle(x, 2);
+    assert.ok([0, 1, 2, 3].every(s => !w.plates[s].down && near(w.crates[s].y, 0.32)) && w.movers[0].f === 0, 'ふたの上のでんちで、ソケットが押された／北の橋があがった');
+    move(x, 5, 0, 3, 5); move(x, 4, -3, 3, 4.5); x.friend = [3, 0.32, 5, 3]; idle(x, 2);   // 軽い箱・扇風機を上から落とし、仲間 3 人ぶんがのっても
+    assert.ok(!opened(x), '軽い箱か仲間で、ソケットのふたが割れた');
+    x.friend = null;
+    move(x, CHEST, 3, 0, -7.5); drag(x, CHEST, [3, -6.3], 0, -1, k => k.y < -0.5);    // 広場の南のはしから、たんすを落とす
+    x.wait('落としたたんすが、東の下の台地へ戻る', () => near(w.crates[CHEST].x, 22) && near(w.crates[CHEST].y, -5) && near(w.crates[CHEST].z, 2.6), 6);
+    assert.ok(!opened(x) && x.falls === 0, `たんすを落としたときに、ふたが割れた／自分も落ちた ${x.where()}`);
   }
 };

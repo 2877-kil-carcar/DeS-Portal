@@ -179,7 +179,7 @@ const seesaw = (a, b, h, v, pair) => [{ b: a, to: [0, h, 0], mode: 'seesaw', pai
          [0, 14, 6]    てっぺん 9.7　T8 で 6.0
          ほかの向きへ飛ばすには、横の速さ（x と z）を同じ大きさのまま回す。着地させる足場は、この着地点を中心に 6×6 以上。
          大砲台・カタパルトで飛んでいる間（着地するか、つかまるまで）は、スティックで動けるのは毎秒 0.8m まで：倒しつづけても、台と同じ高さへ下りてくるまでに、着地点は 2.1m までしかずれない */
-// ステージのファイル（adventure-stages/sN.js）へ渡す「作り方」一式
+// ステージのファイル（adventure-stages/sN.js）へ渡す「作り方」一式（2 つのステージを 1 本につなぐときは adventure-join.js。つないだステージは adventure-stages/a.js〜d.js）
 export const kit = { B, ice, pad, belt, P, CP, crumble, wind, gust, saw, cannon, warp, cell, socket, WP, fan, net, launcher, lever, cart, railEnd, seesaw, planks };
 
 export function makeWorld(stage) {

@@ -207,4 +207,12 @@ export default (b, { assert, fresh }) => {
   x = fresh(); x.go([0, -8]); leap(x, [0, -19.5], -1);
   // でんち 1 つでも渡れない（ゴールに着けない）
   x = fresh(); westSteps(x); x.hoist([-20.2, 1.3], [-20.2, 3.5]); westCell(x); socketIn(x, 0); leap(x, [0, 5.5], 1); assert.ok(!x.p.goal);
+  // 4 人でも：ハブの北の縁に軽い箱 4 こ（3.2m）と仲間 2 人を積み、てっぺんから N1 へ投げても（ページの投げ方：0.9m 上・0.75m 前、vy 6.5・横 4）、届かない（14m）。
+  // 西の段 T3（高さ 5）の北東の角に仲間 2 人を積んで、N1 の南西の角へ投げても届かない（16m）
+  for (const [px, top, pz, tx, tz] of [[-5, 5.8, 6.6, -5, 40], [0, 5.8, 6.6, 0, 40], [5, 5.8, 6.6, 5, 40], [-17.4, 7.6, 7.6, -7, 21]]) {
+    x = fresh(); const d = Math.hypot(tx - px, tz - pz), ux = (tx - px) / d, uz = (tz - pz) / d;
+    x.place(px + ux * 1.45, top + 0.9, pz + uz * 1.45); x.face(tx, tz); Object.assign(x.p, { vy: 6.5, kvx: 4 * ux, kvz: 4 * uz, grounded: false }); x.p.grabStart();
+    for (let i = 0; i < 8 * x.FPS && x.falls === 0 && !(i > 2 && (x.p.grounded || x.p.hang)); i++) x.tick(ux, uz);
+    assert.ok(!(x.p.z > 20.5 && x.p.y > -1), `積んだてっぺんから投げられた仲間が、N1 へ渡れた (${px}, ${pz}) ${x.where()}`);
+  }
 };

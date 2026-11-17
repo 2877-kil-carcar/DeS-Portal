@@ -1,7 +1,7 @@
 // もふもふ冒険を、でたらめな操作で長時間動かして「はまって動けなくなる」「数値がこわれる」場所を探す。
 // 各ステージの各セーブ地点から始め、歩く・跳ぶ・つかむ・放す（ハンドルがあれば、それを回す・放す）を乱数で混ぜる。見つけたら場所を出して失敗する。
 // そのあと、上下に動く床のすぐ横に立たせて、床にはさまれても歩いて出られることを確かめる。
-// 使い方：node tools/fuzz-adventure.mjs [回数=40] [ステージ番号 …]（乱数の種は固定なので、同じ結果を再現できる）
+// 使い方：node tools/fuzz-adventure.mjs [回数=40] [ステージ番号か、つないだステージの文字 …]（乱数の種は固定なので、同じ結果を再現できる）
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { kit, makeWorld, makePlayer } from '../apps/gallery/adventure-world.js';
@@ -11,11 +11,11 @@ const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32;
 const [runsArg, ...onlyArgs] = process.argv.slice(2);
 const runs = +runsArg || 40, DT = 1 / 30;
 const dir = new URL('../apps/gallery/adventure-stages/', import.meta.url);
-const all = fs.readdirSync(dir).map(f => /^s(\d+)\.js$/.exec(f)).filter(Boolean).map(m => +m[1]).sort((a, b) => a - b);
-const only = onlyArgs.map(Number).filter(n => n > 0);
+const all = fs.readdirSync(dir).map(f => /^(s\d+|[a-z])\.js$/.exec(f)?.[1]).filter(Boolean).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));   // sN.js と、つないだステージ a.js〜
+const only = onlyArgs.map(a => /^\d+$/.test(a) ? 's' + a : a);
 let total = 0;
 for (const n of only.length ? only : all) {
-  const st = (await import(new URL(`s${n}.js`, dir).href)).default(kit);
+  const st = (await import(new URL(`${n}.js`, dir).href)).default(kit);
   for (let cp = 0; cp < st.cps.length; cp++) for (let run = 0; run < runs; run++) {
     const realRandom = Math.random; Math.random = rnd;                    // やり直しの落下位置も同じ乱数にそろえる
     const w = makeWorld(st), p = makePlayer(w);

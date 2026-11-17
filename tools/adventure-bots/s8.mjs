@@ -1,9 +1,10 @@
-// ステージ 8「ごとごと操車場」を 1 人で解く手順：貨車を東へ押して倉庫の板を割る → 荷台のコンテナを押し落として、おもさ板まで押す
+// ステージ 8「ごとごと操車場」を 1 人で解く手順：貨車を東へ押して倉庫の板を割る → 木箱を青い皿にのせて、赤い皿のコンテナを下ろし、おもさ板まで押す
 // → 信号小屋に入って、ポイントのレバーを押しきる → 貨車を西へ戻すと分かれ目で止まる → 北へ押して行き止まりへ → 橋をわたって島のゴールへ。
 // そのあと fresh() で：貨車を分かれ目より西へ戻してからポイントを切りかえる道・中から出る道（中の板）・やり直せること・できてはいけないこと
 export default (b, { assert, fresh }) => {
   const DOOR = 0, BRIDGE = 1;                                                         // 動く床の番号
-  const WAGON = 0, SKIP = 1, LEVER = 2;                                               // 箱の番号
+  const WAGON = 0, SKIP = 1, LEVER = 2, BOX = 3;                                      // 箱の番号
+  const BLUE = 2, RED = 3;                                                            // 倉庫のてんびんの皿（動く床の番号）
   const near = (a, v, e = 0.05) => Math.abs(a - v) < e;
   const idle = (q, s) => { for (let i = 0; i < s * q.FPS; i++) q.tick(); };
   const move = (q, i, x, y, z) => { Object.assign(q.w.crates[i], { x, y, z, vy: 0, moved: true }); q.w.fit(q.w.crates[i]); };   // 検査のために、箱をその場所へ置く
@@ -30,12 +31,15 @@ export default (b, { assert, fresh }) => {
     assert.ok(broken(q), `貨車をぶつけても、倉庫の板が割れない (x=${c.x.toFixed(2)})`);
     assert.ok(q.w.smashed.includes(board(q)), '割れた知らせ（w.smashed）がない');
   };
-  // 倉庫：荷台のコンテナを西へ押し落とし、そのまま構内のおもさ板まで押す（貨車の南を通る）
+  // 倉庫：木箱を青い皿にのせると、赤い皿がコンテナごと下りてくる。コンテナを西へ押し、そのまま構内のおもさ板まで押す（貨車の南を通る）
   const skip = q => {
-    const c = q.w.crates[SKIP];
-    q.go([8.5, -1.8]); q.go([13, -1.8]); q.go([14.5, -3.5]); q.go([19.3, -3.5]);
-    assert.ok(near(q.p.y, 1), `荷台に上がれない ${q.where()}`);
-    drag(q, SKIP, [19.3, -1.7], -1, 0, k => k.x <= -3);
+    const c = q.w.crates[SKIP], red = q.w.movers[RED];
+    q.go([8.5, -1.8]); q.go([12.5, -2.5]);
+    q.grab(BOX); q.put(18, 3.5);
+    q.wait('木箱が青い皿にのる', () => q.w.crates[BOX].on === q.w.movers[BLUE].box, 3);
+    q.wait('赤い皿が、コンテナごと下りてくる', () => red.f === 1 && near(c.y, 0.05), 15);
+    drag(q, SKIP, [19.5, -1.7], -1, 0, k => k.x <= -3);
+    assert.ok(red.f < 1, '空になった赤い皿が、上へ戻りはじめない');
     q.wait('おもさ板が押される', () => q.w.plates[0].down, 2);
   };
   // 信号小屋：戸があいている間に入り、レバーを東へ押しきって、ポイントを支線がわにする。戸があいているうちに出る
@@ -96,7 +100,7 @@ export default (b, { assert, fresh }) => {
     q.push(WAGON, [1, 9.2], 0, -1); assert.ok(near(c.z, 0, 1e-6) && c.rail === c.main, `分かれ目まで戻した貨車が、本線にもどらない (z=${c.z.toFixed(2)})`);
     q.go([-0.5, 1.5]); q.go([-1.5, -1.5]); q.push(WAGON, [-0.2, 0], 1, 0); assert.ok(c.x > 9.9, `本線にもどった貨車を、東へ押せない (x=${c.x.toFixed(2)})`);
     move(q, SKIP, -9, 0, 14); q.place(-6.5, 0, 14, 3); q.push(SKIP, [-7.8, 14], -1, 0);
-    q.wait('構内から落としたコンテナが、荷台へ戻る', () => near(k.x, 18) && near(k.y, 1) && near(k.z, -1.7), 6);
+    q.wait('構内から落としたコンテナが、上の赤い皿へ戻る', () => near(k.x, 18) && near(k.y, 10.05) && near(k.z, -1.7), 6);
     assert.equal(q.falls, 0);
   }
 
@@ -107,7 +111,20 @@ export default (b, { assert, fresh }) => {
     assert.throws(() => q.go([14, -1.5], null, 6), /着けない/, '板張りを通りぬけて、倉庫に入れた');
     q = fresh(); q.place(-3, 0, -1.7); q.friend = [-3, 0, -1.2, 3]; idle(q, 1);
     assert.ok(q.w.plates[0].load === 4 && q.w.movers[DOOR].f === 0, `4 人でおもさ板にのったら、信号小屋の戸があいた (重さ ${q.w.plates[0].load})`);
+    // 4 人と木箱 2 つ（1 つは持って。つないだステージでは、つなぎの木箱も持ちこめる）でも 6。戸はあかない
+    move(q, BOX, -2.4, 0, -2.4); q.friend = [-3, 0, -1.2, 4]; idle(q, 1);
+    assert.ok(q.w.plates[0].load === 6 && q.w.movers[DOOR].f === 0, `4 人と木箱 2 つで、信号小屋の戸があいた (重さ ${q.w.plates[0].load})`);
+    move(q, BOX, 13.5, 0, -4.5);
     q.friend = null; cannotHop(q, [-9.6, 0], [-12.4, 0], '戸が閉まっているのに、信号小屋に入れた');
+    // 青い皿が空なら、赤い皿のコンテナは下りてこない（重いほうだけでは、てんびんは動かない）
+    q = fresh(); q.place(14, 0, 3.5, 1); idle(q, 2);
+    assert.ok(q.w.movers[RED].f === 0 && near(q.w.crates[SKIP].y, 10.05), '青い皿が空なのに、コンテナが下りてきた');
+    // 4 人でも：木箱 2 つ（つないだステージでは、もう 1 つ持ちこめる）に仲間 2 人を積み、そのてっぺんから赤い皿へ投げても（ページの投げ方：0.9m 上・vy 6.5・横 4）、届かない
+    for (const [x, z, fx, fz] of [[18, -4.2, 0, 1], [15.4, -1.7, 1, 0]]) {
+      q.place(x, 1.6 + 2.6 + 0.9, z); q.face(x + fx, z + fz); Object.assign(q.p, { vy: 6.5, kvx: 4 * fx, kvz: 4 * fz, grounded: false }); q.p.grabStart();
+      let top = 0; for (let i = 0; i < 3 * q.FPS && !q.p.grounded; i++) { q.tick(fx, fz); top = Math.max(top, q.p.y); }   // 着地するまで（着いた所が青い皿なら、そこで止まる）
+      q.p.grabEnd(); assert.ok(top < 9.5 && q.p.y < 1, `積んだてっぺんから投げられて、赤い皿に届いてしまう (いちばん上 ${top.toFixed(2)}) ${q.where()}`);
+    }
     // ポイントが本線のままなら、貨車は分かれ目を通りすぎ、北へは押せない
     q = fresh(); const c = q.w.crates[WAGON]; move(q, WAGON, 1, 0, 0); q.place(1, 0, -2.5); idle(q, 0.2);
     q.grab(WAGON, [1, -1.2]); for (let i = 0; i < q.FPS; i++) q.tick(0, 1); q.p.grabEnd();

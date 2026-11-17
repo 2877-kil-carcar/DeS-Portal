@@ -5,7 +5,7 @@
 //           錠が見るソケットの数だけ、でんちがあるか／板張りを割れる重い箱があり、はじめからふれていないか／セーブ地点の真上（3m 四方・高さ 14m）を箱や動く床が通らないか、2.5m 以内をのこぎりが通らないか、
 //           ほかのセーブ地点と 6m 以上離れているか／乗ると動く床・てんびんの上下の速さは毎秒 1m までか／乗ると動く床の行き先から、その床なしで帰れるか
 // 使い方：node tools/lint-adventure.mjs          … 全ステージ
-//         node tools/lint-adventure.mjs 3 5      … ステージ 3 と 5 だけ
+//         node tools/lint-adventure.mjs 3 5 c    … ステージ 3 と 5 と、つないだステージ c だけ
 // 見つけたら「NG stage 番号「名前」: 内容」を出して、失敗（終了コード 1）で終わる
 import fs from 'node:fs';
 import path from 'node:path';
@@ -32,6 +32,7 @@ export function lint(stage) {
   // 番号：条件（動く床・風・カタパルトのねらい・objective）、ハンドル、レールの端
   const conds = [...movers.map((m, i) => [`動く床 ${i}`, m]), ...(stage.winds || []).map((k, i) => [`風 ${i}`, k]),
     ...boxes.flatMap((b, i) => (b.launch?.aims || []).map((a, j) => [`箱 ${i}（カタパルト）のねらい ${j}`, a])), ...(stage.objective ? [['objective', stage.objective]] : []),
+    ...(stage.parts || []).flatMap((k, i) => k.objective ? [[`部分 ${i} の objective`, k.objective]] : []),
     ...crates.flatMap((c, i) => c.fork ? [[`箱 ${i}（ポイント）`, c.fork]] : [])];
   for (const [name, c] of conds) {
     const sockets = {};                                                              // この錠が見ているソケットの数（入れる箱の種類ごと）
@@ -105,10 +106,10 @@ export function lint(stage) {
 
 // ここから下は、このファイルを直接動かしたときだけ（tools/test-adventure-mechanics.mjs は lint だけを借りる）
 const dir = new URL('../apps/gallery/adventure-stages/', import.meta.url);
-const all = fs.readdirSync(dir).map(f => /^s(\d+)\.js$/.exec(f)).filter(Boolean).map(m => +m[1]).sort((a, b) => a - b);
-const only = process.argv.slice(2).map(Number).filter(n => n > 0);
+const all = fs.readdirSync(dir).map(f => /^(s\d+|[a-z])\.js$/.exec(f)?.[1]).filter(Boolean).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));   // sN.js と、つないだステージ a.js〜
+const only = process.argv.slice(2).map(a => /^\d+$/.test(a) ? 's' + a : a);
 for (const n of path.basename(process.argv[1] || '') !== 'lint-adventure.mjs' ? [] : only.length ? only : all) {
-  const stage = (await import(new URL(`s${n}.js`, dir).href)).default(kit), found = lint(stage);
+  const stage = (await import(new URL(`${n}.js`, dir).href)).default(kit), found = lint(stage);
   for (const text of found) console.log(`NG stage ${n} 「${stage.name}」: ${text}`);
   if (found.length) process.exitCode = 1; else console.log(`PASS stage ${n} 「${stage.name}」 has no authoring mistakes`);
 }

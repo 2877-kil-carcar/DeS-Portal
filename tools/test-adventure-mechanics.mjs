@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import { kit, makeWorld, REACH } from '../apps/gallery/adventure-world.js';
 import { makeBot } from './test-adventure.mjs';
 import { lint } from './lint-adventure.mjs';
+import { join } from '../apps/gallery/adventure-join.js';
 const { B, P, CP, wind, gust, saw, cannon, cell, socket, WP, fan, net, launcher, lever, cart, railEnd, seesaw, planks } = kit;
 const FPS = +process.env.FPS || 60;
 
@@ -889,4 +890,26 @@ group('ポイントつき台車：分かれ目で、レバーどおりに本線�
   assert.deepEqual(lint(st), [], '正しいポイントつき台車で、まちがいが見つかった');
   assert.ok(lint({ ...st, crates: [st.crates[0], cart(-8, 0, 0, 'x', -9, 9)] }).some(t => t.includes("'fork'")), 'ポイントのない台車の fork の端を、見のがした');
   assert.ok(lint({ ...st, crates: [st.crates[0], cart(-8, 0, 0, 'x', -9, 9, { at: 10, to: 8, on: [0] })] }).some(t => t.includes('分かれ目')), '本線の外の分かれ目を、見のがした');
+});
+
+group('2 つのステージをつなぐ（adventure-join.js）：後半の座標を off だけずらし、番号に前の部分の数を足す。前半のゴールは parts[0].end に残る', () => {
+  const half = name => () => ({ name, kill: -12, yaw: 1, boxes: [floor, launcher(4, 0, 4, [{ v: [0, 9, 7], on: [1] }])], plates: [P(1, 0, 1), railEnd(1, 'max')],
+    movers: [{ b: B(2, 0, 2, 1, 1), to: [0, 1, 0], mode: 'crank', handles: [0] }, ...seesaw(B(5, 0, 5, 1, 1), B(6, 1, 5, 1, 1), 1, [0, 5, 0], 'q')],
+    crates: [cart(-3, 0, 0, 'z', -4, 4, { at: 1, to: 3, on: [0] }), lever(-6, 0, 0, 'x')], handles: [{ x: 0, y: 0, z: 1, ride: 0 }], winds: [wind(0, 0, 2, 2, 0, 3, [0])],
+    warps: [{ x: 1, y: 0, z: 1, to: [2, 0, 2] }], deco: [{ beacon: [3, 0, 3], color: '#fff' }], cps: [CP(0, 0, 0, 'はじめ'), CP(8, 0, 8, 'つぎ')], goal: { x: 9, y: 0, z: 9 },
+    objective: { label: 'でんち', on: [0], need: 1 } });
+  const st = join(kit, { name: 'つないだ', first: ['x', half('前')], second: ['y', half('後')], off: [100, 50], link: () => ({ boxes: [floor], cps: [CP(0, 0, 30, 'つなぎ')] }) });
+  const [a, l, z] = st.parts, k = z.base;
+  assert.deepEqual([a.cp, l.cp, z.cp, k.plates, k.movers, k.crates, k.boxes, k.handles], [0, 2, 3, 2, 3, 2, 3, 1]);
+  assert.deepEqual(a.end, { x: 9, y: 0, z: 9 }); assert.deepEqual(st.goal, { x: 109, y: 0, z: 59 });
+  assert.equal(st.cps[3].hint, '後：はじめ'); assert.equal(st.cps[2].hint, 'つなぎ'); assert.deepEqual([st.cps[3].x, st.cps[3].z], [100, 50]);
+  assert.deepEqual(st.plates[3], { kind: 'rail', crate: 3, at: 'max' }); assert.equal(st.plates[2].x, 101);
+  assert.deepEqual([st.movers[3].handles, st.movers[3].b.x0, st.movers[4].pair, st.movers[1].pair], [[1], 101.5, '2:q', '0:q']);
+  assert.deepEqual([st.crates[2].rail, st.crates[2].fork], [{ axis: 'z', min: 46, max: 54 }, { at: 51, to: 103, on: [2] }]);
+  assert.deepEqual([st.crates[3].rail.min, st.crates[3].rail.max], [94, 95.6]);
+  assert.deepEqual([st.handles[1].ride, st.handles[1].x, st.winds[1].on, st.winds[1].x0], [3, 100, [2], 99]);
+  assert.deepEqual([st.boxes[4].launch.aims[0].on, st.boxes[1].launch.aims[0].on], [[3], [1]]);
+  assert.deepEqual([st.warps[1].to, st.deco[1].beacon, z.objective.on, st.objective.on], [[102, 0, 52], [103, 0, 53], [2], [0]]);
+  assert.deepEqual(lint(st), [], 'つないだステージで、まちがいが見つかった');
+  const w = makeWorld(st); assert.equal(w.movers[3].twin, undefined); assert.equal(w.movers[4].twin, w.movers[5]);   // 組は部分の中だけ（後半のシーソーは、前半のシーソーと組まない）
 });

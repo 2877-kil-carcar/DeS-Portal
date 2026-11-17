@@ -73,7 +73,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.12">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.13">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <button class="ui pill small" id="stageInfo" aria-label="ステージを選ぶ"></button>
@@ -81,7 +81,7 @@
 <div class="ui" id="stagePanel" role="dialog" aria-label="ステージを選ぶ" hidden>
   <div class="box">
     <h2>🗺 ステージを選ぶ</h2>
-    <p>選んだステージを最初から始めます。部屋にいるときは、全員がそのステージへ移ります。</p>
+    <p>選んだステージを最初から始めます（「後半から」は、後半のはじめのセーブ地点から）。部屋にいるときは、全員がそのステージへ移ります。</p>
     <div id="stageList"></div>
     <div class="row"><button class="pill" id="toSave">セーブ地点へもどる</button><button class="pill small" id="stageClose">とじる</button></div>
   </div>
@@ -113,8 +113,8 @@
    キャラの体（ラグドール）は美術館 museum.html と同じ作り。
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
-import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.12';
-import { STAGES } from './adventure-stages.js?v=4.12';
+import { makeWorld, makePlayer, kit } from './adventure-world.js?v=4.13';
+import { STAGES } from './adventure-stages.js?v=4.13';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -221,20 +221,22 @@ function start() {
   const pips = (n, b) => { const g = follow(new THREE.Group(), b, 0.06); for (let i = 0; i < n; i++) part(ball, offMat, g, (i - (n - 1) / 2) * 0.4, 0, (b.z0 - b.z1) / 2 + 0.2, 0.3); return g.children; };
   const glow = (list, k, mat) => { for (let i = 0; i < list.length; i++) list[i].material = i < k ? mat : offMat; };
 
-  let world, me, group, stageIndex = -1, run = 0, moving = [], pads = [], flags = [], belts = [], gusts = [];
+  let world, me, group, stageIndex = -1, run = 0, startHalf = 0, moving = [], pads = [], flags = [], belts = [], gusts = [];
   let live = [], gripped = [];                                                        // live：毎コマ動かす見た目（ステージを作るときに入れる）／gripped：いま、だれかが回しているハンドル
-  let bannerTimer, hintTimer, chipN = -1, lastCrank = null;                           // chipN：目標の表示に出している数／lastCrank：1 コマ前に回していたハンドル
+  let bannerTimer, hintTimer, chipN = -1, lastCrank = null;                           // chipN：目標の表示に出している文字／lastCrank：1 コマ前に回していたハンドル
   function banner(text, ms) { $('banner').textContent = text; $('banner').hidden = false; clearTimeout(bannerTimer); bannerTimer = setTimeout(() => { $('banner').hidden = true; }, ms); }
   function hint(text) { $('hint').textContent = text; $('hint').hidden = false; clearTimeout(hintTimer); hintTimer = setTimeout(() => { $('hint').hidden = true; }, 9000); }
 
-  // ステージ i を最初から始める（n は「何回目の出発か」の通し番号。部屋では全員同じ値になる）
-  function loadStage(i, n, st = STAGES[i]) {
+  // ステージ i を最初から始める（n は「何回目の出発か」の通し番号。部屋では全員同じ値になる）。half が 1 なら、つないだステージの後半のはじめのセーブ地点から
+  function loadStage(i, n, half = 0, st = STAGES[i]) {
     if (group) { scene.remove(group); group.traverse(o => { if (o.geometry && !KEEP.has(o.geometry)) o.geometry.dispose(); if (o.material?.userData.tmp) o.material.dispose(); }); }
     live = []; scene.background?.dispose();                                           // 前のステージの空の絵も捨てる
     stageIndex = i; run = n; holding = heldBy = null; grabbing = false; lastCrank = null; yaw = st.yaw ?? Math.PI; chipN = -1;
     // ゴールが出発点より高いステージは、はじめから見上げぎみにする（出発点から、ゴールの光の柱が見える）
     pitch = Math.max(-0.2, 0.42 - Math.max(0, Math.atan2(st.goal.y - st.cps[0].y, Math.hypot(st.goal.x - st.cps[0].x, st.goal.z - st.cps[0].z)))); $('goalChip').hidden = !st.objective;
     world = makeWorld(st); me = makePlayer(world); group = new THREE.Group(); scene.add(group); moving = []; pads = []; flags = [];
+    startHalf = half && st.parts ? 1 : 0;
+    if (startHalf) { me.cp = st.parts[2].cp; me.seen.add(me.cp); me.respawn(); yaw = st.parts[2].yaw ?? yaw; }
     scene.background = paint(2, 256, g => { const k = g.createLinearGradient(0, 0, 0, 256); k.addColorStop(0, st.sky[0]); k.addColorStop(1, st.sky[1]); g.fillStyle = k; g.fillRect(0, 0, 2, 256); });
     scene.fog = new THREE.Fog(st.sky[1], 60, 260);
     const deco = st.deco || [];                                                       // 見た目だけの形（当たりはない）：箱は足場と同じに描く
@@ -400,13 +402,15 @@ function start() {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.12, 10, 40), goalMat); ring.position.set(st.goal.x, st.goal.y + 1.5, st.goal.z); group.add(ring);
     group.userData.ring = ring;
     part(cyl, columnMat, group, st.goal.x, st.goal.y + 18, st.goal.z, 2, 30, 2);         // ゴールの上に、30m の光の柱（広いステージで、遠くから見つけられるように）
-    for (let k = 0; k < 26; k++) {                                                    // 雲（足場の下と周りに散らす。場所はステージごとに決まっている）
+    const xs = st.boxes.flatMap(b => [b.x0, b.x1]), zs = st.boxes.flatMap(b => [b.z0, b.z1]), cx0 = Math.min(...xs) - 15, cz0 = Math.min(...zs) - 15;
+    const cw = Math.max(...xs) + 15 - cx0, cd = Math.max(...zs) + 15 - cz0;
+    for (let k = 0; k < (st.parts ? 52 : 26); k++) {                                  // 雲（足場の下と周りに散らす。広さは足場の範囲から。場所はステージごとに決まっている）
       const r = a => { const v = Math.sin((k + 1) * a + i * 7.3) * 43758.5; return v - Math.floor(v); };
       const cloud = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), cloudMat);
-      cloud.position.set((r(12.9) - 0.5) * 90, -9 - r(78.2) * 14 + (k % 5 ? 0 : 26), r(39.3) * 110 - 15); cloud.scale.set(5 + r(4.1) * 7, 1.2 + r(9.7), 3 + r(2.3) * 5); group.add(cloud);
+      cloud.position.set(cx0 + r(12.9) * cw, -9 - r(78.2) * 14 + (k % 5 ? 0 : 26), cz0 + r(39.3) * cd); cloud.scale.set(5 + r(4.1) * 7, 1.2 + r(9.7), 3 + r(2.3) * 5); group.add(cloud);
     }
     $('stageInfo').textContent = `🗺 ${i + 1}/${STAGES.length}　${st.name}`;
-    banner(`ステージ ${i + 1}　${st.name}`, 2500); hint(st.cps[0].hint);
+    banner(`ステージ ${i + 1}　${st.name}${startHalf ? '（後半から）' : ''}`, 2500); hint(st.cps[me.cp].hint);
     hero.pts = null;                                                                  // 体も新しい場所から作り直す
   }
   // 板張り i が割れた：木っ端を飛ばす（2 秒で消える）
@@ -754,14 +758,14 @@ function start() {
     world.fit(c);
   };
   /* 部屋の内容が変わるたびに呼ばれる。m = { stage, n } は「いまのステージと、何回目の出発か」、
-     boxes は箱の置き場所（c 番号。置いた人・押した人が書く）と、巻き上げる床から手を放した知らせ（k 番号）と、割れた板張り（b 番号） */
+     boxes は箱の置き場所（c 番号。置いた人・押した人が書く）と、巻き上げる床から手を放した知らせ（k 番号）と、割れた板張り（b 番号）と、つないだステージの後半にだれかが着いた知らせ（h） */
   function onRoom(code, players, id, fx, m, boxes) {
     const first = !room; roomMe = id; room ||= { code };
     if (first) lastFx = fx?.n;                                                        // 入室前から残っていた合図は無視する
     else if (fx && fx.n !== lastFx) { lastFx = fx.n; onFx(fx); }
-    if (m?.n && m.n !== run) loadStage(Math.min(STAGES.length - 1, Math.max(0, m.stage | 0)), m.n);   // だれかがゴールした／途中から入った
+    if (m?.n && m.n !== run) loadStage(Math.min(STAGES.length - 1, Math.max(0, m.stage | 0)), m.n, m.half === 1 || boxes?.h?.g === m.n ? 1 : 0);   // だれかがゴールした／途中から入った（half: 1 は「後半から」。h は、この出発でだれかが後半に着いた知らせ）
     else if (first && created && !m) {                                                // 部屋を作った人のステージに、あとから来る人が合わせる
-      run = nonce(); roomApi.setMatch({ stage: stageIndex, n: run });
+      run = nonce(); roomApi.setMatch({ stage: stageIndex, n: run, half: +!!(startHalf || world.stage.parts && me.cp >= world.stage.parts[2].cp) });   // 1 人で後半まで来ていれば、仲間も後半から
       for (const i of world.broken) roomApi.putItem('b' + i, { g: run, n: nonce(), t: 0 });   // 1 人で割っておいた板張りも知らせる（t: 0 なので、木っ端は飛ばない）
     }
     for (const [key, d] of Object.entries(boxes || {})) {
@@ -815,7 +819,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.12'); roomApi.setup('adventure/room', 4); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.13'); roomApi.setup('adventure/room', 4); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
@@ -826,11 +830,13 @@ function start() {
     }
     $('roomCreate').disabled = $('roomJoin').disabled = false;
   }
-  // ステージ選択：1 人ならその場で、部屋にいれば全員で、選んだステージを最初から始める
+  // ステージ選択：1 人ならその場で、部屋にいれば全員で、選んだステージを最初から始める。つないだステージは「後半から」も選べる
   STAGES.forEach((st, i) => {
-    const b = document.createElement('button'); b.className = 'pill'; b.textContent = `${i + 1}　${st.name}`;
-    b.addEventListener('click', () => { stagePanel.hidden = true; const n = nonce(); if (room) roomApi.setMatch({ stage: i, n }); else loadStage(i, n); });
-    $('stageList').append(b);
+    for (const half of st.parts ? [0, 1] : [0]) {
+      const b = document.createElement('button'); b.className = 'pill'; b.textContent = half ? `${i + 1}　後半から（${st.parts[2].name}）` : `${i + 1}　${st.name}`;
+      b.addEventListener('click', () => { stagePanel.hidden = true; const n = nonce(); if (room) roomApi.setMatch({ stage: i, n, half }); else loadStage(i, n, half); });
+      $('stageList').append(b);
+    }
   });
   $('stageInfo').addEventListener('click', () => { stagePanel.hidden = false; });
   $('stageClose').addEventListener('click', () => { stagePanel.hidden = true; });
@@ -987,6 +993,7 @@ function start() {
     for (const e of me.events) {
       if (e === 'fell') { if (holding) release('drop'); banner('セーブ地点からやり直し', 1800); }
       if (e === 'cp') { banner('セーブ！', 1500); hint(world.stage.cps[me.cp].hint); }
+      if (e === 'cp' && room && world.stage.parts && me.cp >= world.stage.parts[2].cp) roomApi.putItem('h', { g: run });   // 後半に着いた：あとから入る人・読みこみ直した人は、後半から始める
       if (e === 'goal') {                                                             // 少し喜んでから、全員で次のステージへ
         const last = stageIndex === STAGES.length - 1, from = run;
         banner(last ? 'ぜんぶクリア！　おめでとう！' : 'ゴール！', last ? 5000 : 2500);
@@ -1036,12 +1043,14 @@ function start() {
       } else { m.material = p.down ? padOnMat : padMat; m.position.y = p.y + (p.down ? 0.02 : 0.06); }
     }
     flags.forEach((f, i) => { f.material = i === me.cp ? flagNowMat : me.seen.has(i) ? flagOnMat : flagMat; });   // ふれた地点は金色、いまのやり直しの場所はいちばん明るい
-    const ob = world.stage.objective;                                                 // 目標（「でんち 1/2」）：数が変わったときだけ書きかえる
+    // 目標（「でんち 1/2」）：変わったときだけ書きかえる。つないだステージは、最後にふれたセーブ地点の部分（前半・つなぎ・後半）の目標
+    const ob = (world.stage.parts?.findLast(k => me.cp >= k.cp) ?? world.stage).objective;
+    let chip = '';
     if (ob) {
       let n = 0; for (const i of ob.on) if (world.plates[i]?.down) n++;
-      const need = ob.need ?? ob.on.length; n = Math.min(n, need);
-      if (n !== chipN) { chipN = n; $('goalChip').textContent = `${ob.label} ${n}/${need}`; }
+      const need = ob.need ?? ob.on.length; chip = `${ob.label} ${Math.min(n, need)}/${need}`;
     }
+    if (chip !== chipN) { chipN = chip; $('goalChip').textContent = chip; $('goalChip').hidden = !chip; }
     group.userData.ring.rotation.y = time; group.userData.ring.position.y = world.stage.goal.y + 1.5 + Math.sin(time * 2) * 0.15;
     const floor = world.floorY(me.x, me.z, me.y + 0.01);
     shadow.visible = floor > -90; shadow.position.set(me.x, floor + 0.03, me.z); shadow.scale.setScalar(Math.max(0.35, 1 - (me.y - floor) * 0.06));
@@ -1091,7 +1100,7 @@ function start() {
   renderer.setAnimationLoop(frame);
 
   window.__adv = { get me() { return me; }, get world() { return world; }, get stage() { return stageIndex; }, get state() { return { grabbing, holding, heldBy, run, drag: dragMode(), room: room?.code, players: remotes.size + 1 }; },
-    set yaw(v) { yaw = v; }, get yaw() { return yaw; }, keys, load: i => loadStage(i, nonce()), loadObj: st => loadStage(stageIndex, nonce(), st), kit, onRoom, set api(v) { roomApi = v; }, jump, grabStart, grabEnd, tick: frame,
+    set yaw(v) { yaw = v; }, get yaw() { return yaw; }, keys, load: i => loadStage(i, nonce()), loadObj: st => loadStage(stageIndex, nonce(), 0, st), kit, onRoom, set api(v) { roomApi = v; }, jump, grabStart, grabEnd, tick: frame,
     hero, remotes, makeFigure, view: { renderer, scene, camera, set pitch(v) { pitch = v; } } };   // 動作確認用
 }
 </script>

@@ -179,4 +179,17 @@ export default (b, { assert, fresh }) => {
   assert.ok(near(q.w.crates[BLOCK].y, 5) && q.w.crates[BLOCK].z > 8, `重い箱が、デッキから広場へ落ちた ${JSON.stringify([q.w.crates[BLOCK].x, q.w.crates[BLOCK].y, q.w.crates[BLOCK].z])}`);
   move(q, BLOCK, 4, 5, 15.5); q.push(BLOCK, [2.8, 15.5], 1, 0);
   assert.ok(near(q.w.crates[BLOCK].y, 5) && q.w.crates[BLOCK].x < 6, `重い箱が、デッキから青い皿へ落ちた ${JSON.stringify([q.w.crates[BLOCK].x, q.w.crates[BLOCK].y])}`);
+  // 重い箱は、リフトの前の石垣で止まり、リフト（デッキより 0.2 高い）にのらない
+  for (const x of [-4.5, -6.2, -3.4]) {
+    q = fresh(); q.place(-4, 5, 11, 4); move(q, BLOCK, x, 5, 18); q.push(BLOCK, [x, 16.8], 0, 1);
+    const c = q.w.crates[BLOCK];
+    assert.ok(near(c.y, 5) && c.z < 21 && c.on !== q.w.movers[LIFT].box, `重い箱が、石垣を越えてリフトにのった (x ${x}) ${JSON.stringify([c.x, c.y, c.z])}`);
+    // 4 人でも：止まった重い箱に仲間 2 人、その頭から塔へ投げても（ページの投げ方：0.9m 上・0.75m 前、vy 6.5・横 4）、届かない
+    for (const [ux, uz] of [[0, 1], [1, 0]]) {
+      const r = fresh(); r.place(c.x + ux * 0.75, 5 + 1.4 + 2.6 + 0.9, c.z + uz * 0.75); r.face(c.x + ux * 9, c.z + uz * 9);
+      move(r, BLOCK, c.x, 5, c.z); Object.assign(r.p, { vy: 6.5, kvx: 4 * ux, kvz: 4 * uz, grounded: false }); r.p.grabStart(); top = 0;
+      for (let i = 0; i < 4 * r.FPS; i++) { r.tick(ux, uz); if (r.p.grounded) top = Math.max(top, r.p.y); }
+      assert.ok(top < 13 && !r.p.goal, `4 人で積んで投げると、塔にのる (x ${x}, 向き ${ux},${uz}) ${r.where()}`);
+    }
+  }
 };

@@ -1,8 +1,10 @@
 // もふもふ冒険の各ステージが「1 人で最後まで解ける」ことを、描画も通信もなしで検査する。
 // 自動操縦：目的地へ歩き、足元がなくなれば跳び、登れる縁があればつかんでよじ登る（跳ばないと届かない段は hoist、あみは climb）。
 // ステージごとの手順は tools/adventure-bots/sN.mjs（ステージ apps/gallery/adventure-stages/sN.js と 1 対 1）。
+// つないだステージ（adventure-stages/c.js など）は、前半・後半のボット sN.mjs と、つなぎのボット（c.mjs など）を続けて動かす（下の「つないだステージ」）。
 // 使い方：node tools/test-adventure.mjs            … 全ステージ
-//         node tools/test-adventure.mjs 3 5        … ステージ 3 と 5 だけ
+//         node tools/test-adventure.mjs 3 5 c      … ステージ 3 と 5 と、つないだステージ c だけ
+//         VIEW=1 node tools/test-adventure.mjs 8   … そのうえ、ボット s8.mjs が、ずらした後半としても（view ごしに）全部動くかを確かめる
 //         FPS=20 node tools/test-adventure.mjs     … 遅い端末のコマ数（毎秒 20 コマ）で
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -10,8 +12,10 @@ import path from 'node:path';
 import { kit, makeWorld, makePlayer } from '../apps/gallery/adventure-world.js';
 const FPS = +process.env.FPS || 60, DT = 1 / FPS;
 
-export function makeBot(stage) {
+// cp を渡すと、そのセーブ地点から始める（ページの「後半から」と同じ）
+export function makeBot(stage, cp = 0) {
   const w = makeWorld(stage), p = makePlayer(w), name = stage.name;
+  if (cp) { p.cp = cp; p.seen.add(cp); p.respawn(); }
   let now = 0, falls = 0;
   const where = () => `(${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)})`;
   // friend：いることにする仲間の体 [x, y, z, 重さ]（2 人で解く答えを、通信なしで確かめる）。いなければ null。動く床の上に置けば、床と一緒に運ばれる
@@ -123,16 +127,101 @@ export function makeBot(stage) {
   return api;
 }
 
+/* つないだステージ（adventure-join.js）の一部分 part を、その部分だけのステージと同じ座標・番号で見せる自動操縦（部分ごとのボットを、そのまま動かすため）。
+   読むときは、ずらした座標（x・x0・x1・z・z0・z1）と番号（配列の添え字・p.cp・p.near・p.seen・p.crank・w.broken・w.smashed・信号の crate・ハンドルの ride）から part の分を引き、
+   書くときは足す。p.goal は、前半（part.end がある）では「前半のゴールの場所に立っている」。
+   shortcut: レールの min・max・ポイントの at・to と、w.test・w.smash・w.release に渡す番号は、ずらさない（いまのボットは読まない）。読むボットができたら、ここに足す */
+export function view(b, part) {
+  const [dx, dz] = part.off, base = part.base, D = { x: dx, x0: dx, x1: dx, z: dz, z0: dz, z1: dz };
+  const INDEX = { cp: 'cps', near: 'cps', crank: 'handles', crate: 'crates', ride: 'movers', id: 'crates' }, SETS = { broken: 'boxes', smashed: 'boxes', seen: 'cps' };
+  const XZ = new Set(['groundBox', 'floorY', 'blocked', 'wall', 'ledge', 'footing', 'heldSpot']);   // (x, z, y, …) を受け取る関数
+  const shift = k => D[k] ?? (INDEX[k] ? base[INDEX[k]] : 0), proxies = new WeakMap(), raw = new WeakMap();
+  const unwrap = v => raw.get(v) ?? v;
+  const toWorld = (v, k) => typeof v === 'number' ? v + shift(k) : !v || typeof v !== 'object' ? v : raw.has(v) ? raw.get(v)
+    : Array.isArray(v) ? v.map(e => toWorld(e)) : Object.fromEntries(Object.entries(v).map(([key, e]) => [key, toWorld(e, key)]));
+  const wrap = (v, skip = 0) => {                                                     // skip：配列の先頭から、見せない数（ほかの部分のもの）
+    if (!v || typeof v !== 'object') return v;
+    if (proxies.has(v)) return proxies.get(v);
+    const list = Array.isArray(v), index = k => list && typeof k === 'string' && /^\d+$/.test(k);
+    const px = new Proxy(v, {
+      get(t, k) {
+        if (index(k)) return wrap(t[+k + skip]);
+        if (list) return k === 'length' ? t.length - skip : t[k];
+        const e = t[k];
+        if (typeof e === 'number') return e - shift(k);
+        if (k === 'goal' && t === b.p && part.end) { const g = part.end; return Math.hypot(t.x - g.x, t.z - g.z) < 1.6 && Math.abs(t.y - g.y) < 1; }
+        if (SETS[k] && e && typeof e === 'object') { const s = [...e].map(i => i - base[SETS[k]]).filter(i => i >= 0); return e instanceof Set ? new Set(s) : s; }
+        if (typeof e === 'function') return (...a) => {
+          if (!XZ.has(k)) return wrap(e.apply(t, a.map(unwrap)));
+          const r = e.call(t, a[0] + dx, a[1] + dz, ...a.slice(2).map(unwrap));
+          return k === 'heldSpot' ? [r[0] - dx, r[1], r[2] - dz] : wrap(r);
+        };
+        return wrap(e, (t === b.w || t === b.w.stage) && base[k] != null ? base[k] : 0);
+      },
+      set(t, k, e) { if (index(k)) t[+k + skip] = toWorld(e); else t[k] = toWorld(e, k); return true; },
+    });
+    proxies.set(v, px); raw.set(px, v);
+    return px;
+  };
+  const P = q => q && [q[0] + dx, q[1] + dz], T = q => typeof q === 'function' ? () => P(q()) : P(q), C = i => i + base.crates, M = i => i + base.movers;
+  return {
+    w: wrap(b.w), p: wrap(b.p), FPS: b.FPS, tick: b.tick, wait: b.wait, where: b.where,
+    get falls() { return b.falls; }, get now() { return b.now; }, get fellAt() { return b.fellAt; },
+    get friend() { const f = b.friend; return f && [f[0] - dx, f[1], f[2] - dz, f[3]]; }, set friend(f) { b.friend = f && [f[0] + dx, f[1], f[2] + dz, f[3]]; },
+    get friendGrip() { return b.friendGrip == null ? null : b.friendGrip - base.handles; }, set friendGrip(h) { b.friendGrip = h == null ? null : h + base.handles; },
+    go: (t, until, s) => b.go(T(t), until, s), face: (x, z) => b.face(x + dx, z + dz), put: (x, z) => b.put(x + dx, z + dz),
+    grab: (i, from) => b.grab(C(i), P(from)), carry: (i, k) => b.carry(C(i), k + base.plates), push: (i, from, ux, uz) => b.push(C(i), P(from), ux, uz),
+    center: m => { const [x, z] = b.center(M(m)); return [x - dx, z - dz]; },
+    hop: (m, reach) => b.hop(M(m), reach), ride: (m, f) => b.ride(M(m), f), board: m => b.board(M(m)), tram: (m, off) => b.tram(M(m), P(off)),
+    fanUp: (i, spot, y, landing) => b.fanUp(C(i), P(spot), y, P(landing)), climb: (f, t) => b.climb(P(f), P(t)), hoist: (f, t) => b.hoist(P(f), P(t)),
+    crank: (h, pred) => b.crank(h + base.handles, pred), place: (x, y, z, cp) => b.place(x + dx, y, z + dz, cp == null ? cp : cp + base.cps),
+  };
+}
+
 // ここから下は、このファイルを直接動かしたときだけ（tools/test-adventure-mechanics.mjs は makeBot だけを借りる）
+// ステージのファイル名：sN.js（ひとつのステージ）と、a.js〜（2 つをつないだステージ）。引数の数字 N は sN、文字はそのファイル
 const dir = new URL('../apps/gallery/adventure-stages/', import.meta.url);
-const all = fs.readdirSync(dir).map(f => /^s(\d+)\.js$/.exec(f)).filter(Boolean).map(m => +m[1]).sort((a, b) => a - b);
-const only = process.argv.slice(2).map(Number).filter(n => n > 0);
-for (const n of path.basename(process.argv[1] || '') !== 'test-adventure.mjs' ? [] : only.length ? only : all) {
-  const stage = (await import(new URL(`s${n}.js`, dir).href)).default(kit);
-  const script = (await import(new URL(`./adventure-bots/s${n}.mjs`, import.meta.url).href)).default;
-  const fresh = () => makeBot(stage), b = fresh();
-  await script(b, { assert, fresh, stage });
-  assert.ok(b.p.goal, `${stage.name}: ゴールに着いていない ${b.where()}`);
-  assert.equal(b.falls, 0, `${stage.name}: 途中で ${b.falls} 回落ちた（最後は ${b.fellAt} の近く）`);
-  console.log(`PASS stage ${n} 「${stage.name}」 is solvable alone`);
+const all = fs.readdirSync(dir).map(f => /^(s\d+|[a-z])\.js$/.exec(f)?.[1]).filter(Boolean).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+const only = process.argv.slice(2).map(a => /^\d+$/.test(a) ? 's' + a : a);
+const bot = async id => (await import(new URL(`./adventure-bots/${id}.mjs`, import.meta.url).href)).default;
+const STOP = new Error('ここまで');                                                    // 部分のボットが、ほかの道を試しはじめた（fresh() を呼んだ）
+for (const id of path.basename(process.argv[1] || '') !== 'test-adventure.mjs' ? [] : only.length ? only : all) {
+  const stage = (await import(new URL(`${id}.js`, dir).href)).default(kit), label = `stage ${id} 「${stage.name}」`;
+  const done = (b, what) => {
+    assert.ok(b.p.goal, `${stage.name}: ${what}でゴールに着いていない ${b.where()}`);
+    assert.equal(b.falls, 0, `${stage.name}: ${what}の途中で ${b.falls} 回落ちた（最後は ${b.fellAt} の近く）`);
+  };
+  if (!stage.parts) {
+    const fresh = () => makeBot(stage), b = fresh();
+    await (await bot(id))(b, { assert, fresh, stage });
+    done(b, '');
+    console.log(`PASS ${label} is solvable alone`);
+    continue;
+  }
+  /* つないだステージ：部分ごとのボット（前半 parts[0].id・つなぎ＝このステージのファイル名・後半 parts[2].id）を、view で座標と番号をそろえて動かす。
+     部分のボットは、はじめの道を b で進み、最初の fresh() でその部分を終える（ほかの道は、その部分だけのステージ sN で確かめている） */
+  const parts = stage.parts, scripts = [await bot(parts[0].id), await bot(id), await bot(parts[2].id)];
+  const play = async (b, k, fresh) => { const v = view(b, parts[k]); try { await scripts[k](v, { assert, fresh, stage: v.w.stage }); } catch (e) { if (e !== STOP) throw e; } };
+  const stop = () => { throw STOP; };
+  const b = makeBot(stage);
+  for (const k of [0, 1, 2]) await play(b, k, stop);
+  done(b, '最初から');
+  const half = makeBot(stage, parts[2].cp);                                           // 「後半から」：後半のはじめのセーブ地点から
+  assert.equal(half.p.cp, parts[2].cp);
+  await play(half, 2, stop); done(half, '後半から');
+  // つなぎのボットは、ほかの道・できてはいけないことまで全部。fresh() は、つなぎの入口のセーブ地点から始める
+  await play(makeBot(stage, parts[1].cp), 1, () => view(makeBot(stage, parts[1].cp), parts[1]));
+  console.log(`PASS ${label} is solvable alone (start to finish, from the second half, and the link checks)`);
+}
+// VIEW=1：部分のボットが view ごしに動くかを確かめる。どのステージ sN も、自分どうしをつないだ（後半を 300m 東へずらした）ステージの後半として、ほかの道まで全部動かす
+if (process.env.VIEW && path.basename(process.argv[1] || '') === 'test-adventure.mjs') {
+  const { join } = await import('../apps/gallery/adventure-join.js');
+  for (const id of (only.length ? only : all).filter(i => i[0] === 's')) {
+    const make = (await import(new URL(`${id}.js`, dir).href)).default;
+    const stage = join(kit, { name: 'view', first: [id, make], second: [id, make], off: [300, 40], link: ({ CP }) => ({ cps: [CP(300, -50, 300, '')] }) });
+    const part = stage.parts[2], fresh = () => view(makeBot(stage, part.cp), part), b = fresh();
+    await (await bot(id))(b, { assert, fresh, stage: b.w.stage });
+    assert.ok(b.p.goal && b.falls === 0, `${id}: view ごしでは、ゴールに着かない／落ちた ${b.where()}`);
+    console.log(`PASS stage ${id} bot also runs as the shifted second half of a joined stage`);
+  }
 }

@@ -1,12 +1,17 @@
-// ステージ 2「くるくる港」を 1 人で解く手順：荷物を LA の板へ → 時計島へ飛ぶ → 大砲で帰る → 東（ベルト・重さの橋）で でんち A → 西（メリーゴーラウンド・高い段）で でんち B → とうのカタパルトで塔の上へ
+// ステージ 2「くるくる港」を 1 人で解く手順：荷物を LA の板へ → 時計島へ飛ぶ → 大砲で帰る → 東（ベルト・重さの橋）で でんち A → 西（メリーゴーラウンド・高い段）で でんち B →
+// 荷物 2 こで屋根へ飛んで でんち C → C を持ったまま、とうのカタパルトで塔の上へ → 塔の上のソケットに C を置くと、穴のふたが下がってゴール
 // 手順のほかに、別の道（屋根の でんち C・北からの重さの橋・はしけ・くずれる床・荷物の踏み台・輪の両まわり）、仲間との答え、かぞえ錠の組み合わせ、
 // わざと悪い順番、できてはいけないこと（錠なしで橋のすき間を渡る・錠が閉じたまま塔へ・LA を使わずに西の岸から屋根へ）も、新しいボット fresh() で確かめる
 const tools = (b, assert) => {
   const { w, p } = b, m = w.movers, k = w.plates, c = w.crates, S = w.stage.boxes;
   const T = {
-    w, p, m, k, c, S, quayS: S[0], isleM: S[1], tower: S[2], roof: S[3], quayE: S[7], isleE: S[8], quayN: S[10], quayW: S[12], ledge: S[13], LA: S[17], LG: S[18],
+    w, p, m, k, c, S, quayS: S[0], isleM: S[1], roof: S[3], quayE: S[7], isleE: S[8], quayN: S[10], quayW: S[12], ledge: S[13], LA: S[17], LG: S[18],
     idle: s => { for (let i = 0; i < s * b.FPS; i++) b.tick(); },
     at: () => w.groundBox(p.x, p.z, p.y),
+    // とうのカタパルトで、塔の上（高さ 8）へ
+    up: () => { T.fly(0, 21); assert.ok(Math.abs(p.y - 8) < 0.01 && Math.abs(p.x) < 3 && Math.abs(p.z - 27) < 3, `塔の上に着いていない ${b.where()}`); },
+    // 持ってきた でんちを塔の上のソケットへ。穴のふたが下がったら、穴へおりてゴール
+    lid: () => { b.put(k[6].x, k[6].z); b.wait('穴のふたが下がる', () => k[6].down && m[13].f === 1, 4); b.go([0, 27]); assert.ok(p.goal, `穴の底でゴールしていない ${b.where()}`); },
     // カタパルトか大砲の台 (x, z) に乗って飛び、着いた足場を返す
     fly: (x, z) => { b.go([x, z], () => !p.grounded && p.vy > 3, 15); b.wait('着地', () => p.grounded, 8); return T.at(); },
     // メリーゴーラウンドの台が (x, z) のそばに来たら乗り、until（台のまん中）になるまで乗っていく
@@ -54,7 +59,7 @@ const tools = (b, assert) => {
 };
 
 export default (b, { assert, fresh }) => {
-  const T = tools(b, assert), { p, c, fly } = T;
+  const T = tools(b, assert), { p, k, c, fly } = T;
 
   // 1. LA に乗っても、板に重さがなければ飛ばない
   b.go([0, 4.5]); T.idle(1);
@@ -83,10 +88,16 @@ export default (b, { assert, fresh }) => {
   assert.equal(fly(0, 4.5), T.isleM, `でんち B を持って時計島に着いていない ${b.where()}`);
   T.socketIn(1);
 
-  // 4. でんち 2 こで、とうのカタパルトが動く。塔の上へ飛んで、ゴール
-  b.wait('とうのカタパルトが動く', () => T.LG.aimV, 2);
-  assert.equal(fly(0, 21), T.tower, `塔の上に着いていない ${b.where()}`);
-  b.go([0, 27]);
+  b.wait('でんち 2 こで、とうのカタパルトが動く', () => T.LG.aimV, 2);
+
+  // 4. 3 こめ：大砲で帰り、東の荷物をもう 1 こ LA の板へ（重さ 2）。遠いねらいで屋根へ飛び、でんち C を持って時計島へ下りる
+  assert.equal(fly(3, 16), T.quayS, `大砲で南の岸に帰れていない ${b.where()}`);
+  T.toEast(); b.grab(4); b.go([20, 16]); T.eastHome();
+  b.go([-3.6, 0.4]); b.put(-3.6, 2.3); b.wait('板の重さが 2', () => k[3].load === 2, 2);
+  assert.equal(fly(0, 4.5), T.roof, `遠いねらいで屋根に着いていない ${b.where()}`);
+  b.grab(2); b.go([-8, 15.2]); b.go([-5.5, 15.2]); assert.equal(T.at(), T.isleM, `屋根から時計島へ下りられない ${b.where()}`);
+  // 5. でんち C を持ったまま、とうのカタパルトで塔の上へ。塔の上のソケットに置くと、穴のふたが下がってゴール
+  T.up(); assert.equal(p.carry, c[2], 'でんち C を飛んでいる間に落とした'); T.lid();
 
   for (const route of Object.values(routes)) route(fresh(), assert);
 };
@@ -122,7 +133,7 @@ function roofByLongShot(b, assert) {
 }
 
 // 輪を逆まわり：西の岸の荷物を踏み台に でんち B → くずれる床を、でんちを持って北の岸へ → 重さの橋で時計島（ソケット 1）。
-// 大砲で帰り、東の でんち A を はしけで北の岸へ → 重さの橋で時計島（ソケット 0）→ ゴール
+// 大砲で帰り、東の でんち A を はしけで北の岸へ → 重さの橋で時計島（ソケット 0）→ 手ぶらで塔の上へ飛んでも、穴のふたは開かない
 function ringOtherWay(b, assert) {
   const T = tools(b, assert), { p, m, k, c, fly } = T;
   T.toWest();
@@ -142,12 +153,16 @@ function ringOtherWay(b, assert) {
   T.ferry(0, [5, 46]); assert.equal(T.at(), T.quayN, `はしけで北の岸に着いていない ${b.where()}`);
   b.go([5.5, 41]); b.go([5.5, 39.6]); b.go([5.5, 23]); T.socketIn(0);
   b.wait('とうのカタパルトが動く', () => T.LG.aimV, 2);
-  assert.equal(fly(0, 21), T.tower, `塔の上に着いていない ${b.where()}`); b.go([0, 27]);
-  assert.ok(p.goal && b.falls === 0, `逆まわりでゴールできない（落ちた回数 ${b.falls}）`);
+  // 手ぶらで塔の上へ：塔の上のソケットが空なので、穴のふたは閉じたまま（仲間が乗っても、ソケットはでんちしか数えない）
+  T.up(); b.go([0, 27]); b.friend = [k[6].x, 8, k[6].z, 1]; T.idle(1.5);
+  assert.ok(!p.goal && m[13].f === 0 && Math.abs(p.y - 8) < 0.01, `でんちなしで、塔の上の穴のふたが開いた ${b.where()}`);
+  b.friend = null;
+  assert.ok(b.falls === 0, `逆まわりで落ちた（落ちた回数 ${b.falls}）`);
 }
 
 // わざと悪い順番：荷物なしで東へ → でんち A を海へ落とし、元の場所から取りなおす → でんちを LA の板に置いて（まちがい）手ぶらで飛ぶ →
-// 大砲で帰って でんちを板から取り、荷物を海へ落として取りなおし、板に置いて でんちを持って飛ぶ → 屋根の でんち C は、手に持って飛んだ荷物を踏み台に → ゴール
+// 大砲で帰って でんちを板から取り、荷物を海へ落として取りなおし、板に置いて でんちを持って飛ぶ → 屋根の でんち C は、手に持って飛んだ荷物を踏み台に →
+// 西の でんち B を持って、塔の上へ → ゴール
 function worstOrder(b, assert) {
   const T = tools(b, assert), { p, m, k, c, fly } = T;
   T.toEast(); T.eastCell(); b.go([26.5, 20]);
@@ -173,7 +188,11 @@ function worstOrder(b, assert) {
   b.hoist([-6.6, 15], [-8.5, 15]); assert.equal(T.at(), T.roof, `荷物から屋根へ登れない ${b.where()}`);
   b.grab(2); b.go([-8, 15.8]); b.go([-5.5, 15.8]); T.socketIn(2);
   b.wait('とうのカタパルトが動く', () => T.LG.aimV, 2);
-  assert.equal(fly(0, 21), T.tower, `塔の上に着いていない ${b.where()}`); b.go([0, 27]);
+  // 3 こめ（でんち B）：大砲で帰り、西で取って LA で時計島へ。持ったまま塔の上へ
+  assert.equal(fly(3, 16), T.quayS, `大砲で南の岸に帰れていない ${b.where()}`);
+  T.toWest(); b.hoist([-23, 19.6], [-23, 21.2]); b.grab(1); b.go([-23, 18.5]); T.westHome();
+  assert.equal(fly(0, 4.5), T.isleM, `でんち B を持って時計島に着いていない ${b.where()}`);
+  T.up(); T.lid();
   assert.ok(p.goal && b.falls === 0, `悪い順番でゴールできない（落ちた回数 ${b.falls}）`);
 }
 

@@ -1,7 +1,7 @@
-// ステージ 6「ぎったん雲の谷」を 1 人で解く手順：西の井戸（シーソーででんちを飛ばし、あみで出る）→ 東（ハンドルの橋）→ 北の橋 → 砂ぶくろとシーソーで塔へ
+// ステージ 6「ぎったん雲の谷」を 1 人で解く手順：西の井戸（シーソーででんちを飛ばし、あみで出る）→ 東（ハンドルの橋）→ 北の橋 → 重い砂ぶくろとシーソーで、扇風機を持って塔へ → 扇風機の風で奥の高い台（ゴール）へ
 // そのあと、順番を変えた道・わざとまずい順番・仲間との答え・渡れてはいけない所を確かめる
 export default (b, { assert, fresh }) => {
-  const rim = 5, tower = 15;                                                          // 井戸の北のふち・塔（boxes の番号）
+  const rim = 5, tower = 15, FAN = 3;                                                        // 井戸の北のふち・塔（boxes の番号）
   const sockets = [[-2.5, 3.5], [2.5, 3.5]];
   const socketed = (x, i) => { x.go(sockets[i]); x.put(x.w.plates[i].x, x.w.plates[i].z); x.wait(`ソケット ${i} にでんちが入る`, () => x.w.plates[i].down, 3); };
   // のこぎり s の通り道の手前 from で待ち、のこぎりが横切る所（z = at）から遠ざかったとたんに、to へ渡る
@@ -50,18 +50,25 @@ export default (b, { assert, fresh }) => {
     assert.ok(Math.abs(p.y - 2.2) < 0.01, `砂ぶくろを持って棚に上がれない ${x.where()}`);
     x.put(-6.2, 29);
   };
-  // 北：橋を渡り、砂ぶくろをベルトに置いて、飛び下り、青い皿で待つ
+  // 北：橋を渡り、重い砂ぶくろをベルトに置いて、飛び下り、扇風機を持って青い皿で待つ（持つと重さ 2。砂ぶくろも 2）
   const north = x => {
     const m = x.w.movers;
     x.wait('北の橋があがる', () => m[0].f === 1, 6); x.go([0, 9.5]); x.go([0, 23]);
-    load(x); x.go([-6.5, 32]); x.go([0, 33]);
+    load(x); x.go([-6.5, 32]); x.grab(FAN); x.go([0, 33]);
   };
-  const launch = x => {
+  // 塔に着いたら、扇風機を奥の台のかべぎわに置き、風で台（ゴール）へ上がる
+  const crown = x => {
+    const { p } = x, f = x.w.crates[FAN];
+    assert.equal(p.carry, f, `扇風機を持って塔に着いていない ${x.where()}`);
+    x.go([0, 44.5]); x.put(0, 46); x.wait('扇風機の風が出る', () => x.w.winds.some(k => k.fan === f && k.active), 3);
+    x.go([0, 45]); x.face(0, 46); p.jump(); x.go([0, 46], () => p.y > 12.4); x.go([0, 48.5]);
+  };
+  const land = x => {
     const { p } = x;
-    x.wait('砂ぶくろが赤い皿に落ちて、飛ぶ', () => !p.grounded && p.vy > 3, 8); x.wait('着地', () => p.grounded, 6);
+    x.wait('赤い皿が沈んで、飛ぶ', () => !p.grounded && p.vy > 3, 8); x.wait('着地', () => p.grounded, 6);
     assert.equal(x.w.groundBox(p.x, p.z, p.y), x.w.stage.boxes[tower], `塔に着かない ${x.where()}`);
-    x.go([0, 44]);
   };
+  const launch = x => { land(x); crown(x); };
 
   { // ── 1 人の基本の道（西 → 東 → 北） ──
     const { w } = b;
@@ -90,24 +97,35 @@ export default (b, { assert, fresh }) => {
     x.wait('北の橋があがる', () => m[0].f === 1, 6); x.go([0, 9.5]); x.go([0, 23]);
     load(x); x.go([-7.2, 26]); x.wait('砂ぶくろが赤い皿に落ちて、空の青い皿が上がる', () => m[5].f === 1 && c[2].on === m[6].box, 10);
     x.go([0, 26.6]); x.grab(2); x.go([0, 24]); x.wait('砂ぶくろを下ろすと、シーソーが戻る', () => m[5].f === 0, 3); p.grabEnd();
-    load(x); x.go([-6.5, 32]); x.go([0, 33]); launch(x);
+    load(x); x.go([-6.5, 32]); x.grab(FAN); x.go([0, 33]); launch(x);
     assert.ok(p.goal && x.falls === 0, `まずい順番で、ゴールに着かない（${x.falls} 回落ちた） ${x.where()}`);
   }
 
-  { // ── 仲間と：赤い皿に仲間が跳び乗れば、青い皿の人が塔へ飛ぶ。砂ぶくろはいらない ──
+  { // ── 仲間と：扇風機を持って青い皿に立つ（重さ 2）と、赤い皿に仲間 1 人では飛ばない。2 人なら飛ぶ。砂ぶくろはいらない ──
     const x = fresh(), m = x.w.movers;
-    plug(x); x.wait('北の橋があがる', () => m[0].f === 1, 6); x.go([0, 9.5]); x.go([0, 23]); x.go([0, 33]);
+    plug(x); x.wait('北の橋があがる', () => m[0].f === 1, 6); x.go([0, 9.5]); x.go([0, 23]); x.grab(FAN); x.go([0, 33]);
     for (let i = 0; i < x.FPS; i++) x.tick(); assert.ok(x.p.grounded && m[5].f === 0, '仲間がいないのに、青い皿が動いた');
-    x.friend = [0, m[6].box.y1, 29, 1]; launch(x);
-    assert.ok(x.p.goal && x.falls === 0, `仲間に飛ばしてもらって、ゴールに着かない ${x.where()}`);
-  }
-  { // ── 仲間と：砂ぶくろを持って青い皿に立つ（重さ 2）と、仲間 1 人では飛ばない。2 人なら飛ぶ ──
-    const x = fresh(), m = x.w.movers;
-    plug(x); x.wait('北の橋があがる', () => m[0].f === 1, 6); x.go([0, 9.5]); x.go([0, 23]); x.grab(2); x.go([0, 33]);
     x.friend = [0, m[6].box.y1, 29, 1]; for (let i = 0; i < 2 * x.FPS; i++) x.tick();
     assert.ok(x.p.grounded && m[5].f === 0, '重さ 2 の青い皿が、重さ 1 の仲間で上がった');
     x.friend = [0, m[6].box.y1, 29, 2]; launch(x);
-    assert.ok(x.p.carry === x.w.crates[2], '砂ぶくろを持ったまま飛んでいない');
+    assert.ok(x.p.goal && x.falls === 0, `仲間に飛ばしてもらって、ゴールに着かない ${x.where()}`);
+  }
+  { // ── 扇風機を持たずに飛ぶと、塔の奥の台には上がれない。塔から谷へ下りて（落ちて）、やり直せる ──
+    const x = fresh(), { p } = x, m = x.w.movers;
+    plug(x); x.wait('北の橋があがる', () => m[0].f === 1, 6); x.go([0, 9.5]); x.go([0, 23]); x.go([5, 25]); x.go([0, 33]);
+    x.friend = [0, m[6].box.y1, 29, 1]; land(x); x.friend = null;
+    assert.throws(() => x.hoist([0, 46.5], [0, 48.5]), /よじ登れない/, '扇風機なしで、塔から奥の台へ登れた');
+    x.go([0, 42]); x.go([0, 36], () => x.falls === 1);                              // 塔の南から谷へ
+    x.wait('落ちて、北のセーブ地点からやり直す', () => p.grounded && p.cp === 3, 20);
+    assert.ok(!p.goal && Math.hypot(p.x - 5, p.z - 25) < 3, `塔から下りて、北のセーブ地点に戻らない ${x.where()}`);
+  }
+  { // ── 扇風機だけを青い皿にのせて飛ばすと、塔をこえて谷へ落ち、元の場所（青い皿の西）へ戻る（塔にも奥の台にも残らない） ──
+    const x = fresh(), m = x.w.movers, f = x.w.crates[FAN];
+    plug(x); x.wait('北の橋があがる', () => m[0].f === 1, 6); x.go([0, 9.5]); x.go([0, 23]);
+    x.grab(FAN); x.go([2.6, 26]); x.go([2.6, 33]); x.put(0.8, 33); x.wait('扇風機が青い皿にのる', () => f.on === m[5].box, 3);
+    x.go([2.6, 29]); x.go([0, 29]); x.wait('扇風機が飛ぶ', () => !f.on || m[5].f > 0.5, 3); x.go([3, 26]);
+    let top = 0; x.wait('扇風機が元の場所へ戻る', () => { if (f.on && f.y > 7) top = f.y; return f.x === f.home.x && f.z === f.home.z && f.on; }, 10);
+    assert.equal(top, 0, '飛ばした扇風機が、塔か奥の台にのった');
   }
 
   { // ── 渡れてはいけない所 ──
