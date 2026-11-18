@@ -98,8 +98,19 @@ async function run(){
    await page.screenshot({path:path.join(out,`portal-karuro-honmono-sheet-${label}.png`)});
    await frame.locator('#reference-close').click();
    await frame.locator('#next-model').click();
+   await frame.waitForFunction(()=>witchViewer.ready&&witchViewer.modelId==='tree',{},{timeout:60000});
+   assert.equal(await frame.locator('.title-block .eyebrow').innerText(),'05 — かるろツリー');
+   assert.equal(await frame.evaluate(()=>witchViewer.triangles),1599362);
+   await page.screenshot({path:path.join(out,`portal-karuro-tree-${label}.png`)});
+   await frame.locator('#reference').click();
+   await frame.waitForFunction(()=>{const img=document.getElementById('reference-image');return img.complete&&img.naturalWidth>=1200;});
+   assert.ok((await frame.locator('#reference-image').getAttribute('src')).endsWith('tree-character-sheet.png'));
+   await frame.locator('#reference-close').click();
+   await frame.locator('#next-model').click();
    await frame.waitForFunction(()=>witchViewer.ready&&witchViewer.modelId==='witch');
    assert.equal(await frame.locator('[data-focus=outfit]').innerText(),'衣装');
+   await frame.locator('#previous-model').click();
+   await frame.waitForFunction(()=>witchViewer.ready&&witchViewer.modelId==='tree');
    await frame.locator('#previous-model').click();
    await frame.waitForFunction(()=>witchViewer.ready&&witchViewer.modelId==='honmono');
    await frame.locator('#previous-model').click();
@@ -114,12 +125,12 @@ async function run(){
    await page.evaluate(()=>location.hash='karuro');
    await frame.waitForFunction(()=>witchViewer.panelActive&&witchViewer.rendering);
    assert.equal(await page.locator('#view-karuro iframe').count(),1);
-   assert.equal(modelRequests.length,4,'Switching models and menus should reuse all four loaded models');
+   assert.equal(modelRequests.length,5,'Switching models and menus should reuse all five loaded models');
    assert.equal(await frame.evaluate(()=>witchViewer.modelId),'penguin');
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
    assert.equal(await frame.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
    assert.deepEqual(errors,[]);
-   results.push({label,models:4,menuAfterNotes:true,lazyModels:true,oneDownloadPerModel:true,modelTitles:true,modelSheet:true,penguinFocusLabels:true,resumesAfterNavigation:true,...stats});
+   results.push({label,models:5,menuAfterNotes:true,lazyModels:true,oneDownloadPerModel:true,modelTitles:true,modelSheet:true,penguinFocusLabels:true,resumesAfterNavigation:true,...stats});
    console.log('PASS '+label+': all four models, arrow wraparound, model titles/sheets, lazy GLB/cache, pause/resume');
    await context.close();
   }
