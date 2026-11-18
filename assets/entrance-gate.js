@@ -4,7 +4,9 @@
   'use strict';
   const params=new URLSearchParams(location.search);
   const active=!location.hash.slice(1)&&!location.pathname.endsWith('/standalone.html')&&
-    (params.get('preview')!=='1'||params.get('entrance')==='1');
+    (params.get('preview')!=='1'||params.has('entrance'));
+  // 入場画面は雪山と机の2種類から毎回ランダム（?entrance=snow / desk で固定できる）
+  const look=['snow','desk'].includes(params.get('entrance'))?params.get('entrance'):Math.random()<.5?'snow':'desk';
   let frame=null;
   const gate=window.DES_PORTAL_ENTRANCE={active,enter};
   if(active){document.documentElement.classList.add('portal-intro');document.title='ようこそDeSポータルへ';}
@@ -30,7 +32,7 @@
     for(const id of ['sidebar','mobile-dock']){const node=document.getElementById(id);if(node)node.inert=true;}
     const workspace=document.querySelector('.workspace');if(workspace)workspace.inert=true;
     frame=document.createElement('iframe');frame.title='ようこそDeSポータルへ';frame.className='portal-entrance-frame';
-    frame.src=new URL('./apps/entrance/index.html?v=3.82',location.href).href;
+    frame.src=new URL(look==='desk'?'./apps/entrance/desk.html?v=4.19':'./apps/entrance/index.html?v=3.82',location.href).href;
     frame.setAttribute('referrerpolicy','same-origin');host.hidden=false;host.append(frame);
   });
 })();
