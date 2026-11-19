@@ -72,7 +72,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.23">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.24">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <button class="ui pill small" id="stageInfo" aria-label="ステージを選ぶ"></button>
@@ -114,8 +114,8 @@
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { makeWorld, makePlayer, kit, HANG } from './adventure-world.js?v=4.23';
-import { STAGES } from './adventure-stages.js?v=4.23';
+import { makeWorld, makePlayer, kit, HANG } from './adventure-world.js?v=4.24';
+import { STAGES } from './adventure-stages.js?v=4.24';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -620,74 +620,25 @@ function start() {
     const knot = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.012), karuMat.tie); knot.position.set(0, 0.012, TORSO_R + 0.008); c.add(knot);
     return c;
   })();
-  /* かるろ（3D モデル）：禁断のかるろのモデル（軽くしたもの）を、この体の骨に付ける。当たりと動きは、どの作りでもほかのスキンと同じ。マイクは消す。
-     A 部品：頭・胴・上腕・前腕と手・脚に切り分け、のばさずに（部品ごとに一様に拡大して）骨に固定する。関節は人形のように回る
-     B 丸ごと：モデル全体を 1 つのまま、胴のまん中の骨に固定する（体といっしょに傾いて揺れる。手足は動かない）
-     C 頭だけ：頭だけモデルにして、体はスーツの色分け
-     骨の並び：胴 3・腕（-x）4・腕（+x）4・脚（-x）・脚（+x）・頭。KM はモデルの座標で測った関節、KR はこの体の休みの姿勢 */
-  const KM = { head: [0.002, 0.3, -0.006], neck: 0.262, hip: 0.146, tz: -0.009,
-    arm: { '-1': [[-0.036, 0.25, -0.005], [-0.051, 0.199, 0.02], [-0.036, 0.255, 0.04]], '1': [[0.04, 0.25, -0.005], [0.055, 0.2, -0.01], [0.047, 0.128, 0]] },   // 肩・ひじ・手の先
-    hand: { '-1': [[-0.038, 0.241, 0.037], 0.019], '1': [[0.047, 0.142, 0.001], 0.02] } };   // 手の中心と半径
-  const KR = { head: [0, 1.18, 0], torso: [[0, 0.77, 0], [0, 0.565, 0], [0, 0.38, 0]], arm: s => [0, 1, 2, 3].map(i => [s * (0.17 + 0.01 * i), 0.9 - 0.165 * i, 0.04]), hip: s => [s * 0.095, 0.25, 0.01] };
-  const KR_BONES = [...KR.torso, ...KR.arm(-1), ...KR.arm(1), KR.hip(-1), KR.hip(1), KR.head];
+  /* かるろ（頭だけ 3D モデル）：禁断のかるろのモデル（軽くしたもの）から、あごより上（顔・髪・耳）だけを切り出して頭の骨に付ける。体はスーツの色分け。
+     頭は体と別に揺れるので、首はつながず、あえて少し浮かせる（すき間が「首なし人形」の形として見えるように、えりの上に一定の間をあける） */
+  const KM_HEAD = [0.002, 0.3, -0.006], KM_CHIN = 0.268, HEAD_LIFT = 0.07;          // モデルの頭の中心・あごの高さ。頭を体の上にどれだけ浮かせるか
   let karuSrc = null;
-  // モデルを読み、点ごとに「どの部分か」を決めておく（3 通りで共通）
-  const karuLoad = () => karuSrc ||= new GLTFLoader().loadAsync('../karuro/assets/meshy-reporter-skin.glb?v=4.23').then(g => {
+  const karuLoad = () => karuSrc ||= new GLTFLoader().loadAsync('../karuro/assets/meshy-reporter-skin.glb?v=4.24').then(g => {
     let mesh; g.scene.updateMatrixWorld(true); g.scene.traverse(o => { if (o.isMesh) mesh = o; });
-    const src = mesh.geometry, n = src.attributes.position.count, V = [], N = [], part = [], nm = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld), A = new THREE.Vector3(), B = new THREE.Vector3();
-    const v3 = a => new THREE.Vector3(...a), seg = (p, a, b) => { B.subVectors(b, a); const t = B.dot(A.subVectors(p, a)) / B.lengthSq(); return A.copy(a).addScaledVector(B, Math.max(0, Math.min(1, t))).distanceTo(p); };
-    const head = v3(KM.head), neckP = new THREE.Vector3(0, KM.neck, KM.tz), hipP = new THREE.Vector3(0, KM.hip, KM.tz), arm = { '-1': KM.arm['-1'].map(v3), '1': KM.arm['1'].map(v3) };
-    const micA = new THREE.Vector3(-0.037, 0.215, 0.041), micB = new THREE.Vector3(-0.035, 0.258, 0.038), micH = new THREE.Vector3(-0.034, 0.267, 0.037);
+    const src = mesh.geometry, n = src.attributes.position.count, pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), keep = new Uint8Array(n);
+    const nm = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld), c = new THREE.Vector3(...KM_HEAD), V = new THREE.Vector3(), N = new THREE.Vector3();
     for (let i = 0; i < n; i++) {
-      const p = new THREE.Vector3().fromBufferAttribute(src.attributes.position, i).applyMatrix4(mesh.matrixWorld); V.push(p); N.push(new THREE.Vector3().fromBufferAttribute(src.attributes.normal, i).applyMatrix3(nm).normalize());
-      let w = 'torso';
-      if (p.distanceTo(micH) < 0.0125 || seg(p, micA, micB) < 0.0058) w = 'mic';
-      else if (p.y > KM.neck - 0.002 && p.distanceTo(head) < 0.065) w = 'head';
-      else {
-        let best = seg(p, neckP, hipP) / 0.045;
-        for (const sd of [-1, 1]) {
-          if (p.distanceTo(v3(KM.hand[sd][0])) < KM.hand[sd][1]) { w = 'lo' + sd; best = -1; break; }
-          const du = seg(p, arm[sd][0], arm[sd][1]), dl = seg(p, arm[sd][1], arm[sd][2]);   // 上腕・前腕（袖の太さの内だけ）
-          if (du < 0.0112 && du / 0.012 < best * 0.7) { best = du / 0.012 / 0.7; w = 'up' + sd; }
-          if (dl < 0.0112 && dl / 0.012 < best * 0.7) { best = dl / 0.012 / 0.7; w = 'lo' + sd; }
-        }
-        if (best >= 0) for (const sd of [-1, 1]) if (p.y < 0.145 && Math.hypot(p.x - sd * 0.018, p.z + 0.005) / 0.017 < best) { best = Math.hypot(p.x - sd * 0.018, p.z + 0.005) / 0.017; w = 'leg' + sd; }
-      }
-      part.push(w);
+      V.fromBufferAttribute(src.attributes.position, i).applyMatrix4(mesh.matrixWorld); N.fromBufferAttribute(src.attributes.normal, i).applyMatrix3(nm).normalize();
+      keep[i] = V.y > KM_CHIN && V.distanceTo(c) < 0.065 && Math.hypot(V.x + 0.034, V.y - 0.267, V.z - 0.037) > 0.016;   // あごより上の頭だけ（えりと、顔の横のマイクの先は入れない）
+      V.sub(c).multiplyScalar(6); V.y += HEAD_LIFT; pos.set(V.toArray(), i * 3); nor.set(N.toArray(), i * 3);   // 頭の骨から見た位置：6 倍して、少し上へ
     }
-    mesh.material.side = THREE.DoubleSide;                                            // 切り分けた切り口から、向こうが透けて見えないように
-    return { V, N, part, uv: src.attributes.uv, index: src.index.array, mat: mesh.material, cache: {} };
-  });
-  // 作り方 v（'A'・'B'・'C'）の形と、骨の休みの姿勢（逆行列）を作る
-  const karuBuild = (src, v) => src.cache[v] ||= (() => {
-    const { V, N, part } = src, n = V.length, pos = [], nor = [], si = [], sw = [], keep = new Uint8Array(n), DOWNV = new THREE.Vector3(0, -1, 0);
-    const frames = KR_BONES.map(p => new THREE.Matrix4().makeTranslation(...p));        // ふつうは回転なし。A の腕だけ、モデルの腕の向きに回す
-    const torsoW = y => { const T = KR.torso; return y >= T[0][1] ? [0, 1, 0] : y >= T[1][1] ? [0, 1, (T[0][1] - y) / (T[0][1] - T[1][1])] : [1, 2, Math.min(1, (T[1][1] - y) / (T[1][1] - T[2][1]))]; };
-    const armQ = {};
-    if (v === 'A') for (const sd of [-1, 1]) {                                          // 上腕は肩の骨、前腕と手はひじの骨。骨の休みの向きをモデルの腕の向きにする
-      const m = KM.arm[sd].map(a => new THREE.Vector3(...a)), b = sd < 0 ? 3 : 7;
-      armQ['up' + sd] = [b, m[0], new THREE.Quaternion().setFromUnitVectors(DOWNV, m[1].clone().sub(m[0]).normalize())];
-      armQ['lo' + sd] = [b + 1, m[1], new THREE.Quaternion().setFromUnitVectors(DOWNV, m[2].clone().sub(m[1]).normalize())];
-      for (const k of ['up', 'lo']) { const [bi, , q] = armQ[k + sd]; frames[bi] = new THREE.Matrix4().compose(new THREE.Vector3(...KR_BONES[bi]), q, new THREE.Vector3(1, 1, 1)); }
-    }
-    const add = (i, p, b0, b1 = 0, w = 0) => { keep[i] = 1; pos.push(p.x, p.y, p.z); nor.push(N[i].x, N[i].y, N[i].z); si.push(b0, b1, 0, 0); sw.push(1 - w, w, 0, 0); };
-    for (let i = 0; i < n; i++) {
-      const p = V[i], w = part[i]; let o;
-      if (w === 'mic') { pos.push(0, 0, 0); nor.push(0, 1, 0); si.push(0, 0, 0, 0); sw.push(1, 0, 0, 0); continue; }
-      if (v === 'B') { add(i, new THREE.Vector3(p.x * 4.06, p.y * 4.06, (p.z + 0.005) * 4.06), 1); continue; }   // 丸ごと：高さ 1.42、胴のまん中の骨へ
-      if (w === 'head') { add(i, p.clone().sub(new THREE.Vector3(...KM.head)).multiplyScalar(6).add(new THREE.Vector3(...KR.head)), 13); continue; }
-      if (v === 'C') { pos.push(0, 0, 0); nor.push(0, 1, 0); si.push(0, 0, 0, 0); sw.push(1, 0, 0, 0); continue; }
-      if (w === 'torso') { o = new THREE.Vector3(p.x * 4.4, 0.25 + (p.y - KM.hip) * 4.4, (p.z - KM.tz) * 4.4 + 0.02); const [b0, b1, t] = torsoW(o.y); add(i, o, b0, b1, t); }
-      else if (w.startsWith('leg')) { const sd = +w.slice(3), h = KR.hip(sd); add(i, new THREE.Vector3(h[0] + (p.x - sd * 0.018) * 4.4, h[1] + (p.y - 0.14) * 1.8, h[2] + (p.z + 0.005) * 4.4), sd < 0 ? 11 : 12); }   // 脚は縦だけ縮めて地面に合わせる
-      else { const [bi, j] = armQ[w]; add(i, p.clone().sub(j).multiplyScalar(3.2).add(new THREE.Vector3(...KR_BONES[bi])), bi); }   // 腕：関節を骨の位置に合わせ、向きはモデルのまま
-    }
-    const ix = src.index, idx = [];
+    const ix = src.index.array, idx = [];
     for (let i = 0; i < ix.length; i += 3) if (keep[ix[i]] && keep[ix[i + 1]] && keep[ix[i + 2]]) idx.push(ix[i], ix[i + 1], ix[i + 2]);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); geo.setAttribute('uv', src.uv);
-    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4)); geo.setIndex(idx);
-    return { geo, inv: frames.map(m => m.clone().invert()) };
-  })();
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('uv', src.attributes.uv); geo.setIndex(idx);
+    mesh.material.side = THREE.DoubleSide;                                            // 切り口から向こうが透けないように
+    return { geo, mat: mesh.material };
+  });
   const SKINS = [
     { name: 'しろ' },
     { name: 'でんでん',                                                     // 黒いペンギンのフードつきパジャマ：顔だけ出し、おなかは白、足先はだいだい
@@ -696,9 +647,7 @@ function start() {
       leg: dye(LEG_GEO, (x, y) => y < -LEG / 2 + LEG_R * 0.2 ? BILL : INK),
       hat: () => hood.clone() },
     { name: '毒うさぎ', mat: bun, hat: () => bunHood.clone() },
-    { name: 'かるろA（部品）', model: 'A' },
-    { name: 'かるろB（丸ごと）', model: 'B' },
-    { name: 'かるろC（頭だけ）', model: 'C', chest: () => karuChest.clone(),          // 体はスーツの色分け
+    { name: 'かるろ', model: true, chest: () => karuChest.clone(),                     // 頭は 3D モデル、体はスーツの色分け
       torso: dye(TORSO_GEO, () => KARU.suit),
       arm: dye(ARM_GEO, (x, y) => y < -ARM + 0.01 ? KARU.skin : y < -ARM + 0.04 ? KARU.shirt : KARU.suit),
       leg: dye(LEG_GEO, (x, y) => y < -LEG / 2 + LEG_R * 0.1 ? KARU.shoe : KARU.suit) },
@@ -711,11 +660,9 @@ function start() {
     for (const o of [torso, a1, a2, l1, l2]) o.material = mat;
     fig.model?.removeFromParent(); fig.model = null; for (const o of fig.ms) o.visible = true;
     fig.chest?.removeFromParent(); fig.chest = s.chest?.(); if (fig.chest) fig.parts[0][0].add(fig.chest);
-    if (s.model) karuLoad().then(src => {                                             // 読みこめたら付けて、白い体（C は頭だけ）を隠す
+    if (s.model) karuLoad().then(({ geo, mat }) => {                                  // 読みこめたら頭の骨に付けて、白い頭を隠す（子は頭といっしょに消えるので、頭の横へ置く）
       if (fig.skin !== k || fig.model) return;
-      const { geo, inv } = karuBuild(src, s.model), p = fig.parts, m = new THREE.SkinnedMesh(geo, src.mat); m.frustumCulled = false; fig.g.add(m);
-      m.bind(new THREE.Skeleton([...p[0], ...p[2], ...p[3], p[4], p[5], p[1]], inv.map(x => x.clone())), new THREE.Matrix4());
-      fig.model = m; for (const o of s.model === 'C' ? [fig.ms[0]] : fig.ms) o.visible = false;
+      const m = new THREE.Mesh(geo, mat); fig.g.add(m); fig.model = m; fig.ms[0].visible = false; m.onBeforeRender = () => m.position.copy(fig.parts[1].position);
     }).catch(e => console.warn('かるろのモデルを読みこめません', e));
     fig.hat?.removeFromParent(); fig.hat = s.hat?.(); fig.ears = null;
     if (fig.hat) { head.add(fig.hat); const ears = []; fig.hat.traverse(o => { if (o.userData.ear) ears.push(o); }); if (ears.length) fig.ears = ears; }
@@ -1064,7 +1011,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.23'); roomApi.setup('adventure/room', 4); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.24'); roomApi.setup('adventure/room', 4); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
