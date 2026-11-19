@@ -8,9 +8,9 @@
    木箱は敷居で止まり、灯台へは持ちこめない（後半の板張りは鉄球で割る）。
    1 人なら：上げ下げのレバーを奥へ（フックが下りて開く）→ ハンドルで水を上げる → レバーを戻す（閉じて吊る）→ 前後のレバーを奥へ（戸口の板が割れる）→ 敷居を跳んで、通路から灯台の岸壁へ。
    変えたら `node tools/lint-adventure.mjs f` と `node tools/test-adventure.mjs f`（前半 s11.mjs・つなぎ f.mjs・後半 s12.mjs を続けて動かす）で確かめる */
-import s11 from './s11.js?v=4.22';
-import s12 from './s12.js?v=4.22';
-import { join } from '../adventure-join.js?v=4.22';
+import s11 from './s11.js?v=4.23';
+import s12 from './s12.js?v=4.23';
+import { join } from '../adventure-join.js?v=4.23';
 
 export default kit => join(kit, {
   name: 'はとば大工事', first: ['s11', s11], second: ['s12', s12], off: [-7, 72],

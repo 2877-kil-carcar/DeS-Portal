@@ -11,9 +11,9 @@
    落とした重い箱・でんちは、元の場所（桟橋・柱の上）へ戻る。
    1 人なら：N2 の北の縁からおりる → 重い箱を北へ押して板へ → LK で柱へ → でんちを持って南へおりる → ソケットへ → LK で港へ。
    変えたら `node tools/lint-adventure.mjs a` と `node tools/test-adventure.mjs a`（前半 s1.mjs・つなぎ a.mjs・後半 s2.mjs を続けて動かす）で確かめる */
-import s1 from './s1.js?v=4.22';
-import s2 from './s2.js?v=4.22';
-import { join } from '../adventure-join.js?v=4.22';
+import s1 from './s1.js?v=4.23';
+import s2 from './s2.js?v=4.23';
+import { join } from '../adventure-join.js?v=4.23';
 
 export default kit => join(kit, {
   name: 'ひだまり連絡船', first: ['s1', s1], second: ['s2', s2], off: [0, 86],
