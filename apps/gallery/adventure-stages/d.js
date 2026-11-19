@@ -7,9 +7,9 @@
    たんすは、橋の手前の敷居（0.5m）で止まり、天文台へは持ちこめない（天文台のソケットのふたは、天文台のたんすで割る）。でんちは、ソケットから出すと橋が沈むので、持って渡れない。
    1 人なら：裏庭から物置場へ → たんすを西へ、物置の戸の前まで押す → 南へ押して戸を割る → でんちをソケットへ → 敷居を跳んで、橋を渡って天文台の広場へ。
    変えたら `node tools/lint-adventure.mjs d` と `node tools/test-adventure.mjs d`（前半 s7.mjs・つなぎ d.mjs・後半 s5.mjs を続けて動かす）で確かめる */
-import s7 from './s7.js?v=4.24';
-import s5 from './s5.js?v=4.24';
-import { join } from '../adventure-join.js?v=4.24';
+import s7 from './s7.js?v=4.25';
+import s5 from './s5.js?v=4.25';
+import { join } from '../adventure-join.js?v=4.25';
 
 export default kit => join(kit, {
   name: 'ほしみ屋敷', first: ['s7', s7], second: ['s5', s5], off: [-96, 0],
