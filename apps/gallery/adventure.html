@@ -72,7 +72,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.25">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.26">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <button class="ui pill small" id="stageInfo" aria-label="ステージを選ぶ"></button>
@@ -114,8 +114,8 @@
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { makeWorld, makePlayer, kit, HANG } from './adventure-world.js?v=4.25';
-import { STAGES } from './adventure-stages.js?v=4.25';
+import { makeWorld, makePlayer, kit, HANG } from './adventure-world.js?v=4.26';
+import { STAGES } from './adventure-stages.js?v=4.26';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -622,9 +622,9 @@ function start() {
   })();
   /* かるろ（頭だけ 3D モデル）：禁断のかるろのモデル（軽くしたもの）から、あごより上（顔・髪・耳）だけを切り出して頭の骨に付ける。体はスーツの色分け。
      頭は体と別に揺れるので、首はつながず、あえて少し浮かせる（すき間が「首なし人形」の形として見えるように、えりの上に一定の間をあける） */
-  const KM_HEAD = [0.002, 0.3, -0.006], KM_CHIN = 0.268, HEAD_LIFT = 0.035;          // モデルの頭の中心・あごの高さ。頭を体の上にどれだけ浮かせるか
+  const KM_HEAD = [0.002, 0.3, -0.006], KM_CHIN = 0.268, HEAD_LIFT = 0.0175;          // モデルの頭の中心・あごの高さ。頭を体の上にどれだけ浮かせるか
   let karuSrc = null;
-  const karuLoad = () => karuSrc ||= new GLTFLoader().loadAsync('../karuro/assets/meshy-reporter-skin.glb?v=4.25').then(g => {
+  const karuLoad = () => karuSrc ||= new GLTFLoader().loadAsync('../karuro/assets/meshy-reporter-skin.glb?v=4.26').then(g => {
     let mesh; g.scene.updateMatrixWorld(true); g.scene.traverse(o => { if (o.isMesh) mesh = o; });
     const src = mesh.geometry, n = src.attributes.position.count, pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), keep = new Uint8Array(n);
     const nm = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld), c = new THREE.Vector3(...KM_HEAD), V = new THREE.Vector3(), N = new THREE.Vector3();
@@ -1011,7 +1011,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.25'); roomApi.setup('adventure/room', 4); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.26'); roomApi.setup('adventure/room', 4); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
