@@ -11,9 +11,9 @@
      人は、青い皿から飛ばされても、灯台に届かない（人は箱より手前に落ちる）。高台から 4 人で積んで投げても、灯台（15）には届かない。橋の 14m も、投げては渡れない。
    1 人なら：見はり台の大砲で庭へ → 扇風機を高台の北のかべぎわへ → 荷物を持って風で高台へ → 荷物を青い皿へ → 赤い皿を踏む → 橋を渡って、雲の谷の井戸のふちから広場へ。
    変えたら `node tools/lint-adventure.mjs b` と `node tools/test-adventure.mjs b`（前半 s3.mjs・つなぎ b.mjs・後半 s6.mjs を続けて動かす）で確かめる */
-import s3 from './s3.js?v=4.17';
-import s6 from './s6.js?v=4.17';
-import { join } from '../adventure-join.js?v=4.17';
+import s3 from './s3.js?v=4.20';
+import s6 from './s6.js?v=4.20';
+import { join } from '../adventure-join.js?v=4.20';
 
 export default kit => join(kit, {
   name: 'かざぐるま雲の谷', first: ['s3', s3], second: ['s6', s6], off: [78, -30],

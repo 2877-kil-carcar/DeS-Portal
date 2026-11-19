@@ -34,6 +34,9 @@
   }
   #stageList { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }              /* 2 列にならべる：スマホの横向きでも、下の「もどる」「とじる」まで見える */
   #stageList .pill { font-size: 13px; padding: 10px 6px; }
+  #skinList { display: flex; flex-wrap: wrap; gap: 8px; }
+  #skinList .pill { font-size: 13px; padding: 8px 14px; }
+  #skinList .pill[aria-pressed="true"] { outline: 2px solid #FFE566; }
   #stagePanel .row { display: flex; gap: 8px; align-items: center; }
   #toSave { flex: 1; }
   #roomPanel, #stagePanel { inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; background: rgba(5,2,3,0.8); }
@@ -69,7 +72,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.17">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.20">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <button class="ui pill small" id="stageInfo" aria-label="ステージを選ぶ"></button>
@@ -79,6 +82,8 @@
     <h2>🗺 ステージを選ぶ</h2>
     <p>選んだステージを最初から始めます。部屋にいるときは、全員がそのステージへ移ります。</p>
     <div id="stageList"></div>
+    <h2>👕 きがえる</h2>
+    <div id="skinList" role="group" aria-label="スキンを選ぶ"></div>
     <div class="row"><button class="pill" id="toSave">セーブ地点へもどる</button><button class="pill small" id="stageClose">とじる</button></div>
   </div>
 </div>
@@ -108,8 +113,8 @@
    キャラの体（ラグドール）は美術館 museum.html と同じ作り。
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
-import { makeWorld, makePlayer, kit, HANG } from './adventure-world.js?v=4.17';
-import { STAGES } from './adventure-stages.js?v=4.17';
+import { makeWorld, makePlayer, kit, HANG } from './adventure-world.js?v=4.20';
+import { STAGES } from './adventure-stages.js?v=4.20';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -531,22 +536,93 @@ function start() {
     }
   };
   function makeFigure() {
-    const g = new THREE.Group();
-    const head = new THREE.Mesh(HEAD_GEO, white); g.add(head);
+    const g = new THREE.Group(), ms = [];                                             // ms：頭・胴・腕 2 本・脚 2 本の形（スキンで色を替える）
+    const head = new THREE.Mesh(HEAD_GEO, white); g.add(head); ms.push(head);
     const soft = geo => {
-      const m = new THREE.SkinnedMesh(geo, white), bones = Array.from({ length: geo.userData.n + 1 }, (_, i) => { const b = new THREE.Bone(); b.position.y = -geo.userData.len * i; g.add(b); return b; });
+      const m = new THREE.SkinnedMesh(geo, white); ms.push(m); const bones = Array.from({ length: geo.userData.n + 1 }, (_, i) => { const b = new THREE.Bone(); b.position.y = -geo.userData.len * i; g.add(b); return b; });
       m.frustumCulled = false; g.add(m); g.updateMatrixWorld(true); m.bind(new THREE.Skeleton(bones)); return bones;   // 骨で動く形は、元の位置では「画面の外」を決められない
     };
     const limb = () => {                                                              // 付け根の丸みを胴の中へ埋める：どう振っても胴とつながって見える
-      const pivot = new THREE.Group(), o = new THREE.Mesh(LEG_GEO, white);
+      const pivot = new THREE.Group(), o = new THREE.Mesh(LEG_GEO, white); ms.push(o);
       o.position.y = -LEG / 2; pivot.add(o); g.add(pivot); return pivot;
     };
     scene.add(g);
     // parts：胴の骨・頭・両腕の骨・脚 2 本。belly：おなかの粒（胴の真ん中に、ばねでついてくるだけ。遅れたぶん、胴が曲がってぷるぷるする）
     // ph：揺れのずれ（人ごとに違う。3 人がそろって揺れないように）。残りは pose が使う、その人の動きの覚え
-    return { g, parts: [soft(TORSO_GEO), head, soft(ARM_GEO), soft(ARM_GEO), limb(), limb()], ph: Math.random() * TAU, k: Float32Array.from(FORCE[0]),
+    return { g, ms, skin: 0, parts: [soft(TORSO_GEO), head, soft(ARM_GEO), soft(ARM_GEO), limb(), limb()], ph: Math.random() * TAU, k: Float32Array.from(FORCE[0]),
       belly: { p: new THREE.Vector3(), v: new THREE.Vector3(), t: new THREE.Vector3() },
       x: 1e9, y: 0, z: 0, vel: new THREE.Vector3(), vx: 0, vy: 0, vz: 0, sx: 0, sz: 0, walkT: 0, airT: 0, dip: 0, splat: 0, fell: false, grip: 0, mode: 0, mix: 1 };
+  }
+  /* スキン（着がえ）：見た目だけを替える。当たりと動きは同じ。番号は部屋の仲間へ s[9] で伝わる（古い版は読まないだけ）。
+     dye は形を写して、点ごとの色（ローカル座標 x, y, z から決める）を塗る。胴・腕の +z が体の前 */
+  const dye = (geo, f) => { const o = geo.clone(), p = o.attributes.position, c = []; for (let i = 0; i < p.count; i++) c.push(...f(p.getX(i), p.getY(i), p.getZ(i)).toArray()); o.setAttribute('color', new THREE.Float32BufferAttribute(c, 3)); return o; };
+  const cloth = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });   // 着ぐるみの布：つやを消す
+  const INK = new THREE.Color(0x24262c), CREAM = new THREE.Color(0xf3efe6), BILL = new THREE.Color(0xf0a63a);
+  const pen = { mat: new THREE.MeshStandardMaterial({ color: 0x24262c, roughness: 0.95, side: THREE.DoubleSide }), bill: std(0xd9363e, 0.55), eye: std(0xffffff, 0.5), dot: std(0x15161a, 0.3), pom: std(0xf5f2ea, 1), scarf: std(0xc8323a, 0.95) };
+  /* フードの殻（頭の子。+z が前）：頭より一回り大きい殻の、顔の前を楕円に開けたもの（縁どりなし）。形は 1 つだけ作り、フードどうしで使い回す */
+  const HOOD_R = HEAD_R * 1.12, hoodShell = (() => {
+    const R = HOOD_R;
+    // 殻は、穴の中心 C（少し下向きの前）から測った角度 th と、まわりの角度 ph の格子で作る。th は穴の縁（楕円：横 0.52・縦 0.455 ラジアン）から真後ろまで。
+    // 縁が格子の 1 行目になるので、なめらかな楕円の穴になる（球の三角形を消すと、縁がギザギザになる）
+    const C = new THREE.Vector3(0, -0.2, 0.98).normalize(), X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3().crossVectors(C, X), pos = [], idx = [], N = 40, M = 72;
+    for (let i = 0; i <= N; i++) for (let j = 0; j <= M; j++) {
+      const ph = j / M * TAU, edge = 1 / Math.hypot(Math.sin(ph) / 0.52, Math.cos(ph) / 0.455), th = edge + (Math.PI - edge) * i / N;
+      const d = X.clone().multiplyScalar(Math.sin(th) * Math.sin(ph)).addScaledVector(Y, Math.sin(th) * Math.cos(ph)).addScaledVector(C, Math.cos(th));
+      pos.push(d.x * R, d.y * R, d.z * R);
+      if (i < N && j < M) { const a = i * (M + 1) + j, b = a + M + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+    }
+    const shell = new THREE.BufferGeometry(); shell.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); shell.setIndex(idx); shell.computeVertexNormals();
+    return shell;
+  })();
+  // ペンギンのフード：くちばしは穴の上（おでこ）に付ける。形は 1 回だけ作って、着る人ごとに写す
+  const hood = (() => {
+    const R = HOOD_R, h = new THREE.Group(); h.add(new THREE.Mesh(hoodShell, pen.mat));
+    const at = (u, v, r = R) => new THREE.Vector3(u * r, v * r, Math.sqrt(Math.max(0, 1 - u * u - v * v)) * r);   // 殻の上の点
+    const stick = (geo, m, u, v, s, out = 0) => { const o = new THREE.Mesh(geo, m); o.position.copy(at(u, v, R + out)); o.lookAt(o.position.clone().multiplyScalar(2)); o.scale.set(...s); h.add(o); return o; };   // 殻の面に沿わせて貼る
+    const ball = new THREE.SphereGeometry(HEAD_R, 24, 16);
+    // フードの顔：目はなし。平たい赤いくちばしだけ
+    stick(ball, pen.bill, 0, 0.34, [0.28, 0.11, 0.07], 0.005);   // 布に縫いつけた平たいくちばし（前へは出さない）
+    // でんぴーの目印：首の赤いマフラー（白い玉もよう。頭といっしょに動く）
+    const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.62 * HEAD_R, 0.16 * HEAD_R, 10, 28), pen.scarf); scarf.rotation.x = Math.PI / 2; scarf.position.y = -0.92 * HEAD_R; h.add(scarf);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.24 * HEAD_R, 0.5 * HEAD_R, 0.09 * HEAD_R), pen.scarf); tail.position.set(0.3 * HEAD_R, -1.2 * HEAD_R, 0.62 * HEAD_R); tail.rotation.z = 0.25; h.add(tail);
+    for (let k = 0; k < 14; k++) { const a = k / 14 * TAU, o = new THREE.Mesh(ball, pen.pom); o.scale.set(0.07, 0.07, 0.03); o.position.set(Math.sin(a) * 0.78 * HEAD_R, (k % 2 ? -0.86 : -0.98) * HEAD_R, Math.cos(a) * 0.78 * HEAD_R); o.lookAt(0, o.position.y, 0); o.rotateY(Math.PI); h.add(o); }   // 輪の外がわの玉
+    for (const [x, y] of [[-0.06, 0.14], [0.06, -0.05], [-0.04, -0.17]]) { const o = new THREE.Mesh(ball, pen.pom); o.scale.set(0.06, 0.06, 0.02); o.position.set(x * HEAD_R, y * HEAD_R, 0.05 * HEAD_R); tail.add(o); }   // 垂れた端の玉
+    return h;
+  })();
+  // むらさきの長い耳のフード：耳は頭のてっぺんから外へ立ち上がり、先が外がわへ垂れる
+  const bun = new THREE.MeshStandardMaterial({ color: 0x8b45d8, roughness: 0.95, side: THREE.DoubleSide });
+  const bunHood = (() => {
+    // 耳は 1 本の曲がった管：付け根から上へのび、外へ弧をえがいて、先が下へ垂れる。前後に平たくつぶし、先は丸くふさぐ
+    const R = HEAD_R, h = new THREE.Group(), W = 0.36 * R;
+    const path = new THREE.CatmullRomCurve3([[0, 0], [0.04, 0.5], [0.22, 0.95], [0.62, 1.18], [1.08, 1.12], [1.48, 0.86]].map(([x, y]) => new THREE.Vector3(x * R, y * R, 0)));
+    // 先へいくほど太く：管の輪 i ごとに、中心からの広がりを付け根 0.55 倍 → 先 1.45 倍にする
+    const ear = new THREE.TubeGeometry(path, 48, W, 16, false), fat = t => 0.55 + 0.9 * t, ep = ear.attributes.position, V = new THREE.Vector3();
+    for (let i = 0; i <= 48; i++) { const c = path.getPointAt(i / 48), k = fat(i / 48); for (let j = 0; j <= 16; j++) { const n = i * 17 + j; V.fromBufferAttribute(ep, n).sub(c).multiplyScalar(k).add(c); ep.setXYZ(n, V.x, V.y, V.z); } }
+    ear.computeVertexNormals();
+    const cap = new THREE.SphereGeometry(W * fat(1), 16, 12), end = path.getPointAt(1);
+    h.add(new THREE.Mesh(hoodShell, bun));
+    for (const s of [-1, 1]) {
+      const e = new THREE.Group(); e.position.set(s * 0.32 * HOOD_R, 0.78 * HOOD_R, -0.05 * HOOD_R); e.scale.set(s, 1, 0.4); h.add(e);   // s で左右を反転（x を外向きに）
+      e.add(new THREE.Mesh(ear, bun)); const c = new THREE.Mesh(cap, bun); c.position.copy(end); e.add(c);
+    }
+    return h;
+  })();
+  const SKINS = [
+    { name: 'しろ' },
+    { name: 'でんでん',                                                     // 黒いペンギンのフードつきパジャマ：顔だけ出し、おなかは白、足先はだいだい
+      torso: dye(TORSO_GEO, (x, y, z) => z > TORSO_R * 0.3 && y < TORSO_R * 0.4 ? CREAM : INK),
+      arm: dye(ARM_GEO, () => INK),
+      leg: dye(LEG_GEO, (x, y) => y < -LEG / 2 + LEG_R * 0.2 ? BILL : INK),
+      hat: () => hood.clone() },
+    { name: '毒うさぎ', mat: bun, hat: () => bunHood.clone() },                // 全身むらさき、長い耳のフード
+  ];
+  // 体 fig の見た目をスキン k にする（同じなら何もしない）
+  function dress(fig, k) {
+    k = SKINS[k] ? k | 0 : 0; if (fig.skin === k) return; fig.skin = k;
+    const s = SKINS[k], [head, torso, a1, a2, l1, l2] = fig.ms, mat = s.mat || (s.torso ? cloth : white);
+    torso.geometry = s.torso || TORSO_GEO; a1.geometry = a2.geometry = s.arm || ARM_GEO; l1.geometry = l2.geometry = s.leg || LEG_GEO;
+    for (const o of [torso, a1, a2, l1, l2]) o.material = mat;
+    fig.hat?.removeFromParent(); fig.hat = s.hat?.(); if (fig.hat) head.add(fig.hat);
   }
   // 粒の下にある足場の高さ（y より上の足場は数えない）。仲間の体も数えない：数えると、自分の体の箱の上に、自分の頭や手が乗ってしまう
   const floorAt = (x, z, y) => {
@@ -731,6 +807,7 @@ function start() {
     }
   }
   const hero = makeFigure();
+  try { dress(hero, +localStorage.getItem('adventure:skin') || 0); } catch (_) {}   // 前に選んだスキン
   // 足元の影：空中でも真下の足場に落とす（跳ぶ先の見当をつけるため）
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.32, 24), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0.35, depthWrite: false }));
   shadow.rotation.x = -Math.PI / 2; shadow.renderOrder = 100; scene.add(shadow);
@@ -857,7 +934,7 @@ function start() {
         r = { fig: makeFigure(), tag: nameTag(name, TAG_COLORS[order.indexOf(rid) % TAG_COLORS.length]), target: q.s, walkT: 0, name, mute: -1 };
         r.fig.g.add(r.tag); r.fig.g.position.set(+q.s[0] || 0, +q.s[1] || 0, +q.s[2] || 0); remotes.set(rid, r);
       }
-      r.target = q.s.map(v => +v || 0);
+      r.target = q.s.map(v => +v || 0); dress(r.fig, r.target[9]);
       // 持っている箱（s[6]）とハンドル（s[7]）は、いまの出発（s[8] が run と同じ）で送られたものだけを使う。ステージを替えた直後は、仲間の前のステージの値が残っている
       if (q.s.length > 8 && r.target[8] !== run) r.target[6] = r.target[7] = 0;      // s[8] のない古い版の仲間は、これまでどおり
     }
@@ -883,7 +960,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.17'); roomApi.setup('adventure/room', 4); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.20'); roomApi.setup('adventure/room', 4); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });
@@ -901,6 +978,12 @@ function start() {
       b.addEventListener('click', () => { stagePanel.hidden = true; const n = nonce(); if (room) roomApi.setMatch({ stage: i, n, half }); else loadStage(i, n, half); });
       $('stageList').append(b);
     }
+  });
+  // きがえ：押したらすぐ着がえる（部屋の仲間へは次の位置の知らせで伝わる）。選んだものは次に開いたときも使う
+  const skinButtons = SKINS.map((s, k) => {
+    const b = document.createElement('button'); b.className = 'pill'; b.textContent = s.name;
+    b.addEventListener('click', () => { dress(hero, k); try { localStorage.setItem('adventure:skin', k); } catch (_) {} skinButtons.forEach((o, j) => o.setAttribute('aria-pressed', j === hero.skin)); });
+    b.setAttribute('aria-pressed', k === hero.skin); $('skinList').append(b); return b;
   });
   $('stageInfo').addEventListener('click', () => { stagePanel.hidden = false; });
   $('stageClose').addEventListener('click', () => { stagePanel.hidden = true; });
@@ -1135,7 +1218,7 @@ function start() {
         sendT = 0;
         // s = [x, y, z, 向き, 歩いているか, 動作, 持っている箱の番号 + 1, 回しているハンドルの番号 + 1, 何回目の出発か（run）]（箱とハンドルは、なければ 0。古い版は s[7]・s[8] を読まないだけ）。
         // とって・ロープ・ふうせん（ropes の番号 i）につかまっている間の s[7] は -(i + 1)、仲間がつかんでいる点をあとからつかんだなら -(i + 1.5)（古い版は、負の値を数えない）
-        const s = [me.x, me.y, me.z, me.ry].map(v => Math.round(v * 100) / 100).concat(me.walk ? 1 : 0, act, me.carry ? me.carry.id + 1 : 0, me.crank != null ? me.crank + 1 : me.rope != null ? -(me.rope + 1 + me.slot / 2) : 0, run);
+        const s = [me.x, me.y, me.z, me.ry].map(v => Math.round(v * 100) / 100).concat(me.walk ? 1 : 0, act, me.carry ? me.carry.id + 1 : 0, me.crank != null ? me.crank + 1 : me.rope != null ? -(me.rope + 1 + me.slot / 2) : 0, run, hero.skin);   // s[9]：スキンの番号
         if (s.join() !== lastSent) { lastSent = s.join(); roomApi.send(s); }
         // 箱の場所は、置いて止まってから知らせる（落ちている途中の場所は書かない）。動く床の上なら、その床の番号と、床から見た場所を書く
         // 知らされた場所へ寄せている途中の重い箱（c.net）は書かない：あとから入った端末で、中二階の下を通って寄る途中に壁からすべり出た場所を、仲間へ広めない
@@ -1177,6 +1260,7 @@ function start() {
     renderer.render(scene, camera);
   };
   loadStage(0, 0);
+  if (!PREVIEW) stagePanel.hidden = false;                                            // 開始時に、ステージと着がえを選べる（とじれば、ステージ 1 から）
   renderer.setAnimationLoop(frame);
 
   window.__adv = { get me() { return me; }, get world() { return world; }, get stage() { return stageIndex; }, get state() { return { grabbing, holding, heldBy, run, drag: dragMode(), room: room?.code, players: remotes.size + 1 }; },
