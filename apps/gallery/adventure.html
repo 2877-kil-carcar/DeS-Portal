@@ -72,7 +72,7 @@
 <body>
 <div id="stage">
 <canvas id="c"></canvas>
-<a class="ui pill" id="back" href="index.html?v=4.20">← ギャラリーへ</a>
+<a class="ui pill" id="back" href="index.html?v=4.21">← ギャラリーへ</a>
 <button class="ui pill" id="roomBtn">👥 みんなで冒険</button>
 <div class="ui" id="roomHud" hidden><span id="roomInfo"></span><button class="pill small" id="roomCopy">コピー</button><button class="pill small" id="roomLeave">出る</button></div>
 <button class="ui pill small" id="stageInfo" aria-label="ステージを選ぶ"></button>
@@ -113,8 +113,8 @@
    キャラの体（ラグドール）は美術館 museum.html と同じ作り。
    shortcut: 体の作りと部屋の画面は museum.html から写してある（あちらは 1 つの関数の中にあり、そのままは読み込めない）。3 つ目の遊びを作るときは共通の部品に切り出す */
 import * as THREE from 'three';
-import { makeWorld, makePlayer, kit, HANG } from './adventure-world.js?v=4.20';
-import { STAGES } from './adventure-stages.js?v=4.20';
+import { makeWorld, makePlayer, kit, HANG } from './adventure-world.js?v=4.21';
+import { STAGES } from './adventure-stages.js?v=4.21';
 
 const $ = id => document.getElementById(id);
 try { start(); } catch (e) { console.error(e); $('msgText').textContent = 'この端末では3D表示を開始できませんでした。'; $('msg').style.display = 'flex'; }
@@ -602,7 +602,7 @@ function start() {
     const cap = new THREE.SphereGeometry(W * fat(1), 16, 12), end = path.getPointAt(1);
     h.add(new THREE.Mesh(hoodShell, bun));
     for (const s of [-1, 1]) {
-      const e = new THREE.Group(); e.position.set(s * 0.32 * HOOD_R, 0.78 * HOOD_R, -0.05 * HOOD_R); e.scale.set(s, 1, 0.4); h.add(e);   // s で左右を反転（x を外向きに）
+      const e = new THREE.Group(); e.position.set(s * 0.32 * HOOD_R, 0.78 * HOOD_R, -0.05 * HOOD_R); e.scale.set(s, 1, 0.85); e.userData.ear = s; h.add(e);   // s で左右を反転（x を外向きに）。前後はほぼ丸いまま
       e.add(new THREE.Mesh(ear, bun)); const c = new THREE.Mesh(cap, bun); c.position.copy(end); e.add(c);
     }
     return h;
@@ -622,7 +622,8 @@ function start() {
     const s = SKINS[k], [head, torso, a1, a2, l1, l2] = fig.ms, mat = s.mat || (s.torso ? cloth : white);
     torso.geometry = s.torso || TORSO_GEO; a1.geometry = a2.geometry = s.arm || ARM_GEO; l1.geometry = l2.geometry = s.leg || LEG_GEO;
     for (const o of [torso, a1, a2, l1, l2]) o.material = mat;
-    fig.hat?.removeFromParent(); fig.hat = s.hat?.(); if (fig.hat) head.add(fig.hat);
+    fig.hat?.removeFromParent(); fig.hat = s.hat?.(); fig.ears = null;
+    if (fig.hat) { head.add(fig.hat); const ears = []; fig.hat.traverse(o => { if (o.userData.ear) ears.push(o); }); if (ears.length) fig.ears = ears; }
   }
   // 粒の下にある足場の高さ（y より上の足場は数えない）。仲間の体も数えない：数えると、自分の体の箱の上に、自分の頭や手が乗ってしまう
   const floorAt = (x, z, y) => {
@@ -805,6 +806,14 @@ function start() {
       pivot.position.copy(L[2 + i]); pivot.scale.y = (len + LEG_R) / (LEG + LEG_R);    // 縮んだ脚は、短く描く
       pivot.quaternion.setFromUnitVectors(DOWN, VA.normalize());
     }
+    // 長い耳（スキン）：体の動きに遅れて揺れる。前へ進む・加速すると後ろへなびき、横へ曲がると外へ振られ、上下の動きと歩みで先がはねる。
+    // 3 つの角度をそれぞれ、ばね（よく弾む）で目標へ寄せる。体の速さ（vf・af・ar・vy）は自分も仲間も同じ計算なので、どの端末でも同じように揺れる
+    if (fig.ears) {
+      const q = fig.earS ||= [0, 0, 0, 0, 0, 0], k = Math.min(dt, 0.05);
+      const goal = [clamp(-0.1 * vf - 0.22 * af, -0.7, 0.5), clamp(-0.3 * ar, -0.5, 0.5), clamp(0.07 * fig.vy, -0.5, 0.5) + Math.sin(fig.walkT * 2) * 0.12 * gait];
+      for (let i = 0; i < 3; i++) { q[3 + i] += ((goal[i] - q[i]) * 70 - q[3 + i] * 7) * k; q[i] += q[3 + i] * k; }
+      for (const e of fig.ears) { e.rotation.x = q[0]; e.rotation.z = q[1] - e.userData.ear * q[2]; }
+    }
   }
   const hero = makeFigure();
   try { dress(hero, +localStorage.getItem('adventure:skin') || 0); } catch (_) {}   // 前に選んだスキン
@@ -960,7 +969,7 @@ function start() {
     if (!create && code.length !== 6) { roomMsg('部屋のコードは6文字です。'); return; }
     roomMsg('接続しています…'); $('roomCreate').disabled = $('roomJoin').disabled = true;
     try {
-      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.20'); roomApi.setup('adventure/room', 4); }
+      if (!roomApi) { roomApi = await import('./museum-room.js?v=4.21'); roomApi.setup('adventure/room', 4); }
       const name = roomApi.cleanName($('roomName').value) || 'ななし';
       created = create;
       await roomApi.enter({ create, code, name, onRoom, onGone: () => leftRoom('部屋から出ました。通信が切れたか、部屋が作り直されました。') });

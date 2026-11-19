@@ -5,9 +5,9 @@
      いかだとふうせんの 2 つを続けて使う。北の島から岩は 18m、岩から港の広場は 14m（4 人で積んで投げても、せんぷうき箱の風でも届かない。高い所の風は 9m から上：せんぷうき箱で浮いて仲間を投げても入らない）。
      ふうせんは 2 人では重くて上がらない：1 人ずつ渡る（放したふうせんは岩へ戻る。いかだは、だれも乗らないまま 8 秒で北の島へ戻る）。
    変えたら `node tools/lint-adventure.mjs e` と `node tools/test-adventure.mjs e`（前半 s9.mjs・つなぎ e.mjs・後半 s10.mjs を続けて動かす）で確かめる */
-import s9 from './s9.js?v=4.20';
-import s10 from './s10.js?v=4.20';
-import { join } from '../adventure-join.js?v=4.20';
+import s9 from './s9.js?v=4.21';
+import s10 from './s10.js?v=4.21';
+import { join } from '../adventure-join.js?v=4.21';
 
 export default kit => join(kit, {
   name: 'かぜのり群島', first: ['s9', s9], second: ['s10', s10], off: [0, 89],
